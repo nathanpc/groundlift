@@ -12,5 +12,9 @@
 		},
 	],
 	"makefile.compileCommandsPath": "${workspaceFolder}/.vscode/compile_commands.json",
-	"sonarlint.pathToCompileCommands": "${workspaceFolder}/.vscode/compile_commands.json"
+	"sonarlint.pathToCompileCommands": "${workspaceFolder}/.vscode/compile_commands.json",
+	"cSpell.words": [
+		"Avahi",
+		"libavahi"
+	]
 }
