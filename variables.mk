@@ -29,5 +29,12 @@ ifeq ($(PLATFORM), Darwin)
 endif
 
 # Flags
-CFLAGS  = -Wall -Wno-psabi --std=c89
+CFLAGS  = -Wall -Wno-psabi --std=c99
 LDFLAGS =
+LIBS    =
+
+# Handle Linux-specific flags.
+ifeq ($(PLATFORM), Linux)
+	CFLAGS += $(shell pkg-config --cflags avahi-client)
+	LIBS   += $(shell pkg-config --libs avahi-client)
+endif
