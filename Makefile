@@ -5,8 +5,13 @@
 
 include variables.mk
 
+# Source file names.
+SRCNAMES = main.c
+ifeq ($(PLATFORM), Linux)
+	SRCNAMES += avahi.c
+endif
+
 # Sources and Objects
-SRCNAMES  = main.c
 SOURCES  += $(addprefix $(SRCDIR)/, $(SRCNAMES))
 OBJECTS  := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(SOURCES))
 

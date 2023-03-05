@@ -35,6 +35,7 @@ LIBS    =
 
 # Handle Linux-specific flags.
 ifeq ($(PLATFORM), Linux)
+	CFLAGS += -DUSE_AVAHI
 	CFLAGS += $(shell pkg-config --cflags avahi-client)
 	LIBS   += $(shell pkg-config --libs avahi-client)
 endif
