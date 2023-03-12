@@ -29,7 +29,7 @@ ifeq ($(PLATFORM), Darwin)
 endif
 
 # Flags
-CFLAGS  = -Wall -Wno-psabi --std=c99
+CFLAGS  = -Wall -Wno-psabi --std=gnu89
 LDFLAGS =
 LIBS    =
 
