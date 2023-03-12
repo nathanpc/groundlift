@@ -8,9 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "mdnscommon.h"
+#include "tcpserver.h"
 #ifdef USE_AVAHI
 #include "avahi.h"
 #endif
+
+/* Private methods. */
+server_err_t test_server(void);
+mdns_err_t test_mdns(void);
 
 /**
  * Program's main entry point.
@@ -21,6 +27,24 @@
  * @return Application's return code.
  */
 int main(int argc, char **argv) {
+	return test_server();
+}
+
+/**
+ * Tests out the server functionality.
+ *
+ * @return Server return code.
+ */
+server_err_t test_server(void) {
+	return server_start(NULL, 1234);
+}
+
+/**
+ * Tests out the mDNS functionality.
+ *
+ * @return mDNS return code.
+ */
+mdns_err_t test_mdns(void) {
 	mdns_err_t err;
 
 	/* Initialize mDNS client and start the event loop. */
@@ -32,5 +56,5 @@ int main(int argc, char **argv) {
 	/* Free up everything related to mDNS. */
 	mdns_free();
 
-	return 0;
+	return MDNS_OK;
 }

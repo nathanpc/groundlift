@@ -15,9 +15,12 @@
 	"sonarlint.pathToCompileCommands": "${workspaceFolder}/.vscode/compile_commands.json",
 	"cSpell.words": [
 		"Avahi",
+		"EBIND",
+		"ESOCKET",
 		"libavahi",
 		"mdns",
 		"mdnscommon",
-		"mdnshelper"
+		"mdnshelper",
+		"tcpserver"
 	]
 }
