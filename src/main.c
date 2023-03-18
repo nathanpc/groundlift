@@ -36,7 +36,42 @@ int main(int argc, char **argv) {
  * @return Server return code.
  */
 server_err_t test_server(void) {
-	return server_start(NULL, 1234);
+	server_err_t err;
+	int sockfd;
+	struct sockaddr_storage conn_addr;
+	char qc;
+
+	/* Start the server and listen to incoming connections. */
+	err = server_start(NULL, 1234);
+	if (err)
+		return err;
+
+	/* Accept incoming connections. */
+	qc = '\0';
+	while (((sockfd = server_accept(&conn_addr)) != -1) && (qc != '%')) {
+		char buf[100];
+		size_t len;
+
+		if (send(sockfd, "Hello, world!", 13, 0) == -1)
+			perror("send");
+
+		while (qc != '%') {
+			if ((len = recv(sockfd, buf, 99, 0)) == -1) {
+				perror("recv");
+				break;
+			}
+			buf[len] = '\0';
+
+			printf("%s\n", buf);
+
+			qc = buf[0];
+		}
+
+		server_close(sockfd);
+	}
+
+	/* Stop the server. */
+	return server_stop();
 }
 
 /**
