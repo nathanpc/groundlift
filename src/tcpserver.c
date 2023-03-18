@@ -7,11 +7,15 @@
 
 #include "tcpserver.h"
 
-#include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+/* Private definitions. */
+#ifndef TCPSERVER_BACKLOG
+#define TCPSERVER_BACKLOG 10
+#endif /* TCPSERVER_BACKLOG */
 
 /* Private variables. */
 static int m_sock;
@@ -25,33 +29,9 @@ static int m_sock;
  * @return SERVER_OK if the initialization was successful.
  */
 server_err_t server_start(const char *addr, uint16_t port) {
-#if 0
-	struct addrinfo hints;
-	struct addrinfo *res;
-
-	/* Setup the socket hints and populate setup structure. */
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-	getaddrinfo(NULL, port, &hints, &res);
-
-	/* Create a new socket. */
-	m_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (m_sockfd == -1) {
-		perror("server_start@socket");
-		return SERVER_ERR_ESOCKET;
-	}
-
-	/* Bind ourselves to the address. */
-	if (bind(m_sockfd, res->ai_addr, res->ai_addrlen) == -1) {
-		perror("server_start@bind");
-		return SERVER_ERR_EBIND;
-	}
-#endif
 	struct sockaddr_in sock_addr;
 
-	/* Create a new socket. */
+	/* Create a new socket file descriptor. */
 	m_sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (m_sock == -1) {
 		perror("server_start@socket");
@@ -61,7 +41,7 @@ server_err_t server_start(const char *addr, uint16_t port) {
 	/* Setup the socket address structure for binding. */
 	memset(&sock_addr, 0, sizeof(struct sockaddr_in));
 	sock_addr.sin_family = AF_INET;
-	sock_addr.sin_port = htons(1234);
+	sock_addr.sin_port = htons(port);
 	sock_addr.sin_addr.s_addr = (addr == NULL) ? INADDR_ANY : inet_addr(addr);
 
 	/* Bind ourselves to the address. */
@@ -70,12 +50,73 @@ server_err_t server_start(const char *addr, uint16_t port) {
 		return SERVER_ERR_EBIND;
 	}
 
+	/* Start listening on our socket. */
+	if (listen(m_sock, TCPSERVER_BACKLOG) == -1) {
+		perror("server_start@listen");
+		return SERVER_ERR_ELISTEN;
+	}
+
+	return SERVER_OK;
+}
+
+/**
+ * Accepts an incoming connection.
+ *
+ * @param conn_addr Pointer to the struct that will hold the incoming connection
+ *					information.
+ *
+ * @return Accepted connection socket file descriptor or -1 in case of an error.
+ */
+int server_accept(struct sockaddr_storage *conn_addr) {
+	int conn_sockfd;
+	socklen_t addr_len;
+
+	/* Accept the new connection. */
+	addr_len = sizeof(struct sockaddr_storage);
+	conn_sockfd = accept(m_sock, (struct sockaddr *)conn_addr, &addr_len);
+
+	/* Handle errors. */
+	if (conn_sockfd == -1) {
+		perror("server_accept@accept");
+		return -1;
+	}
+
+	return conn_sockfd;
+}
+
+/**
+ * Closes a socket file descriptor and frees any resources allocated by it.
+ *
+ * @param sockfd Socket file descriptor to be closed.
+ *
+ * @return SERVER_OK if the socket was properly closed.
+ *		   SERVER_ERR_ECLOSE if the socket failed to close properly.
+ */
+server_err_t server_close(int sockfd) {
+	int ret;
+
+	/* Close the socket file descriptor. */
+#ifdef _WIN32
+	ret = closesocket(sockfd);
+#else
+	ret = close(sockfd);
+#endif /* _WIN32 */
+
+	/* Check for errors. */
+	if (ret == -1) {
+		perror("server_close@close");
+		return SERVER_ERR_ECLOSE;
+	}
+
 	return SERVER_OK;
 }
 
 /**
  * Stops the server and frees any resources allocated by it.
+ *
+ * @return SERVER_OK if the socket was properly closed.
+ *		   SERVER_ERR_ECLOSE if the socket failed to close properly.
  */
-void server_stop(void) {
-	//
+server_err_t server_stop(void) {
+	return server_close(m_sock);
 }

@@ -16,6 +16,8 @@
 	"cSpell.words": [
 		"Avahi",
 		"EBIND",
+		"ECLOSE",
+		"ELISTEN",
 		"ESOCKET",
 		"libavahi",
 		"mdns",
