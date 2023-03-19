@@ -271,7 +271,8 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
  *
- * @return TCP_OK if the operation was successful.
+ * @return TCP_OK if we received some data.
+ *         TCP_EVT_CONN_CLOSED if the connection was closed by the client.
  *         TCP_ERR_ERECV if the recv function failed.
  *
  * @see recv
@@ -289,6 +290,10 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 	/* Return the number of bytes sent. */
 	if (recv_len != NULL)
 		*recv_len = bytes_recv;
+
+	/* Check if the connection was closed gracefully by the client. */
+	if (bytes_recv == 0)
+		return TCP_EVT_CONN_CLOSED;
 
 	return TCP_OK;
 }

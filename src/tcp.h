@@ -20,7 +20,8 @@ extern "C" {
 
 /* TCP error codes. */
 typedef enum {
-	TCP_OK = 0,
+	TCP_EVT_CONN_CLOSED = -1,
+	TCP_OK,
 	TCP_ERR_ESOCKET,
 	TCP_ERR_EBIND,
 	TCP_ERR_ELISTEN,

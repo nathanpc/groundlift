@@ -39,7 +39,6 @@ tcp_err_t test_server(void) {
 	tcp_err_t err;
 	server_t *server;
 	server_conn_t *conn;
-	char qc;
 
 	/* Get a server handle. */
 	server = tcp_server_new(NULL, 1234);
@@ -52,8 +51,7 @@ tcp_err_t test_server(void) {
 		return err;
 
 	/* Accept incoming connections. */
-	qc = '\0';
-	while (((conn = tcp_server_conn_accept(server)) != NULL) && (qc != '%')) {
+	while ((conn = tcp_server_conn_accept(server)) != NULL) {
 		char buf[100];
 		size_t len;
 
@@ -62,20 +60,16 @@ tcp_err_t test_server(void) {
 		if (err)
 			goto close_conn;
 
-		/* Read some data until a % is sent. */
-		while (qc != '%') {
-			/* Read incoming data. */
-			err = tcp_server_conn_recv(conn, buf, 99, &len, false);
-			if (err)
-				break;
-
+		/* Read incoming data until the connection is closed by the client. */
+		while ((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
 			printf("%s\n", buf);
-
-			/* Check for the termination character. */
-			qc = buf[0];
 		}
+
+		/* Check if the connection was closed gracefully. */
+		if (err == TCP_EVT_CONN_CLOSED)
+			printf("Connection closed by the client.\n");
 
 close_conn:
 		/* Close the connection and free up any resources. */
