@@ -27,13 +27,37 @@ typedef enum {
 	SERVER_ERR_UNKNOWN
 } server_err_t;
 
+/* Server handle. */
+typedef struct {
+	int sockfd;
+
+	struct sockaddr_in addr_in;
+	socklen_t addr_in_size;
+} server_t;
+
+/* Server client connection handle. */
+typedef struct {
+	int sockfd;
+
+	struct sockaddr_storage addr;
+	socklen_t addr_size;
+} server_conn_t;
+
 /* Initialization and destruction. */
-server_err_t server_start(const char *addr, uint16_t port);
-server_err_t server_stop(void);
+server_t *server_new(const char *addr, uint16_t port);
+void server_free(server_t *server);
+
+/* Server lifecycle. */
+server_err_t server_start(server_t *server);
+server_err_t server_stop(server_t *server);
 
 /* Connection handling. */
-int server_accept(struct sockaddr_storage *conn_addr);
-server_err_t server_close(int sockfd);
+server_conn_t *server_conn_accept(server_t *server);
+server_err_t server_conn_close(server_conn_t *conn);
+void server_conn_free(server_conn_t *conn);
+
+/* Socket file descriptor handling. */
+server_err_t server_socket_close(int sockfd);
 
 #ifdef __cplusplus
 }

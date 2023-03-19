@@ -37,26 +37,31 @@ int main(int argc, char **argv) {
  */
 server_err_t test_server(void) {
 	server_err_t err;
-	int sockfd;
-	struct sockaddr_storage conn_addr;
+	server_t *server;
+	server_conn_t *conn;
 	char qc;
 
-	/* Start the server and listen to incoming connections. */
-	err = server_start(NULL, 1234);
+	/* Get a server handle. */
+	server = server_new(NULL, 1234);
+	if (server == NULL)
+		return SERVER_ERR_UNKNOWN;
+
+	/* Start the server and listen for incoming connections. */
+	err = server_start(server);
 	if (err)
 		return err;
 
 	/* Accept incoming connections. */
 	qc = '\0';
-	while (((sockfd = server_accept(&conn_addr)) != -1) && (qc != '%')) {
+	while (((conn = server_conn_accept(server)) != NULL) && (qc != '%')) {
 		char buf[100];
 		size_t len;
 
-		if (send(sockfd, "Hello, world!", 13, 0) == -1)
+		if (send(conn->sockfd, "Hello, world!", 13, 0) == -1)
 			perror("send");
 
 		while (qc != '%') {
-			if ((len = recv(sockfd, buf, 99, 0)) == -1) {
+			if ((len = recv(conn->sockfd, buf, 99, 0)) == -1) {
 				perror("recv");
 				break;
 			}
@@ -67,13 +72,19 @@ server_err_t test_server(void) {
 			qc = buf[0];
 		}
 
-		server_close(sockfd);
+		/* Close the connection and free up any resources. */
+		server_conn_close(conn);
+		server_conn_free(conn);
 	}
 
-	/* Stop the server. */
-	return server_stop();
+	/* Stop the server and free up any resources. */
+	err = server_stop(server);
+	server_free(server);
+
+	return err;
 }
 
+#ifdef USE_AVAHI
 /**
  * Tests out the mDNS functionality.
  *
@@ -93,3 +104,4 @@ mdns_err_t test_mdns(void) {
 
 	return MDNS_OK;
 }
+#endif /* USE_AVAHI */

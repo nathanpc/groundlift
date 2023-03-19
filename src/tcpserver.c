@@ -17,41 +17,83 @@
 #define TCPSERVER_BACKLOG 10
 #endif /* TCPSERVER_BACKLOG */
 
-/* Private variables. */
-static int m_sock;
-
 /**
- * Starts up the server listening on the specified port.
+ * Creates a brand new server handle object.
+ * @warning This function allocates memory that must be free'd by you.
  *
  * @param addr Address to bind ourselves to or NULL to use INADDR_ANY.
  * @param port Port to listen on.
  *
- * @return SERVER_OK if the initialization was successful.
+ * @return Newly allocated server handle object or NULL if we couldn't allocate
+ *         the object.
+ *
+ * @see server_free
  */
-server_err_t server_start(const char *addr, uint16_t port) {
-	struct sockaddr_in sock_addr;
+server_t *server_new(const char *addr, uint16_t port) {
+	server_t *server;
 
+	/* Allocate some memory for our handle object. */
+	server = (server_t *)malloc(sizeof(server_t));
+	if (server == NULL)
+		return NULL;
+
+	/* Ensure we have a known invalid state for our socket file descriptor. */
+	server->sockfd = -1;
+
+	/* Setup the socket address structure for binding. */
+	server->addr_in_size = sizeof(struct sockaddr_in);
+	memset(&server->addr_in, 0, server->addr_in_size);
+	server->addr_in.sin_family = AF_INET;
+	server->addr_in.sin_port = htons(port);
+	server->addr_in.sin_addr.s_addr =
+		(addr == NULL) ? INADDR_ANY : inet_addr(addr);
+
+	return server;
+}
+
+/**
+ * Frees up any resources allocated by the server.
+ *
+ * @param server Server handle object to be free'd.
+ *
+ * @see server_stop
+ */
+void server_free(server_t *server) {
+	/* Do we even need to do something? */
+	if (server == NULL)
+		return;
+
+	/* Free the object and NULL it out. */
+	free(server);
+	server = NULL;
+}
+
+/**
+ * Starts up the server.
+ *
+ * @param server Server handle object.
+ *
+ * @return SERVER_OK if the initialization was successful.
+ *
+ * @see server_stop
+ */
+server_err_t server_start(server_t *server) {
 	/* Create a new socket file descriptor. */
-	m_sock = socket(PF_INET, SOCK_STREAM, 0);
-	if (m_sock == -1) {
+	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (server->sockfd == -1) {
 		perror("server_start@socket");
 		return SERVER_ERR_ESOCKET;
 	}
 
-	/* Setup the socket address structure for binding. */
-	memset(&sock_addr, 0, sizeof(struct sockaddr_in));
-	sock_addr.sin_family = AF_INET;
-	sock_addr.sin_port = htons(port);
-	sock_addr.sin_addr.s_addr = (addr == NULL) ? INADDR_ANY : inet_addr(addr);
-
 	/* Bind ourselves to the address. */
-	if (bind(m_sock, (struct sockaddr *)&sock_addr, sizeof(struct sockaddr_in)) == -1) {
+	if (bind(server->sockfd, (struct sockaddr *)&server->addr_in,
+			 server->addr_in_size) == -1) {
 		perror("server_start@bind");
 		return SERVER_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
-	if (listen(m_sock, TCPSERVER_BACKLOG) == -1) {
+	if (listen(server->sockfd, TCPSERVER_BACKLOG) == -1) {
 		perror("server_start@listen");
 		return SERVER_ERR_ELISTEN;
 	}
@@ -60,39 +102,103 @@ server_err_t server_start(const char *addr, uint16_t port) {
 }
 
 /**
- * Accepts an incoming connection.
+ * Stops the server but doesn't free the resources allocated.
  *
- * @param conn_addr Pointer to the struct that will hold the incoming connection
- *					information.
+ * @param server Server handle object.
  *
- * @return Accepted connection socket file descriptor or -1 in case of an error.
+ * @return SERVER_OK if the socket was properly closed.
+ *         SERVER_ERR_ECLOSE if the socket failed to close properly.
+ *
+ * @see server_free
  */
-int server_accept(struct sockaddr_storage *conn_addr) {
-	int conn_sockfd;
-	socklen_t addr_len;
+server_err_t server_stop(server_t *server) {
+	server_err_t err;
 
-	/* Accept the new connection. */
-	addr_len = sizeof(struct sockaddr_storage);
-	conn_sockfd = accept(m_sock, (struct sockaddr *)conn_addr, &addr_len);
+	/* Close the socket file descriptor and set it to a known invalid state. */
+	err = server_socket_close(server->sockfd);
+	server->sockfd = -1;
 
-	/* Handle errors. */
-	if (conn_sockfd == -1) {
-		perror("server_accept@accept");
-		return -1;
-	}
-
-	return conn_sockfd;
+	return err;
 }
 
 /**
- * Closes a socket file descriptor and frees any resources allocated by it.
+ * Accepts an incoming connection.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param server    Server handle object.
+ *
+ * @return Newly allocated server client connection handle object.
+ *         NULL in case of an error.
+ *
+ * @see server_conn_free
+ */
+server_conn_t *server_conn_accept(server_t *server) {
+	server_conn_t *conn;
+
+	/* Allocate some memory for our handle object. */
+	conn = (server_conn_t *)malloc(sizeof(server_conn_t));
+	if (conn == NULL)
+		return NULL;
+
+	/* Accept the new connection. */
+	conn->addr_size = sizeof(struct sockaddr_storage);
+	conn->sockfd = accept(server->sockfd, (struct sockaddr *)&conn->addr,
+						  &conn->addr_size);
+
+	/* Handle errors. */
+	if (conn->sockfd == -1) {
+		perror("server_accept@accept");
+		return NULL;
+	}
+
+	return conn;
+}
+
+/**
+ * Closes a server client's remote connection.
+ *
+ * @param conn Server client connection handle object.
+ *
+ * @return SERVER_OK if everything went fine.
+ *
+ * @see server_conn_free
+ */
+server_err_t server_conn_close(server_conn_t *conn) {
+	server_err_t err;
+
+	/* Close the socket file descriptor and set it to a known invalid state. */
+	err = server_socket_close(conn->sockfd);
+	conn->sockfd = -1;
+
+	return err;
+}
+
+/**
+ * Frees up any resources allocated by a server connection object.
+ *
+ * @param conn Server client connection handle object to be free'd.
+ *
+ * @see server_conn_close
+ */
+void server_conn_free(server_conn_t *conn) {
+	/* Do we even need to do something? */
+	if (conn == NULL)
+		return;
+
+	/* Free the object and NULL it out. */
+	free(conn);
+	conn = NULL;
+}
+
+/**
+ * Closes a socket file descriptor.
  *
  * @param sockfd Socket file descriptor to be closed.
  *
  * @return SERVER_OK if the socket was properly closed.
- *		   SERVER_ERR_ECLOSE if the socket failed to close properly.
+ *         SERVER_ERR_ECLOSE if the socket failed to close properly.
  */
-server_err_t server_close(int sockfd) {
+server_err_t server_socket_close(int sockfd) {
 	int ret;
 
 	/* Close the socket file descriptor. */
@@ -109,14 +215,4 @@ server_err_t server_close(int sockfd) {
 	}
 
 	return SERVER_OK;
-}
-
-/**
- * Stops the server and frees any resources allocated by it.
- *
- * @return SERVER_OK if the socket was properly closed.
- *		   SERVER_ERR_ECLOSE if the socket failed to close properly.
- */
-server_err_t server_stop(void) {
-	return server_close(m_sock);
 }
