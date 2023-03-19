@@ -9,6 +9,7 @@
 #define _TCPSERVERCLIENT_H
 
 #include <arpa/inet.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,8 @@ typedef enum {
 	TCP_ERR_EBIND,
 	TCP_ERR_ELISTEN,
 	TCP_ERR_ECLOSE,
+	TCP_ERR_ESEND,
+	TCP_ERR_ERECV,
 	TCP_ERR_UNKNOWN
 } tcp_err_t;
 
@@ -52,11 +55,15 @@ tcp_err_t tcp_server_start(server_t *server);
 tcp_err_t tcp_server_stop(server_t *server);
 
 /* Connection handling. */
-server_conn_t *tcp_server_conn_accept(server_t *server);
+server_conn_t *tcp_server_conn_accept(const server_t *server);
+tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len);
+tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_server_conn_close(server_conn_t *conn);
 void tcp_server_conn_free(server_conn_t *conn);
 
 /* Direct socket interactions. */
+tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
+tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_socket_close(int sockfd);
 
 #ifdef __cplusplus

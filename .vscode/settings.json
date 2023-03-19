@@ -18,6 +18,8 @@
 		"EBIND",
 		"ECLOSE",
 		"ELISTEN",
+		"ERECV",
+		"ESEND",
 		"ESOCKET",
 		"libavahi",
 		"mdns",

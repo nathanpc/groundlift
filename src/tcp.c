@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/_types/_ssize_t.h>
 #include <unistd.h>
 
 /* Private definitions. */
@@ -135,7 +136,7 @@ tcp_err_t tcp_server_stop(server_t *server) {
  *
  * @see server_conn_free
  */
-server_conn_t *tcp_server_conn_accept(server_t *server) {
+server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
 
 	/* Allocate some memory for our handle object. */
@@ -155,6 +156,41 @@ server_conn_t *tcp_server_conn_accept(server_t *server) {
 	}
 
 	return conn;
+}
+
+/**
+ * Send some data to a client connected to our server.
+ *
+ * @param conn Server client connection handle object.
+ * @param buf  Data to be sent.
+ * @param len  Length of the data to be sent.
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ESEND if the send function failed.
+ *
+ * @see tcp_socket_send
+ */
+tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len) {
+	return tcp_socket_send(conn->sockfd, buf, len, NULL);
+}
+
+/**
+ * Receives some data from a client connected to our server.
+ *
+ * @param conn     Server client connection handle object.
+ * @param buf      Buffer to store the received data.
+ * @param buf_len  Length of the buffer to store the data.
+ * @param recv_len Pointer to store the number of bytes actually received. Will
+ *                 be ignored if NULL is passed.
+ * @param peek     Should we just peek at the data to be received?
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ERECV if the recv function failed.
+ *
+ * @see tcp_socket_recv
+ */
+tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+	return tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
 }
 
 /**
@@ -192,6 +228,69 @@ void tcp_server_conn_free(server_conn_t *conn) {
 	/* Free the object and NULL it out. */
 	free(conn);
 	conn = NULL;
+}
+
+/**
+ * Sends some data to a socket file descriptor.
+ *
+ * @param sockfd   Socket file descriptor.
+ * @param buf      Data to be sent.
+ * @param len      Length of the data to be sent.
+ * @param sent_len Pointer to store the number of bytes actually sent. Ignored
+ *                 if NULL is passed.
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ESEND if the send function failed.
+ *
+ * @see send
+ */
+tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len) {
+	ssize_t bytes_sent;
+
+	/* Try to send some information through a socket. */
+	bytes_sent = send(sockfd, buf, len, 0);
+	if (bytes_sent == -1) {
+		perror("tcp_socket_send@send");
+		return TCP_ERR_ESEND;
+	}
+
+	/* Return the number of bytes sent. */
+	if (sent_len != NULL)
+		*sent_len = bytes_sent;
+
+	return TCP_OK;
+}
+
+/**
+ * Receive some data from a socket file descriptor.
+ *
+ * @param sockfd   Socket file descriptor.
+ * @param buf      Buffer to store the received data.
+ * @param buf_len  Length of the buffer to store the data.
+ * @param recv_len Pointer to store the number of bytes actually received. Will
+ *                 be ignored if NULL is passed.
+ * @param peek     Should we just peek at the data to be received?
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ERECV if the recv function failed.
+ *
+ * @see recv
+ */
+tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+	ssize_t bytes_recv;
+
+	/* Try to read some information from a socket. */
+	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
+	if (bytes_recv == -1) {
+		perror("tcp_socket_recv@recv");
+		return TCP_ERR_ERECV;
+	}
+
+	/* Return the number of bytes sent. */
+	if (recv_len != NULL)
+		*recv_len = bytes_recv;
+
+	return TCP_OK;
 }
 
 /**

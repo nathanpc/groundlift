@@ -57,21 +57,27 @@ tcp_err_t test_server(void) {
 		char buf[100];
 		size_t len;
 
-		if (send(conn->sockfd, "Hello, world!", 13, 0) == -1)
-			perror("send");
+		/* Send some data to the client. */
+		err = tcp_server_conn_send(conn, "Hello, world!", 13);
+		if (err)
+			goto close_conn;
 
+		/* Read some data until a % is sent. */
 		while (qc != '%') {
-			if ((len = recv(conn->sockfd, buf, 99, 0)) == -1) {
-				perror("recv");
+			/* Read incoming data. */
+			err = tcp_server_conn_recv(conn, buf, 99, &len, false);
+			if (err)
 				break;
-			}
-			buf[len] = '\0';
 
+			/* Properly terminate the received string and print it. */
+			buf[len] = '\0';
 			printf("%s\n", buf);
 
+			/* Check for the termination character. */
 			qc = buf[0];
 		}
 
+close_conn:
 		/* Close the connection and free up any resources. */
 		tcp_server_conn_close(conn);
 		tcp_server_conn_free(conn);
