@@ -44,20 +44,20 @@ typedef struct {
 } server_conn_t;
 
 /* Initialization and destruction. */
-server_t *server_new(const char *addr, uint16_t port);
-void server_free(server_t *server);
+server_t *tcp_server_new(const char *addr, uint16_t port);
+void tcp_server_free(server_t *server);
 
 /* Server lifecycle. */
-tcp_err_t server_start(server_t *server);
-tcp_err_t server_stop(server_t *server);
+tcp_err_t tcp_server_start(server_t *server);
+tcp_err_t tcp_server_stop(server_t *server);
 
 /* Connection handling. */
-server_conn_t *server_conn_accept(server_t *server);
-tcp_err_t server_conn_close(server_conn_t *conn);
-void server_conn_free(server_conn_t *conn);
+server_conn_t *tcp_server_conn_accept(server_t *server);
+tcp_err_t tcp_server_conn_close(server_conn_t *conn);
+void tcp_server_conn_free(server_conn_t *conn);
 
 /* Direct socket interactions. */
-tcp_err_t server_socket_close(int sockfd);
+tcp_err_t tcp_socket_close(int sockfd);
 
 #ifdef __cplusplus
 }

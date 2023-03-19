@@ -42,18 +42,18 @@ tcp_err_t test_server(void) {
 	char qc;
 
 	/* Get a server handle. */
-	server = server_new(NULL, 1234);
+	server = tcp_server_new(NULL, 1234);
 	if (server == NULL)
 		return TCP_ERR_UNKNOWN;
 
 	/* Start the server and listen for incoming connections. */
-	err = server_start(server);
+	err = tcp_server_start(server);
 	if (err)
 		return err;
 
 	/* Accept incoming connections. */
 	qc = '\0';
-	while (((conn = server_conn_accept(server)) != NULL) && (qc != '%')) {
+	while (((conn = tcp_server_conn_accept(server)) != NULL) && (qc != '%')) {
 		char buf[100];
 		size_t len;
 
@@ -73,13 +73,13 @@ tcp_err_t test_server(void) {
 		}
 
 		/* Close the connection and free up any resources. */
-		server_conn_close(conn);
-		server_conn_free(conn);
+		tcp_server_conn_close(conn);
+		tcp_server_conn_free(conn);
 	}
 
 	/* Stop the server and free up any resources. */
-	err = server_stop(server);
-	server_free(server);
+	err = tcp_server_stop(server);
+	tcp_server_free(server);
 
 	return err;
 }

@@ -29,7 +29,7 @@
  *
  * @see server_free
  */
-server_t *server_new(const char *addr, uint16_t port) {
+server_t *tcp_server_new(const char *addr, uint16_t port) {
 	server_t *server;
 
 	/* Allocate some memory for our handle object. */
@@ -58,7 +58,7 @@ server_t *server_new(const char *addr, uint16_t port) {
  *
  * @see server_stop
  */
-void server_free(server_t *server) {
+void tcp_server_free(server_t *server) {
 	/* Do we even need to do something? */
 	if (server == NULL)
 		return;
@@ -80,7 +80,7 @@ void server_free(server_t *server) {
  *
  * @see server_stop
  */
-tcp_err_t server_start(server_t *server) {
+tcp_err_t tcp_server_start(server_t *server) {
 	/* Create a new socket file descriptor. */
 	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->sockfd == -1) {
@@ -114,11 +114,11 @@ tcp_err_t server_start(server_t *server) {
  *
  * @see server_free
  */
-tcp_err_t server_stop(server_t *server) {
+tcp_err_t tcp_server_stop(server_t *server) {
 	tcp_err_t err;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = server_socket_close(server->sockfd);
+	err = tcp_socket_close(server->sockfd);
 	server->sockfd = -1;
 
 	return err;
@@ -135,7 +135,7 @@ tcp_err_t server_stop(server_t *server) {
  *
  * @see server_conn_free
  */
-server_conn_t *server_conn_accept(server_t *server) {
+server_conn_t *tcp_server_conn_accept(server_t *server) {
 	server_conn_t *conn;
 
 	/* Allocate some memory for our handle object. */
@@ -167,11 +167,11 @@ server_conn_t *server_conn_accept(server_t *server) {
  *
  * @see server_conn_free
  */
-tcp_err_t server_conn_close(server_conn_t *conn) {
+tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
 	tcp_err_t err;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = server_socket_close(conn->sockfd);
+	err = tcp_socket_close(conn->sockfd);
 	conn->sockfd = -1;
 
 	return err;
@@ -184,7 +184,7 @@ tcp_err_t server_conn_close(server_conn_t *conn) {
  *
  * @see server_conn_close
  */
-void server_conn_free(server_conn_t *conn) {
+void tcp_server_conn_free(server_conn_t *conn) {
 	/* Do we even need to do something? */
 	if (conn == NULL)
 		return;
@@ -202,8 +202,12 @@ void server_conn_free(server_conn_t *conn) {
  * @return TCP_OK if the socket was properly closed.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  */
-tcp_err_t server_socket_close(int sockfd) {
+tcp_err_t tcp_socket_close(int sockfd) {
 	int ret;
+
+	/* Check if we are even needed. */
+	if (sockfd == -1)
+		return TCP_OK;
 
 	/* Close the socket file descriptor. */
 #ifdef _WIN32
