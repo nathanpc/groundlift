@@ -1,11 +1,11 @@
 /**
- * tcpserver.c
- * TCP server that forms the basis of the communication between nodes.
+ * tcp.c
+ * TCP server/client that forms the basis of the communication between nodes.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include "tcpserver.h"
+#include "tcp.h"
 
 #include <stdlib.h>
 #include <stdio.h>

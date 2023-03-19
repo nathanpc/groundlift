@@ -1,12 +1,12 @@
 /**
- * tcpserver.h
- * TCP server that forms the basis of the communication between nodes.
+ * tcp.h
+ * TCP server/client that forms the basis of the communication between nodes.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _TCPSERVER_H
-#define _TCPSERVER_H
+#ifndef _TCPSERVERCLIENT_H
+#define _TCPSERVERCLIENT_H
 
 #include <arpa/inet.h>
 #include <stdint.h>
@@ -56,11 +56,11 @@ server_conn_t *server_conn_accept(server_t *server);
 server_err_t server_conn_close(server_conn_t *conn);
 void server_conn_free(server_conn_t *conn);
 
-/* Socket file descriptor handling. */
+/* Direct socket interactions. */
 server_err_t server_socket_close(int sockfd);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TCPSERVER_H */
+#endif /* _TCPSERVERCLIENT_H */

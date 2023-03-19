@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 #include "mdnscommon.h"
-#include "tcpserver.h"
+#include "tcp.h"
 #ifdef USE_AVAHI
 #include "avahi.h"
 #endif

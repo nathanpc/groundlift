@@ -6,7 +6,7 @@
 include variables.mk
 
 # Source file names.
-SRCNAMES = main.c tcpserver.c
+SRCNAMES = main.c tcp.c
 ifeq ($(PLATFORM), Linux)
 	SRCNAMES += avahi.c
 endif
