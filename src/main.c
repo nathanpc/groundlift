@@ -5,6 +5,7 @@
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,10 +20,12 @@
 /* Private variables. */
 static char *m_server_addr;
 static uint16_t m_server_port;
+static bool m_running;
 
 /* Private methods. */
 tcp_err_t test_server(void);
 mdns_err_t test_mdns(void);
+void sigint_handler(int sig);
 
 /**
  * Program's main entry point.
@@ -34,8 +37,12 @@ mdns_err_t test_mdns(void);
  */
 int main(int argc, char **argv) {
 	/* Setup our defaults. */
+	m_running = true;
 	m_server_addr = NULL;
 	m_server_port = TCPSERVER_PORT;
+
+	/* Catch the interrupt signal from the console. */
+	signal(SIGINT, sigint_handler);
 
 	return test_server();
 }
@@ -68,7 +75,7 @@ tcp_err_t test_server(void) {
 	tmp = NULL;
 
 	/* Accept incoming connections. */
-	while ((conn = tcp_server_conn_accept(server)) != NULL) {
+	while (((conn = tcp_server_conn_accept(server)) != NULL) && m_running) {
 		char buf[100];
 		size_t len;
 
@@ -82,7 +89,7 @@ tcp_err_t test_server(void) {
 			goto close_conn;
 
 		/* Read incoming data until the connection is closed by the client. */
-		while ((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) {
+		while (((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) && m_running) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
 			printf("Data received from %s: \"%s\"\n", tmp, buf);
@@ -108,6 +115,17 @@ close_conn:
 	printf("Server stopped\n");
 
 	return err;
+}
+
+/**
+ * Handles the SIGINT interrupt event.
+ *
+ * @param sig Signal handle that generated this interrupt.
+ */
+void sigint_handler(int sig) {
+	/* Clear our flag and ignore the interrupt. Pray for a graceful exit. */
+	m_running = false;
+	signal(sig, SIG_IGN);
 }
 
 #ifdef USE_AVAHI
