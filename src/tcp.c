@@ -400,7 +400,7 @@ char *tcp_server_get_ipstr(const server_t *server) {
  *
  * @see tcp_socket_itos
  */
-char *tcp_client_get_ipstr(const server_conn_t *conn) {
+char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
 	char *buf;
 
 	/* Perform the conversion. */

@@ -80,7 +80,7 @@ tcp_err_t test_server(void) {
 		size_t len;
 
 		/* Print out some client information. */
-		tmp = tcp_client_get_ipstr(conn);
+		tmp = tcp_server_conn_get_ipstr(conn);
 		printf("Client at %s connection accepted\n", tmp);
 
 		/* Send some data to the client. */
