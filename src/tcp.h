@@ -28,6 +28,7 @@ typedef enum {
 	TCP_ERR_ECLOSE,
 	TCP_ERR_ESEND,
 	TCP_ERR_ERECV,
+	TCP_ERR_ECONNECT,
 	TCP_ERR_UNKNOWN
 } tcp_err_t;
 
@@ -47,9 +48,20 @@ typedef struct {
 	socklen_t addr_size;
 } server_conn_t;
 
+/* Client handle. */
+typedef struct {
+	int sockfd;
+
+	struct sockaddr_in addr_in;
+	socklen_t addr_in_size;
+} tcp_client_t;
+
 /* Initialization and destruction. */
 server_t *tcp_server_new(const char *addr, uint16_t port);
+tcp_client_t *tcp_client_new(const char *addr, uint16_t port);
 void tcp_server_free(server_t *server);
+void tcp_server_conn_free(server_conn_t *conn);
+void tcp_client_free(tcp_client_t *client);
 
 /* Server lifecycle. */
 tcp_err_t tcp_server_start(server_t *server);
@@ -57,12 +69,16 @@ tcp_err_t tcp_server_stop(server_t *server);
 
 /* Connection handling. */
 server_conn_t *tcp_server_conn_accept(const server_t *server);
+tcp_err_t tcp_client_connect(tcp_client_t *client);
 tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len);
+tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t len);
 tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek);
+tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_server_conn_close(server_conn_t *conn);
-void tcp_server_conn_free(server_conn_t *conn);
+tcp_err_t tcp_client_close(tcp_client_t *client);
 
 /* Direct socket interactions. */
+socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_socket_close(int sockfd);

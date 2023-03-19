@@ -17,6 +17,7 @@
 		"Avahi",
 		"EBIND",
 		"ECLOSE",
+		"ECONNECT",
 		"ELISTEN",
 		"ERECV",
 		"ESEND",

@@ -25,7 +25,7 @@
  * @return Newly allocated server handle object or NULL if we couldn't allocate
  *         the object.
  *
- * @see server_free
+ * @see tcp_server_free
  */
 server_t *tcp_server_new(const char *addr, uint16_t port) {
 	server_t *server;
@@ -39,14 +39,38 @@ server_t *tcp_server_new(const char *addr, uint16_t port) {
 	server->sockfd = -1;
 
 	/* Setup the socket address structure for binding. */
-	server->addr_in_size = sizeof(struct sockaddr_in);
-	memset(&server->addr_in, 0, server->addr_in_size);
-	server->addr_in.sin_family = AF_INET;
-	server->addr_in.sin_port = htons(port);
-	server->addr_in.sin_addr.s_addr =
-		(addr == NULL) ? INADDR_ANY : inet_addr(addr);
+	server->addr_in_size = tcp_socket_setup(&server->addr_in, addr, port);
 
 	return server;
+}
+
+/**
+ * Creates a brand new client handle object.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param addr IP address to connect to.
+ * @param port Port to connect on.
+ *
+ * @return Newly allocated client handle object or NULL if we couldn't allocate
+ *         the object.
+ *
+ * @see tcp_client_free
+ */
+tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
+	tcp_client_t *client;
+
+	/* Allocate some memory for our handle object. */
+	client = (tcp_client_t *)malloc(sizeof(tcp_client_t));
+	if (client == NULL)
+		return NULL;
+
+	/* Ensure we have a known invalid state for our socket file descriptor. */
+	client->sockfd = -1;
+
+	/* Setup the socket address structure for connecting. */
+	client->addr_in_size = tcp_socket_setup(&client->addr_in, addr, port);
+
+	return client;
 }
 
 /**
@@ -54,7 +78,7 @@ server_t *tcp_server_new(const char *addr, uint16_t port) {
  *
  * @param server Server handle object to be free'd.
  *
- * @see server_stop
+ * @see tcp_server_stop
  */
 void tcp_server_free(server_t *server) {
 	/* Do we even need to do something? */
@@ -67,6 +91,40 @@ void tcp_server_free(server_t *server) {
 }
 
 /**
+ * Frees up any resources allocated by a server connection object.
+ *
+ * @param conn Server client connection handle object to be free'd.
+ *
+ * @see server_conn_close
+ */
+void tcp_server_conn_free(server_conn_t *conn) {
+	/* Do we even need to do something? */
+	if (conn == NULL)
+		return;
+
+	/* Free the object and NULL it out. */
+	free(conn);
+	conn = NULL;
+}
+
+/**
+ * Frees up any resources allocated by the client connection.
+ *
+ * @param server Client handle object to be free'd.
+ *
+ * @see tcp_client_close
+ */
+void tcp_client_free(tcp_client_t *client) {
+	/* Do we even need to do something? */
+	if (client == NULL)
+		return;
+
+	/* Free the object and NULL it out. */
+	free(client);
+	client = NULL;
+}
+
+/**
  * Starts up the server.
  *
  * @param server Server handle object.
@@ -76,7 +134,7 @@ void tcp_server_free(server_t *server) {
  *         TCP_ERR_EBIND if the bind function failed.
  *         TCP_ERR_ELISTEN if the listen function failed.
  *
- * @see server_stop
+ * @see tcp_server_stop
  */
 tcp_err_t tcp_server_start(server_t *server) {
 	/* Create a new socket file descriptor. */
@@ -110,7 +168,7 @@ tcp_err_t tcp_server_start(server_t *server) {
  * @return TCP_OK if the socket was properly closed.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
- * @see server_free
+ * @see tcp_server_free
  */
 tcp_err_t tcp_server_stop(server_t *server) {
 	tcp_err_t err;
@@ -131,7 +189,7 @@ tcp_err_t tcp_server_stop(server_t *server) {
  * @return Newly allocated server client connection handle object.
  *         NULL in case of an error.
  *
- * @see server_conn_free
+ * @see tcp_server_conn_free
  */
 server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
@@ -156,6 +214,33 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 }
 
 /**
+ * Connects to a client to a server.
+ *
+ * @param client Client handle object.
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ESOCKET if the socket function failed.
+ *         TCP_ERR_ECONNECT if the connect function failed.
+ */
+tcp_err_t tcp_client_connect(tcp_client_t *client) {
+	/* Create a new socket file descriptor. */
+	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (client->sockfd == -1) {
+		perror("tcp_client_connect@socket");
+		return TCP_ERR_ESOCKET;
+	}
+
+	/* Connect ourselves to the address. */
+	if (connect(client->sockfd, (struct sockaddr *)&client->addr_in,
+			 client->addr_in_size) == -1) {
+		perror("tcp_client_connect@connect");
+		return TCP_ERR_ECONNECT;
+	}
+
+	return TCP_OK;
+}
+
+/**
  * Send some data to a client connected to our server.
  *
  * @param conn Server client connection handle object.
@@ -169,6 +254,22 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
  */
 tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len) {
 	return tcp_socket_send(conn->sockfd, buf, len, NULL);
+}
+
+/**
+ * Send some data to the server we are connected to.
+ *
+ * @param client Client handle object.
+ * @param buf    Data to be sent.
+ * @param len    Length of the data to be sent.
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ESEND if the send function failed.
+ *
+ * @see tcp_socket_send
+ */
+tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t len) {
+	return tcp_socket_send(client->sockfd, buf, len, NULL);
 }
 
 /**
@@ -191,6 +292,25 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
 }
 
 /**
+ * Receives some data from the server we are connected to.
+ *
+ * @param client   Client handle object.
+ * @param buf      Buffer to store the received data.
+ * @param buf_len  Length of the buffer to store the data.
+ * @param recv_len Pointer to store the number of bytes actually received. Will
+ *                 be ignored if NULL is passed.
+ * @param peek     Should we just peek at the data to be received?
+ *
+ * @return TCP_OK if the operation was successful.
+ *         TCP_ERR_ERECV if the recv function failed.
+ *
+ * @see tcp_socket_recv
+ */
+tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+	return tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
+}
+
+/**
  * Closes a server client's remote connection.
  *
  * @param conn Server client connection handle object.
@@ -198,7 +318,7 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
  * @return TCP_OK if everything went fine.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
- * @see server_conn_free
+ * @see tcp_server_conn_free
  */
 tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
 	tcp_err_t err;
@@ -211,20 +331,48 @@ tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
 }
 
 /**
- * Frees up any resources allocated by a server connection object.
+ * Closes a client connection to a server.
  *
- * @param conn Server client connection handle object to be free'd.
+ * @param client Client connection handle object.
  *
- * @see server_conn_close
+ * @return TCP_OK if everything went fine.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ *
+ * @see tcp_client_free
  */
-void tcp_server_conn_free(server_conn_t *conn) {
-	/* Do we even need to do something? */
-	if (conn == NULL)
-		return;
+tcp_err_t tcp_client_close(tcp_client_t *client) {
+	tcp_err_t err;
 
-	/* Free the object and NULL it out. */
-	free(conn);
-	conn = NULL;
+	/* Close the socket file descriptor and set it to a known invalid state. */
+	err = tcp_socket_close(client->sockfd);
+	client->sockfd = -1;
+
+	return err;
+}
+
+/**
+ * Sets up a socket address structure.
+ *
+ * @param addr   Pointer to a socket address structure to be populated.
+ * @param ipaddr IP address to bind/connect to.
+ * @param port   Port to bind/connect to.
+ *
+ * @return Size of the socket address structure.
+ *
+ * @see tcp_server_new
+ * @see tcp_client_new
+ */
+socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port) {
+	socklen_t addr_size;
+
+	/* Setup the structure. */
+	addr_size = sizeof(struct sockaddr_in);
+	memset(addr, 0, addr_size);
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
+	addr->sin_addr.s_addr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
+
+	return addr_size;
 }
 
 /**
