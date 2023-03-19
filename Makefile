@@ -18,7 +18,7 @@ OBJECTS  := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(SOURCES))
 # Test executable command line.
 TESTCMD := $(TARGET)
 
-.PHONY: all compile compiledb test debug memcheck clean
+.PHONY: all compile compiledb test server client debug memcheck clean
 all: compile
 
 compile: $(BUILDDIR)/stamp $(TARGET)
@@ -48,8 +48,13 @@ memcheck: clean compile
 		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log $(TESTCMD)
 	cat $(BUILDDIR)/valgrind.log
 
-test: compile
-	$(TESTCMD)
+test: server
+
+server: compile
+	$(TESTCMD) s
+
+client: compile
+	$(TESTCMD) c
 
 clean:
 	$(RM) -r $(BUILDDIR)

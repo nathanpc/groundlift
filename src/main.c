@@ -11,11 +11,7 @@
 #include <string.h>
 
 #include "defaults.h"
-#include "mdnscommon.h"
 #include "tcp.h"
-#ifdef USE_AVAHI
-#include "avahi.h"
-#endif
 
 /* Private variables. */
 static char *m_server_addr;
@@ -23,8 +19,7 @@ static uint16_t m_server_port;
 static bool m_running;
 
 /* Private methods. */
-tcp_err_t test_server(void);
-mdns_err_t test_mdns(void);
+tcp_err_t server(void);
 void sigint_handler(int sig);
 
 /**
@@ -44,15 +39,21 @@ int main(int argc, char **argv) {
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
 
-	return test_server();
+	/* Start as server or as client. */
+	if ((argc < 2) || (argv[1][0] == 's')) {
+		return server();
+	} else {
+		printf("Client not yet implemented.\n");
+		return 1;
+	}
 }
 
 /**
- * Tests out the server functionality.
+ * Starts up the server.
  *
  * @return Server return code.
  */
-tcp_err_t test_server(void) {
+tcp_err_t server(void) {
 	tcp_err_t err;
 	server_t *server;
 	server_conn_t *conn;
@@ -127,25 +128,3 @@ void sigint_handler(int sig) {
 	m_running = false;
 	signal(sig, SIG_IGN);
 }
-
-#ifdef USE_AVAHI
-/**
- * Tests out the mDNS functionality.
- *
- * @return mDNS return code.
- */
-mdns_err_t test_mdns(void) {
-	mdns_err_t err;
-
-	/* Initialize mDNS client and start the event loop. */
-	err = mdns_init();
-	if (err)
-		return err;
-	mdns_event_loop();
-
-	/* Free up everything related to mDNS. */
-	mdns_free();
-
-	return MDNS_OK;
-}
-#endif /* USE_AVAHI */
