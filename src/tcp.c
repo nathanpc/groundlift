@@ -557,3 +557,23 @@ char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
 
 	return buf;
 }
+
+/**
+ * Gets the IP address of a client's server in a string representation.
+ * @warning This function will allocate memory that must be free'd by you.
+ *
+ * @param client Client handle object.
+ *
+ * @return Client's server IP address as a string or NULL if an error occurred.
+ *
+ * @see tcp_socket_itos
+ */
+char *tcp_client_get_ipstr(const tcp_client_t *client) {
+	char *buf;
+
+	/* Perform the conversion. */
+	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
+		return NULL;
+
+	return buf;
+}

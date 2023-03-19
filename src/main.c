@@ -20,6 +20,7 @@ static bool m_running;
 
 /* Private methods. */
 tcp_err_t server(void);
+tcp_err_t client(const char *addr, uint16_t port);
 void sigint_handler(int sig);
 
 /**
@@ -42,8 +43,10 @@ int main(int argc, char **argv) {
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
 		return server();
+	} else if ((argc == 4) && (argv[1][0] == 'c')) {
+		return client(argv[2], (uint16_t)atoi(argv[3]));
 	} else {
-		printf("Client not yet implemented.\n");
+		printf("Unkown mode or invalid number of arguments.\n");
 		return 1;
 	}
 }
@@ -76,7 +79,7 @@ tcp_err_t server(void) {
 	tmp = NULL;
 
 	/* Accept incoming connections. */
-	while (((conn = tcp_server_conn_accept(server)) != NULL) && m_running) {
+	while (m_running && ((conn = tcp_server_conn_accept(server)) != NULL)) {
 		char buf[100];
 		size_t len;
 
@@ -90,7 +93,7 @@ tcp_err_t server(void) {
 			goto close_conn;
 
 		/* Read incoming data until the connection is closed by the client. */
-		while (((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) && m_running) {
+		while (m_running && ((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK)) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
 			printf("Data received from %s: \"%s\"\n", tmp, buf);
@@ -108,13 +111,66 @@ close_conn:
 		/* Inform of the connection being closed. */
 		printf("Client %s connection closed\n", tmp);
 		free(tmp);
-	}
+}
 
 	/* Stop the server and free up any resources. */
 	err = tcp_server_stop(server);
 	tcp_server_free(server);
 	printf("Server stopped\n");
 
+	return err;
+}
+
+/**
+ * Connects the client to a server.
+ *
+ * @return Client return code.
+ */
+tcp_err_t client(const char *addr, uint16_t port) {
+	tcp_err_t err;
+	tcp_client_t *client;
+	char *tmp;
+	char buf[100];
+	size_t len;
+
+	/* Get a client handle. */
+	client = tcp_client_new(addr, port);
+	if (client == NULL)
+		return TCP_ERR_UNKNOWN;
+
+	/* Connect our client to a server. */
+	err = tcp_client_connect(client);
+	if (err)
+		return err;
+
+	/* Print some information about the current state of the connection. */
+	tmp = tcp_client_get_ipstr(client);
+	printf("Client connected to server on %s port %u\n", tmp, port);
+
+	/* Read incoming data until the connection is closed by the server. */
+	while (m_running && ((err = tcp_client_recv(client, buf, 99, &len, false)) == TCP_OK)) {
+		/* Properly terminate the received string and print it. */
+		buf[len] = '\0';
+		printf("Data received from %s: \"%s\"\n", tmp, buf);
+
+		/* Echo data back. */
+		tcp_client_send(client, "Echo: ", 6);
+		tcp_client_send(client, buf, len);
+
+		/* Just close our connection. */
+		m_running = false;
+	}
+
+	/* Check if the connection was closed gracefully. */
+	if (err == TCP_EVT_CONN_CLOSED)
+		printf("Connection closed by the server at %s:%u\n", tmp, port);
+
+	/* Disconnect from the server and free up any resources. */
+	err = tcp_client_close(client);
+	tcp_client_free(client);
+	printf("Client disconnected from server at %s:%u\n", tmp, port);
+
+	free(tmp);
 	return err;
 }
 

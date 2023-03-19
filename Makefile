@@ -15,8 +15,10 @@ endif
 SOURCES  += $(addprefix $(SRCDIR)/, $(SRCNAMES))
 OBJECTS  := $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(SOURCES))
 
-# Test executable command line.
-TESTCMD := $(TARGET)
+# Test variables.
+TESTCMD     := $(TARGET)
+TESTSRVADDR := 127.0.0.1
+TESTSRVPORT := 1650
 
 .PHONY: all compile compiledb test server client debug memcheck clean
 all: compile
@@ -54,7 +56,7 @@ server: compile
 	$(TESTCMD) s
 
 client: compile
-	$(TESTCMD) c
+	$(TESTCMD) c $(TESTSRVADDR) $(TESTSRVPORT)
 
 clean:
 	$(RM) -r $(BUILDDIR)

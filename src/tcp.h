@@ -87,6 +87,7 @@ bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr);
 /* Misc. utilities. */
 char *tcp_server_get_ipstr(const server_t *server);
 char *tcp_server_conn_get_ipstr(const server_conn_t *conn);
+char *tcp_client_get_ipstr(const tcp_client_t *client);
 
 #ifdef __cplusplus
 }
