@@ -7,12 +7,18 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "defaults.h"
 #include "mdnscommon.h"
 #include "tcp.h"
 #ifdef USE_AVAHI
 #include "avahi.h"
 #endif
+
+/* Private variables. */
+static char *m_server_addr;
+static uint16_t m_server_port;
 
 /* Private methods. */
 tcp_err_t test_server(void);
@@ -27,6 +33,10 @@ mdns_err_t test_mdns(void);
  * @return Application's return code.
  */
 int main(int argc, char **argv) {
+	/* Setup our defaults. */
+	m_server_addr = NULL;
+	m_server_port = TCPSERVER_PORT;
+
 	return test_server();
 }
 
@@ -39,9 +49,10 @@ tcp_err_t test_server(void) {
 	tcp_err_t err;
 	server_t *server;
 	server_conn_t *conn;
+	char *tmp;
 
 	/* Get a server handle. */
-	server = tcp_server_new(NULL, 1234);
+	server = tcp_server_new(m_server_addr, m_server_port);
 	if (server == NULL)
 		return TCP_ERR_UNKNOWN;
 
@@ -50,10 +61,20 @@ tcp_err_t test_server(void) {
 	if (err)
 		return err;
 
+	/* Print some information about the current state of the server. */
+	tmp = tcp_server_get_ipstr(server);
+	printf("Server listening on %s port %u\n", tmp, m_server_port);
+	free(tmp);
+	tmp = NULL;
+
 	/* Accept incoming connections. */
 	while ((conn = tcp_server_conn_accept(server)) != NULL) {
 		char buf[100];
 		size_t len;
+
+		/* Print out some client information. */
+		tmp = tcp_client_get_ipstr(conn);
+		printf("Client at %s connection accepted\n", tmp);
 
 		/* Send some data to the client. */
 		err = tcp_server_conn_send(conn, "Hello, world!", 13);
@@ -64,22 +85,27 @@ tcp_err_t test_server(void) {
 		while ((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
-			printf("%s\n", buf);
+			printf("Data received from %s: \"%s\"\n", tmp, buf);
 		}
 
 		/* Check if the connection was closed gracefully. */
 		if (err == TCP_EVT_CONN_CLOSED)
-			printf("Connection closed by the client.\n");
+			printf("Connection closed by the client at %s\n", tmp);
 
 close_conn:
 		/* Close the connection and free up any resources. */
 		tcp_server_conn_close(conn);
 		tcp_server_conn_free(conn);
+
+		/* Inform of the connection being closed. */
+		printf("Client %s connection closed\n", tmp);
+		free(tmp);
 	}
 
 	/* Stop the server and free up any resources. */
 	err = tcp_server_stop(server);
 	tcp_server_free(server);
+	printf("Server stopped\n");
 
 	return err;
 }

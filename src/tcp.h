@@ -66,6 +66,11 @@ void tcp_server_conn_free(server_conn_t *conn);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_socket_close(int sockfd);
+bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr);
+
+/* Misc. utilities. */
+char *tcp_server_get_ipstr(const server_t *server);
+char *tcp_client_get_ipstr(const server_conn_t *conn);
 
 #ifdef __cplusplus
 }

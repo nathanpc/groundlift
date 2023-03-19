@@ -13,10 +13,7 @@
 #include <sys/_types/_ssize_t.h>
 #include <unistd.h>
 
-/* Private definitions. */
-#ifndef TCPSERVER_BACKLOG
-#define TCPSERVER_BACKLOG 10
-#endif /* TCPSERVER_BACKLOG */
+#include "defaults.h"
 
 /**
  * Creates a brand new server handle object.
@@ -327,4 +324,88 @@ tcp_err_t tcp_socket_close(int sockfd) {
 	}
 
 	return TCP_OK;
+}
+
+/**
+ * Converts an IPv4 or IPv6 address from binary to a presentation format string
+ * representation.
+ * @warning This function will allocate memory that must be free'd by you.
+ *
+ * @param buf       Pointer to a string that will be populated with the
+ *                  presentation format IP address.
+ * @param sock_addr Generic IPv4 or IPv6 structure containing the address to be
+ *                  converted.
+ *
+ * @return TRUE if the conversion was successful.
+ *         FALSE if an error occurred and we couldn't convert the IP address.
+ */
+bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr) {
+	char tmp[INET6_ADDRSTRLEN];
+
+	/* Determine which type of IP address we are dealing with. */
+	switch (sock_addr->sa_family) {
+		case AF_INET:
+			inet_ntop(AF_INET, &(((const struct sockaddr_in *)sock_addr)->sin_addr),
+					  tmp, INET_ADDRSTRLEN);
+			break;
+		case AF_INET6:
+			inet_ntop(AF_INET6, &(((const struct sockaddr_in6 *)sock_addr)->sin6_addr),
+					  tmp, INET6_ADDRSTRLEN);
+			break;
+		default:
+			*buf = NULL;
+			return false;
+	}
+
+	/* Allocate space for our return string. */
+	*buf = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
+	if (*buf == NULL) {
+		perror("tcp_socket_itos@malloc");
+		return false;
+	}
+
+	/* Copy our IP address over and return. */
+	strcpy(*buf, tmp);
+	return true;
+}
+
+/**
+ * Gets the IP address that the server is currently bound to in a string
+ * representation.
+ * @warning This function will allocate memory that must be free'd by you.
+ *
+ * @param server Server handle object.
+ *
+ * @return Server's IP address as a string or NULL if an error occurred.
+ *
+ * @see tcp_socket_itos
+ */
+char *tcp_server_get_ipstr(const server_t *server) {
+	char *buf;
+
+	/* Perform the conversion. */
+	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&server->addr_in))
+		return NULL;
+
+	return buf;
+}
+
+/**
+ * Gets the IP address of a client connection in a string representation.
+ * @warning This function will allocate memory that must be free'd by you.
+ *
+ * @param conn Server client connection handle object.
+ *
+ * @return Client's IP address as a string or NULL if an error occurred.
+ *
+ * @see tcp_socket_itos
+ */
+char *tcp_client_get_ipstr(const server_conn_t *conn) {
+	char *buf;
+
+	/* Perform the conversion. */
+	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&conn->addr))
+		return NULL;
+
+	return buf;
 }

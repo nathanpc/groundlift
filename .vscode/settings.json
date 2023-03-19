@@ -21,6 +21,7 @@
 		"ERECV",
 		"ESEND",
 		"ESOCKET",
+		"itos",
 		"libavahi",
 		"mdns",
 		"mdnscommon",
