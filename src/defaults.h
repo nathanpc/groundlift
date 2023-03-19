@@ -15,7 +15,7 @@ extern "C" {
 
 /* Server port to listen on. */
 #ifndef TCPSERVER_PORT
-#define TCPSERVER_PORT 1234
+#define TCPSERVER_PORT 1650
 #endif /* TCPSERVER_PORT */
 
 /* Number of connections in the TCP server queue. */
