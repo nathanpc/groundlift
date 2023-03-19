@@ -17,15 +17,15 @@
 extern "C" {
 #endif
 
-/* Server error codes. */
+/* TCP error codes. */
 typedef enum {
-	SERVER_OK = 0,
-	SERVER_ERR_ESOCKET,
-	SERVER_ERR_EBIND,
-	SERVER_ERR_ELISTEN,
-	SERVER_ERR_ECLOSE,
-	SERVER_ERR_UNKNOWN
-} server_err_t;
+	TCP_OK = 0,
+	TCP_ERR_ESOCKET,
+	TCP_ERR_EBIND,
+	TCP_ERR_ELISTEN,
+	TCP_ERR_ECLOSE,
+	TCP_ERR_UNKNOWN
+} tcp_err_t;
 
 /* Server handle. */
 typedef struct {
@@ -48,16 +48,16 @@ server_t *server_new(const char *addr, uint16_t port);
 void server_free(server_t *server);
 
 /* Server lifecycle. */
-server_err_t server_start(server_t *server);
-server_err_t server_stop(server_t *server);
+tcp_err_t server_start(server_t *server);
+tcp_err_t server_stop(server_t *server);
 
 /* Connection handling. */
 server_conn_t *server_conn_accept(server_t *server);
-server_err_t server_conn_close(server_conn_t *conn);
+tcp_err_t server_conn_close(server_conn_t *conn);
 void server_conn_free(server_conn_t *conn);
 
 /* Direct socket interactions. */
-server_err_t server_socket_close(int sockfd);
+tcp_err_t server_socket_close(int sockfd);
 
 #ifdef __cplusplus
 }

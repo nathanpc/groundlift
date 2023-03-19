@@ -15,7 +15,7 @@
 #endif
 
 /* Private methods. */
-server_err_t test_server(void);
+tcp_err_t test_server(void);
 mdns_err_t test_mdns(void);
 
 /**
@@ -35,8 +35,8 @@ int main(int argc, char **argv) {
  *
  * @return Server return code.
  */
-server_err_t test_server(void) {
-	server_err_t err;
+tcp_err_t test_server(void) {
+	tcp_err_t err;
 	server_t *server;
 	server_conn_t *conn;
 	char qc;
@@ -44,7 +44,7 @@ server_err_t test_server(void) {
 	/* Get a server handle. */
 	server = server_new(NULL, 1234);
 	if (server == NULL)
-		return SERVER_ERR_UNKNOWN;
+		return TCP_ERR_UNKNOWN;
 
 	/* Start the server and listen for incoming connections. */
 	err = server_start(server);

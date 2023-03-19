@@ -73,32 +73,35 @@ void server_free(server_t *server) {
  *
  * @param server Server handle object.
  *
- * @return SERVER_OK if the initialization was successful.
+ * @return TCP_OK if the initialization was successful.
+ *         TCP_ERR_ESOCKET if the socket function failed.
+ *         TCP_ERR_EBIND if the bind function failed.
+ *         TCP_ERR_ELISTEN if the listen function failed.
  *
  * @see server_stop
  */
-server_err_t server_start(server_t *server) {
+tcp_err_t server_start(server_t *server) {
 	/* Create a new socket file descriptor. */
 	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->sockfd == -1) {
 		perror("server_start@socket");
-		return SERVER_ERR_ESOCKET;
+		return TCP_ERR_ESOCKET;
 	}
 
 	/* Bind ourselves to the address. */
 	if (bind(server->sockfd, (struct sockaddr *)&server->addr_in,
 			 server->addr_in_size) == -1) {
 		perror("server_start@bind");
-		return SERVER_ERR_EBIND;
+		return TCP_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
 	if (listen(server->sockfd, TCPSERVER_BACKLOG) == -1) {
 		perror("server_start@listen");
-		return SERVER_ERR_ELISTEN;
+		return TCP_ERR_ELISTEN;
 	}
 
-	return SERVER_OK;
+	return TCP_OK;
 }
 
 /**
@@ -106,13 +109,13 @@ server_err_t server_start(server_t *server) {
  *
  * @param server Server handle object.
  *
- * @return SERVER_OK if the socket was properly closed.
- *         SERVER_ERR_ECLOSE if the socket failed to close properly.
+ * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
  * @see server_free
  */
-server_err_t server_stop(server_t *server) {
-	server_err_t err;
+tcp_err_t server_stop(server_t *server) {
+	tcp_err_t err;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = server_socket_close(server->sockfd);
@@ -159,12 +162,13 @@ server_conn_t *server_conn_accept(server_t *server) {
  *
  * @param conn Server client connection handle object.
  *
- * @return SERVER_OK if everything went fine.
+ * @return TCP_OK if everything went fine.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
  * @see server_conn_free
  */
-server_err_t server_conn_close(server_conn_t *conn) {
-	server_err_t err;
+tcp_err_t server_conn_close(server_conn_t *conn) {
+	tcp_err_t err;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = server_socket_close(conn->sockfd);
@@ -195,10 +199,10 @@ void server_conn_free(server_conn_t *conn) {
  *
  * @param sockfd Socket file descriptor to be closed.
  *
- * @return SERVER_OK if the socket was properly closed.
- *         SERVER_ERR_ECLOSE if the socket failed to close properly.
+ * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
  */
-server_err_t server_socket_close(int sockfd) {
+tcp_err_t server_socket_close(int sockfd) {
 	int ret;
 
 	/* Close the socket file descriptor. */
@@ -211,8 +215,8 @@ server_err_t server_socket_close(int sockfd) {
 	/* Check for errors. */
 	if (ret == -1) {
 		perror("server_close@close");
-		return SERVER_ERR_ECLOSE;
+		return TCP_ERR_ECLOSE;
 	}
 
-	return SERVER_OK;
+	return TCP_OK;
 }

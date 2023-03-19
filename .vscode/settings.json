@@ -23,6 +23,7 @@
 		"mdns",
 		"mdnscommon",
 		"mdnshelper",
-		"tcpserver"
+		"tcpserver",
+		"TCPSERVERCLIENT"
 	]
 }
