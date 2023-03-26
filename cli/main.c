@@ -13,17 +13,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Client thread function arguments structure definition. */
+typedef struct {
+	const char *addr;
+	uint16_t port;
+} client_thread_args_t;
+
 /* Private variables. */
 static char *m_server_addr;
 static uint16_t m_server_port;
-static bool m_running;
 static server_t *m_server;
+static tcp_client_t *m_client;
 static pthread_t m_server_thread;
+static pthread_t m_client_thread;
 
 /* Private methods. */
-tcp_err_t client(const char *addr, uint16_t port);
 void sigint_handler(int sig);
 void *server_thread_func(void *arg);
+void *client_thread_func(void *arg);
 
 /**
  * Program's main entry point.
@@ -35,10 +42,13 @@ void *server_thread_func(void *arg);
  */
 int main(int argc, char **argv) {
 	void *retval;
+	int ret;
+	client_thread_args_t client_args;
 
 	/* Setup our defaults. */
 	retval = NULL;
-	m_running = true;
+	m_server = NULL;
+	m_client = NULL;
 	m_server_addr = NULL;
 	m_server_port = TCPSERVER_PORT;
 
@@ -48,75 +58,80 @@ int main(int argc, char **argv) {
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
 		/* Server */
-		int ret;
-
 		ret = pthread_create(&m_server_thread, NULL, server_thread_func, NULL);
 		if (ret)
 			return ret;
+		pthread_join(m_server_thread, &retval);
 	} else if ((argc == 4) && (argv[1][0] == 'c')) {
-		return client(argv[2], (uint16_t)atoi(argv[3]));
+		/* Client */
+		client_args.addr = argv[2];
+		client_args.port = (uint16_t)atoi(argv[3]);
+
+		ret = pthread_create(&m_client_thread, NULL, client_thread_func, &client_args);
+		if (ret)
+			return ret;
+		pthread_join(m_client_thread, &retval);
 	} else {
 		printf("Unkown mode or invalid number of arguments.\n");
 		return 1;
 	}
 
-	/* Wait for our threads to finish. */
-	pthread_join(m_server_thread, &retval);
-
 	return (int)retval;
 }
 
 /**
- * Connects the client to a server.
+ * Client thread function.
  *
- * @return Client return code.
+ * @param args Arguments passed as a pointer to a client_thread_args_t struct.
+ *
+ * @return Returned value from the whole operation.
  */
-tcp_err_t client(const char *addr, uint16_t port) {
+void *client_thread_func(void *args) {
+	const client_thread_args_t *client_args;
 	tcp_err_t err;
-	tcp_client_t *client;
 	char *tmp;
 	char buf[100];
 	size_t len;
 
+	/* Get arguments. */
+	client_args = (client_thread_args_t *)args;
+
 	/* Get a client handle. */
-	client = tcp_client_new(addr, port);
-	if (client == NULL)
-		return TCP_ERR_UNKNOWN;
+	m_client = tcp_client_new(client_args->addr, client_args->port);
+	if (m_client == NULL)
+		return (void *)TCP_ERR_UNKNOWN;
 
 	/* Connect our client to a server. */
-	err = tcp_client_connect(client);
+	err = tcp_client_connect(m_client);
 	if (err)
-		return err;
+		return (void *)err;
 
 	/* Print some information about the current state of the connection. */
-	tmp = tcp_client_get_ipstr(client);
-	printf("Client connected to server on %s port %u\n", tmp, port);
+	tmp = tcp_client_get_ipstr(m_client);
+	printf("Client connected to server on %s port %u\n", tmp, client_args->port);
 
 	/* Read incoming data until the connection is closed by the server. */
-	while (m_running && ((err = tcp_client_recv(client, buf, 99, &len, false)) == TCP_OK)) {
+	while ((err = tcp_client_recv(m_client, buf, 99, &len, false)) == TCP_OK) {
 		/* Properly terminate the received string and print it. */
 		buf[len] = '\0';
 		printf("Data received from %s: \"%s\"\n", tmp, buf);
 
 		/* Echo data back. */
-		tcp_client_send(client, "Echo: ", 6);
-		tcp_client_send(client, buf, len);
-
-		/* Just close our connection. */
-		m_running = false;
+		tcp_client_send(m_client, "Echo: ", 6);
+		tcp_client_send(m_client, buf, len);
 	}
 
 	/* Check if the connection was closed gracefully. */
 	if (err == TCP_EVT_CONN_CLOSED)
-		printf("Connection closed by the server at %s:%u\n", tmp, port);
+		printf("Connection closed by the server at %s:%u\n", tmp, client_args->port);
 
 	/* Disconnect from the server and free up any resources. */
-	err = tcp_client_close(client);
-	tcp_client_free(client);
-	printf("Client disconnected from server at %s:%u\n", tmp, port);
+	err = tcp_client_close(m_client);
+	tcp_client_free(m_client);
+	printf("Client disconnected from server at %s:%u\n", tmp, client_args->port);
 
 	free(tmp);
-	return err;
+	return (void *)err;
 }
 
 /**
@@ -203,11 +218,13 @@ void *server_thread_func(void *arg) {
 void sigint_handler(int sig) {
 	printf("Got a Ctrl-C\n");
 
-	/* Clear our flag and ignore the interrupt. Pray for a graceful exit. */
-	m_running = false;
+	/* Stop the client. */
+	if (m_client != NULL)
+		tcp_client_shutdown(m_client);
 
 	/* Stop the server. */
-	tcp_server_shutdown(m_server);
+	if (m_server != NULL)
+		tcp_server_shutdown(m_server);
 
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
