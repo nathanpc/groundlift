@@ -42,12 +42,12 @@ run: test
 
 debug: CFLAGS += -g3 -DDEBUG
 debug: clean compile
-	$(GDB) $(TESTCMD)
+	$(GDB) $(TESTCMD) s
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
 memcheck: clean compile
 	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
-		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log $(TESTCMD)
+		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log $(TESTCMD) s
 	cat $(BUILDDIR)/valgrind.log
 
 test: server
