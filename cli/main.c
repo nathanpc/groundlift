@@ -5,14 +5,13 @@
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
+#include <groundlift/defaults.h>
+#include <groundlift/tcp.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-
-#include "defaults.h"
-#include "tcp.h"
 
 /* Private variables. */
 static char *m_server_addr;
