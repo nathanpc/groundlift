@@ -78,6 +78,7 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
 tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_server_conn_close(server_conn_t *conn);
 tcp_err_t tcp_client_close(tcp_client_t *client);
+tcp_err_t tcp_client_shutdown(tcp_client_t *client);
 
 /* Direct socket interactions. */
 socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);

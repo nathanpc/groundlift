@@ -388,6 +388,29 @@ tcp_err_t tcp_client_close(tcp_client_t *client) {
 }
 
 /**
+ * Closes a client connection to a server. This is similar to a close, except
+ * that it'll always unblock connect and recv.
+ *
+ * @param client Client connection handle object.
+ *
+ * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
+ *
+ * @see tcp_client_free
+ * @see tcp_client_close
+ */
+tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
+	tcp_err_t err;
+
+	/* Shutdown the socket and set it to a known invalid state. */
+	err = tcp_socket_shutdown(client->sockfd);
+	client->sockfd = -1;
+
+	return err;
+}
+
+/**
  * Sets up a socket address structure.
  *
  * @param addr   Pointer to a socket address structure to be populated.
