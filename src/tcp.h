@@ -29,6 +29,7 @@ typedef enum {
 	TCP_ERR_ESEND,
 	TCP_ERR_ERECV,
 	TCP_ERR_ECONNECT,
+	TCP_ERR_ESHUTDOWN,
 	TCP_ERR_UNKNOWN
 } tcp_err_t;
 
@@ -66,6 +67,7 @@ void tcp_client_free(tcp_client_t *client);
 /* Server lifecycle. */
 tcp_err_t tcp_server_start(server_t *server);
 tcp_err_t tcp_server_stop(server_t *server);
+tcp_err_t tcp_server_shutdown(server_t *server);
 
 /* Connection handling. */
 server_conn_t *tcp_server_conn_accept(const server_t *server);
@@ -82,6 +84,7 @@ socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t tcp_socket_close(int sockfd);
+tcp_err_t tcp_socket_shutdown(int sockfd);
 bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr);
 
 /* Misc. utilities. */

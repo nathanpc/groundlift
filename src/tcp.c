@@ -167,6 +167,7 @@ tcp_err_t tcp_server_start(server_t *server) {
  * @return TCP_OK if the socket was properly closed.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
+ * @see tcp_server_shutdown
  * @see tcp_server_free
  */
 tcp_err_t tcp_server_stop(server_t *server) {
@@ -174,6 +175,29 @@ tcp_err_t tcp_server_stop(server_t *server) {
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = tcp_socket_close(server->sockfd);
+	server->sockfd = -1;
+
+	return err;
+}
+
+/**
+ * Shutdown the server but doesn't free the resources allocated. This is similar
+ * to a close, except that it'll always unblock accept and recv.
+ *
+ * @param server Server handle object.
+ *
+ * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
+ *
+ * @see tcp_server_stop
+ * @see tcp_server_free
+ */
+tcp_err_t tcp_server_shutdown(server_t *server) {
+	tcp_err_t err;
+
+	/* Shutdown the socket and set it to a known invalid state. */
+	err = tcp_socket_shutdown(server->sockfd);
 	server->sockfd = -1;
 
 	return err;
@@ -193,6 +217,12 @@ tcp_err_t tcp_server_stop(server_t *server) {
 server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
 
+	/* Check if we even have a socket to accept things from. */
+	if (server->sockfd == -1) {
+		fprintf(stderr, "tcp_server_conn_accept: Invalid server sockfd\n");
+		return NULL;
+	}
+
 	/* Allocate some memory for our handle object. */
 	conn = (server_conn_t *)malloc(sizeof(server_conn_t));
 	if (conn == NULL)
@@ -205,7 +235,15 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 
 	/* Handle errors. */
 	if (conn->sockfd == -1) {
-		perror("server_accept@accept");
+		/* Make sure we can handle a shutdown cleanly. */
+		if (server->sockfd == -1)
+			goto exit_err;
+
+		/* Display the error. */
+		perror("tcp_server_conn_accept@accept");
+
+exit_err:
+		free(conn);
 		return NULL;
 	}
 
@@ -466,9 +504,42 @@ tcp_err_t tcp_socket_close(int sockfd) {
 
 	/* Check for errors. */
 	if (ret == -1) {
-		perror("server_close@close");
+		perror("tcp_socket_close@close");
 		return TCP_ERR_ECLOSE;
 	}
+
+	return TCP_OK;
+}
+
+/**
+ * Closes a socket file descriptor.
+ *
+ * @param sockfd Socket file descriptor to be closed.
+ *
+ * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ */
+tcp_err_t tcp_socket_shutdown(int sockfd) {
+	int ret;
+
+	/* Check if we are even needed. */
+	if (sockfd == -1)
+		return TCP_OK;
+
+		/* Shutdown the socket file descriptor. */
+#ifdef _WIN32
+	ret = closesocket(sockfd);
+	if (ret == -1) {
+		perror("tcp_socket_shutdown@closesocket");
+		return TCP_ERR_ECLOSE;
+	}
+#else
+	ret = shutdown(sockfd, SHUT_RDWR);
+	if (ret == -1) {
+		perror("tcp_socket_shutdown@shutdown");
+		return TCP_ERR_ESHUTDOWN;
+	}
+#endif /* _WIN32 */
 
 	return TCP_OK;
 }
