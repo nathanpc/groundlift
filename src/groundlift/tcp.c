@@ -173,6 +173,10 @@ tcp_err_t tcp_server_start(server_t *server) {
 tcp_err_t tcp_server_stop(server_t *server) {
 	tcp_err_t err;
 
+	/* Ensure we actually have something do to. */
+	if (server == NULL)
+		return TCP_OK;
+
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = tcp_socket_close(server->sockfd);
 	server->sockfd = -1;
@@ -195,6 +199,10 @@ tcp_err_t tcp_server_stop(server_t *server) {
  */
 tcp_err_t tcp_server_shutdown(server_t *server) {
 	tcp_err_t err;
+
+	/* Ensure we actually have something do to. */
+	if (server == NULL)
+		return TCP_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = tcp_socket_shutdown(server->sockfd);
@@ -360,6 +368,10 @@ tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
 tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
 	tcp_err_t err;
 
+	/* Ensure we actually have something do to. */
+	if ((conn == NULL) || (conn->sockfd == -1))
+		return TCP_OK;
+
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = tcp_socket_close(conn->sockfd);
 	conn->sockfd = -1;
@@ -379,6 +391,10 @@ tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
  */
 tcp_err_t tcp_client_close(tcp_client_t *client) {
 	tcp_err_t err;
+
+	/* Ensure we actually have something do to. */
+	if ((client == NULL) || (client->sockfd == -1))
+		return TCP_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = tcp_socket_close(client->sockfd);
@@ -402,6 +418,10 @@ tcp_err_t tcp_client_close(tcp_client_t *client) {
  */
 tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 	tcp_err_t err;
+
+	/* Ensure we actually have something do to. */
+	if ((client == NULL) || (client->sockfd == -1))
+		return TCP_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = tcp_socket_shutdown(client->sockfd);
@@ -549,7 +569,7 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 	if (sockfd == -1)
 		return TCP_OK;
 
-		/* Shutdown the socket file descriptor. */
+	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
 	ret = closesocket(sockfd);
 	if (ret == -1) {
