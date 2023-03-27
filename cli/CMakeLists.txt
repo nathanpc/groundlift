@@ -1,6 +1,7 @@
 # Define source files.
 set(GROUNDLIFT_CLI_SOURCES
-	main.c)
+	main.c
+	server.c)
 
 # Build the server/client command-line utility.
 add_executable(gl

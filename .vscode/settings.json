@@ -18,6 +18,7 @@
 		"mdnscommon",
 		"mdnshelper",
 		"tcpserver",
-		"TCPSERVERCLIENT"
+		"TCPSERVERCLIENT",
+		"tjoin"
 	]
 }
