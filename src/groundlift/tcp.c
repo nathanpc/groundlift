@@ -560,6 +560,7 @@ tcp_err_t tcp_socket_close(int sockfd) {
  * @param sockfd Socket file descriptor to be closed.
  *
  * @return TCP_OK if the socket was properly closed.
+ *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  */
 tcp_err_t tcp_socket_shutdown(int sockfd) {
@@ -581,6 +582,12 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 	if (ret == -1) {
 		perror("tcp_socket_shutdown@shutdown");
 		return TCP_ERR_ESHUTDOWN;
+	}
+
+	ret = close(sockfd);
+	if (ret == -1) {
+		perror("tcp_socket_shutdown@close");
+		return TCP_ERR_ECLOSE;
 	}
 #endif /* _WIN32 */
 
