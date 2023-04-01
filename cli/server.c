@@ -47,6 +47,9 @@ void gl_server_free(void) {
 	/* Stop the server and free up any allocated resources. */
 	gl_server_stop();
 	tcp_server_free(m_server);
+	m_server = NULL;
+
+	/* Join the server thread. */
 	gl_server_thread_join();
 }
 
@@ -185,8 +188,6 @@ void *server_thread_func(void *args) {
 
 	/* Stop the server and free up any resources. */
 	gl_server_stop();
-	tcp_server_free(m_server);
-	m_server = NULL;
 	printf("Server stopped\n");
 
 	return (void *)err;
