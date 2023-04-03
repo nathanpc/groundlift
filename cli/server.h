@@ -24,6 +24,7 @@ void gl_server_free(void);
 /* Server lifecycle. */
 bool gl_server_start(void);
 bool gl_server_stop(void);
+tcp_err_t gl_server_conn_destroy(void);
 bool gl_server_thread_join(void);
 
 /* Getters and setters. */

@@ -13,6 +13,7 @@
 
 /* Private variables. */
 static server_t *m_server;
+static server_conn_t *m_conn;
 static pthread_t *m_server_thread;
 
 /* Private methods. */
@@ -30,6 +31,7 @@ void *server_thread_func(void *args);
  */
 bool gl_server_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
+	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
 
 	/* Get a server handle. */
@@ -79,14 +81,46 @@ bool gl_server_start(void) {
  *
  * @see gl_server_loop
  * @see gl_server_free
+ * @see gl_server_conn_destroy
  */
 bool gl_server_stop(void) {
 	/* Do we even need to stop it? */
 	if (m_server == NULL)
 		return true;
 
+	/* Destroy any active connections. */
+	gl_server_conn_destroy();
+
 	/* Shut the thing down. */
 	return tcp_server_shutdown(m_server) == TCP_OK;
+}
+
+/**
+ * Closes and frees up any resources associated with the current active
+ * connection to the server.
+ *
+ * @return Return value of tcp_server_conn_close.
+ *
+ * @see gl_server_stop
+ * @see tcp_server_conn_close
+ */
+tcp_err_t gl_server_conn_destroy(void) {
+	tcp_err_t err;
+
+	/* Do we even need to do stuff? */
+	if (m_conn == NULL)
+		return TCP_OK;
+
+	/* Tell the world that we are closing an active connection. */
+	if (m_conn->sockfd != -1)
+		printf("Closing the currently active connection\n");
+
+	/* Close the connection and free up any resources allocated. */
+	err = tcp_server_conn_close(m_conn);
+	tcp_server_conn_free(m_conn);
+	m_conn = NULL;
+
+	return err;
 }
 
 /**
@@ -128,13 +162,11 @@ server_t *gl_server_get(void) {
  */
 void *server_thread_func(void *args) {
 	tcp_err_t err;
-	server_conn_t *conn;
 	char *tmp;
 
 	/* Ignore the argument passed. */
 	(void)args;
 	tmp = NULL;
-	conn = NULL;
 
 	/* Start the server and listen for incoming connections. */
 	err = tcp_server_start(m_server);
@@ -149,29 +181,27 @@ void *server_thread_func(void *args) {
 	tmp = NULL;
 
 	/* Accept incoming connections. */
-	while ((conn = tcp_server_conn_accept(m_server)) != NULL) {
+	while ((m_conn = tcp_server_conn_accept(m_server)) != NULL) {
 		char buf[100];
 		size_t len;
 
 		/* Check if the connection socket is valid. */
-		if (conn->sockfd == -1) {
-			tcp_server_conn_free(conn);
-			conn = NULL;
-
+		if (m_conn->sockfd == -1) {
+			gl_server_conn_destroy();
 			continue;
 		}
 
 		/* Print out some client information. */
-		tmp = tcp_server_conn_get_ipstr(conn);
+		tmp = tcp_server_conn_get_ipstr(m_conn);
 		printf("Client at %s connection accepted\n", tmp);
 
 		/* Send some data to the client. */
-		err = tcp_server_conn_send(conn, "Hello, world!", 13);
+		err = tcp_server_conn_send(m_conn, "Hello, world!", 13);
 		if (err)
 			goto close_conn;
 
 		/* Read incoming data until the connection is closed by the client. */
-		while ((err = tcp_server_conn_recv(conn, buf, 99, &len, false)) == TCP_OK) {
+		while ((err = tcp_server_conn_recv(m_conn, buf, 99, &len, false)) == TCP_OK) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
 			printf("Data received from %s: \"%s\"\n", tmp, buf);
@@ -183,11 +213,7 @@ void *server_thread_func(void *args) {
 
 	close_conn:
 		/* Close the connection and free up any resources. */
-		err = tcp_server_conn_close(conn);
-		if (err)
-			return (void *)err;
-		tcp_server_conn_free(conn);
-		conn = NULL;
+		gl_server_conn_destroy();
 
 		/* Inform of the connection being closed. */
 		printf("Client %s connection closed\n", tmp);
