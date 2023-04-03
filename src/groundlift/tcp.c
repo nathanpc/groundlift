@@ -245,15 +245,14 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	/* Handle errors. */
 	if (conn->sockfd == -1) {
 		/* Make sure we can handle a shutdown cleanly. */
-		if (server->sockfd == -1)
-			goto exit_err;
+		if (server->sockfd == -1) {
+			free(conn);
+			return NULL;
+		}
 
-		/* Display the error. */
-		perror("tcp_server_conn_accept@accept");
-
-exit_err:
-		free(conn);
-		return NULL;
+		/* Check if the error is worth displaying. */
+		if ((errno != EBADF) && (errno != ECONNABORTED))
+			perror("tcp_server_conn_accept@accept");
 	}
 
 	return conn;

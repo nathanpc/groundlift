@@ -153,6 +153,14 @@ void *server_thread_func(void *args) {
 		char buf[100];
 		size_t len;
 
+		/* Check if the connection socket is valid. */
+		if (conn->sockfd == -1) {
+			tcp_server_conn_free(conn);
+			conn = NULL;
+
+			continue;
+		}
+
 		/* Print out some client information. */
 		tmp = tcp_server_conn_get_ipstr(conn);
 		printf("Client at %s connection accepted\n", tmp);
