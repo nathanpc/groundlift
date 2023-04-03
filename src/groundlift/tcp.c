@@ -7,9 +7,10 @@
 
 #include "tcp.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/errno.h>
 #include <unistd.h>
 
 #include "defaults.h"
@@ -579,7 +580,7 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 	}
 #else
 	ret = shutdown(sockfd, SHUT_RDWR);
-	if (ret == -1) {
+	if ((ret == -1) && (errno != ENOTCONN) && (errno != EINVAL)) {
 		perror("tcp_socket_shutdown@shutdown");
 		return TCP_ERR_ESHUTDOWN;
 	}
