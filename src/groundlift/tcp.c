@@ -356,16 +356,17 @@ tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
 }
 
 /**
- * Closes a server client's remote connection.
+ * Shuts down a server client's remote connection.
  *
  * @param conn Server client connection handle object.
  *
  * @return TCP_OK if everything went fine.
+ *         TCP_ERR_ECLOSE if the socket failed to shutdown properly.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
  * @see tcp_server_conn_free
  */
-tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
+tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
@@ -373,7 +374,7 @@ tcp_err_t tcp_server_conn_close(server_conn_t *conn) {
 		return TCP_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = tcp_socket_close(conn->sockfd);
+	err = tcp_socket_shutdown(conn->sockfd);
 	conn->sockfd = -1;
 
 	return err;
@@ -505,10 +506,16 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 
+	/* Check if we have a valid file descriptor. */
+	if (sockfd == -1)
+		return TCP_EVT_CONN_CLOSED;
+
 	/* Try to read some information from a socket. */
 	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
 	if (bytes_recv == -1) {
-		perror("tcp_socket_recv@recv");
+		if (errno != EBADF)
+			perror("tcp_socket_recv@recv");
+
 		return TCP_ERR_ERECV;
 	}
 

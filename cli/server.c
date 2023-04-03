@@ -116,7 +116,7 @@ tcp_err_t gl_server_conn_destroy(void) {
 		printf("Closing the currently active connection\n");
 
 	/* Close the connection and free up any resources allocated. */
-	err = tcp_server_conn_close(m_conn);
+	err = tcp_server_conn_shutdown(m_conn);
 	tcp_server_conn_free(m_conn);
 	m_conn = NULL;
 
