@@ -19,6 +19,7 @@
 		"mdnshelper",
 		"tcpserver",
 		"TCPSERVERCLIENT",
-		"tjoin"
+		"tjoin",
+		"WSAENOTCONN"
 	]
 }

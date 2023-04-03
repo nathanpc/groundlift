@@ -573,6 +573,12 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
+	ret = shutdown(sockfd, SD_BOTH);
+	if ((ret == -1) && (errno != WSAENOTCONN)) {
+		perror("tcp_socket_shutdown@shutdown");
+		return TCP_ERR_ESHUTDOWN;
+	}
+
 	ret = closesocket(sockfd);
 	if (ret == -1) {
 		perror("tcp_socket_shutdown@closesocket");
