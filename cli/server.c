@@ -55,11 +55,9 @@ bool gl_server_init(const char *addr, uint16_t port) {
  */
 void gl_server_free(void) {
 	/* Stop the server and free up any allocated resources. */
-	pthread_mutex_lock(m_server_mutex);
 	gl_server_stop();
 	tcp_server_free(m_server);
 	m_server = NULL;
-	pthread_mutex_unlock(m_server_mutex);
 
 	/* Join the server thread. */
 	gl_server_thread_join();
@@ -118,7 +116,9 @@ bool gl_server_stop(void) {
 	pthread_mutex_unlock(m_conn_mutex);
 
 	/* Shut the thing down. */
+	pthread_mutex_lock(m_server_mutex);
 	err = tcp_server_shutdown(m_server);
+	pthread_mutex_unlock(m_server_mutex);
 
 	return err == TCP_OK;
 }
@@ -259,9 +259,7 @@ void *server_thread_func(void *args) {
 	}
 
 	/* Stop the server and free up any resources. */
-	pthread_mutex_lock(m_server_mutex);
 	gl_server_stop();
-	pthread_mutex_unlock(m_server_mutex);
 	printf("Server stopped\n");
 
 	return (void *)err;
