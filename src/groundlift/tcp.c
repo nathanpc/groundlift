@@ -137,23 +137,38 @@ void tcp_client_free(tcp_client_t *client) {
  * @see tcp_server_stop
  */
 tcp_err_t tcp_server_start(server_t *server) {
+	int reuse;
+
 	/* Create a new socket file descriptor. */
 	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->sockfd == -1) {
-		perror("server_start@socket");
+		perror("tcp_server_start@socket");
 		return TCP_ERR_ESOCKET;
 	}
+
+	/* Ensure we can reuse the address and port in case of panic. */
+	reuse = 1;
+	if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+				   sizeof(int)) == -1) {
+		perror("tcp_server_start@setsockopt(SO_REUSEADDR)");
+	}
+#ifdef SO_REUSEPORT
+	if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+				   sizeof(int)) == -1) {
+		perror("tcp_server_start@setsockopt(SO_REUSEPORT)");
+	}
+#endif
 
 	/* Bind ourselves to the address. */
 	if (bind(server->sockfd, (struct sockaddr *)&server->addr_in,
 			 server->addr_in_size) == -1) {
-		perror("server_start@bind");
+		perror("tcp_server_start@bind");
 		return TCP_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
 	if (listen(server->sockfd, TCPSERVER_BACKLOG) == -1) {
-		perror("server_start@listen");
+		perror("tcp_server_start@listen");
 		return TCP_ERR_ELISTEN;
 	}
 
