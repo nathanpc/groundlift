@@ -15,6 +15,8 @@
 static server_t *m_server;
 static server_conn_t *m_conn;
 static pthread_t *m_server_thread;
+static pthread_mutex_t *m_server_mutex;
+static pthread_mutex_t *m_conn_mutex;
 
 /* Private methods. */
 void *server_thread_func(void *args);
@@ -34,6 +36,12 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
 
+	/* Initialize our mutexes. */
+	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(m_server_mutex, NULL);
+	m_conn_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(m_conn_mutex, NULL);
+
 	/* Get a server handle. */
 	m_server = tcp_server_new(addr, port);
 	return m_server != NULL;
@@ -47,12 +55,26 @@ bool gl_server_init(const char *addr, uint16_t port) {
  */
 void gl_server_free(void) {
 	/* Stop the server and free up any allocated resources. */
+	pthread_mutex_lock(m_server_mutex);
 	gl_server_stop();
 	tcp_server_free(m_server);
 	m_server = NULL;
+	pthread_mutex_unlock(m_server_mutex);
 
 	/* Join the server thread. */
 	gl_server_thread_join();
+
+	/* Free our server mutex. */
+	if (m_server_mutex) {
+		free(m_server_mutex);
+		m_server_mutex = NULL;
+	}
+
+	/* Free our connection mutex. */
+	if (m_conn_mutex) {
+		free(m_conn_mutex);
+		m_conn_mutex = NULL;
+	}
 }
 
 /**
@@ -60,7 +82,7 @@ void gl_server_free(void) {
  *
  * @return TRUE if the operation was successful.
  *
- * @see gl_server_loop
+ * @see gl_server_thread_join
  * @see gl_server_stop
  */
 bool gl_server_start(void) {
@@ -79,20 +101,26 @@ bool gl_server_start(void) {
  *
  * @return TRUE if the operation was successful.
  *
- * @see gl_server_loop
+ * @see gl_server_thread_join
  * @see gl_server_free
  * @see gl_server_conn_destroy
  */
 bool gl_server_stop(void) {
+	tcp_err_t err;
+
 	/* Do we even need to stop it? */
 	if (m_server == NULL)
 		return true;
 
 	/* Destroy any active connections. */
+	pthread_mutex_lock(m_conn_mutex);
 	gl_server_conn_destroy();
+	pthread_mutex_unlock(m_conn_mutex);
 
 	/* Shut the thing down. */
-	return tcp_server_shutdown(m_server) == TCP_OK;
+	err = tcp_server_shutdown(m_server);
+
+	return err == TCP_OK;
 }
 
 /**
@@ -213,7 +241,9 @@ void *server_thread_func(void *args) {
 
 	close_conn:
 		/* Close the connection and free up any resources. */
+		pthread_mutex_lock(m_conn_mutex);
 		gl_server_conn_destroy();
+		pthread_mutex_unlock(m_conn_mutex);
 
 		/* Inform of the connection being closed. */
 		printf("Client %s connection closed\n", tmp);
@@ -221,7 +251,9 @@ void *server_thread_func(void *args) {
 	}
 
 	/* Stop the server and free up any resources. */
+	pthread_mutex_lock(m_server_mutex);
 	gl_server_stop();
+	pthread_mutex_unlock(m_server_mutex);
 	printf("Server stopped\n");
 
 	return (void *)err;
