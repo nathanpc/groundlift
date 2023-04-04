@@ -157,19 +157,24 @@ tcp_err_t gl_server_conn_destroy(void) {
  * @return TRUE if the operation was successful.
  */
 bool gl_server_thread_join(void) {
-	void *retval;
+	tcp_err_t *err;
+	bool success;
 
 	/* Do we even need to do something? */
 	if (m_server_thread == NULL)
 		return true;
 
 	/* Join the thread back into us. */
-	pthread_join(*m_server_thread, &retval);
+	pthread_join(*m_server_thread, (void **)&err);
 	free(m_server_thread);
 	m_server_thread = NULL;
 
+	/* Check for success and free our returned value. */
+	success = *err <= TCP_OK;
+	free(err);
+
 	/* Check if the thread join was successful. */
-	return retval == 0;
+	return success;
 }
 
 /**
@@ -183,23 +188,26 @@ server_t *gl_server_get(void) {
 
 /**
  * Server thread function.
+ * @warning This function allocates memory that must be free'd by you.
  *
  * @param args No arguments should be passed.
  *
- * @return Returned value from the whole operation.
+ * @return Pointer to a tcp_err_t with the last error code. This pointer must be
+ *         free'd by you.
  */
 void *server_thread_func(void *args) {
-	tcp_err_t err;
+	tcp_err_t *err;
 	char *tmp;
 
-	/* Ignore the argument passed. */
+	/* Ignore the argument passed and initialize things. */
 	(void)args;
 	tmp = NULL;
+	err = (tcp_err_t *)malloc(sizeof(tcp_err_t));
 
 	/* Start the server and listen for incoming connections. */
-	err = tcp_server_start(m_server);
-	if (err)
-		return false;
+	*err = tcp_server_start(m_server);
+	if (*err)
+		return (void *)err;
 
 	/* Print some information about the current state of the server. */
 	tmp = tcp_server_get_ipstr(m_server);
@@ -224,19 +232,19 @@ void *server_thread_func(void *args) {
 		printf("Client at %s connection accepted\n", tmp);
 
 		/* Send some data to the client. */
-		err = tcp_server_conn_send(m_conn, "Hello, world!", 13);
-		if (err)
+		*err = tcp_server_conn_send(m_conn, "Hello, world!", 13);
+		if (*err)
 			goto close_conn;
 
 		/* Read incoming data until the connection is closed by the client. */
-		while ((err = tcp_server_conn_recv(m_conn, buf, 99, &len, false)) == TCP_OK) {
+		while ((*err = tcp_server_conn_recv(m_conn, buf, 99, &len, false)) == TCP_OK) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
 			printf("Data received from %s: \"%s\"\n", tmp, buf);
 		}
 
 		/* Check if the connection was closed gracefully. */
-		if (err == TCP_EVT_CONN_CLOSED)
+		if (*err == TCP_EVT_CONN_CLOSED)
 			printf("Connection closed by the client at %s\n", tmp);
 
 	close_conn:
