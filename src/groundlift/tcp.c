@@ -227,10 +227,8 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
 
 	/* Check if we even have a socket to accept things from. */
-	if (server->sockfd == -1) {
-		fprintf(stderr, "tcp_server_conn_accept: Invalid server sockfd\n");
+	if (server->sockfd == -1)
 		return NULL;
-	}
 
 	/* Allocate some memory for our handle object. */
 	conn = (server_conn_t *)malloc(sizeof(server_conn_t));
@@ -513,9 +511,11 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 	/* Try to read some information from a socket. */
 	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
 	if (bytes_recv == -1) {
-		if (errno != EBADF)
-			perror("tcp_socket_recv@recv");
+		/* Check if it's just the connection being abruptly shut down. */
+		if (errno == EBADF)
+			return TCP_EVT_CONN_SHUTDOWN;
 
+		perror("tcp_socket_recv@recv");
 		return TCP_ERR_ERECV;
 	}
 
