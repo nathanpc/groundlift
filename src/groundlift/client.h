@@ -8,10 +8,11 @@
 #ifndef _GL_CLIENT_H
 #define _GL_CLIENT_H
 
-#include <groundlift/tcp.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include "tcp.h"
 
 #ifdef __cplusplus
 extern "C" {

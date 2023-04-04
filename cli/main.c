@@ -6,15 +6,13 @@
  */
 
 #include <groundlift/defaults.h>
-#include <groundlift/tcp.h>
+#include <groundlift/client.h>
+#include <groundlift/server.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "server.h"
-#include "client.h"
 
 /* Private methods. */
 void sigint_handler(int sig);

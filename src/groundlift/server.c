@@ -7,9 +7,10 @@
 
 #include "server.h"
 
-#include <groundlift/defaults.h>
-#include <groundlift/tcp.h>
 #include <pthread.h>
+
+#include "defaults.h"
+#include "tcp.h"
 
 /* Private variables. */
 static server_t *m_server;

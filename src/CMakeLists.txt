@@ -1,6 +1,8 @@
 # Define source files.
 set(GROUNDLIFT_LIB_SOURCES
-	groundlift/tcp.c)
+	groundlift/tcp.c
+	groundlift/server.c
+	groundlift/client.c)
 
 # Build the main groundlift library.
 add_library(groundlift

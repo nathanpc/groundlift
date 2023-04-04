@@ -7,9 +7,10 @@
 
 #include "client.h"
 
-#include <groundlift/defaults.h>
-#include <groundlift/tcp.h>
 #include <pthread.h>
+
+#include "defaults.h"
+#include "tcp.h"
 
 /* Private variables. */
 static tcp_client_t *m_client;
