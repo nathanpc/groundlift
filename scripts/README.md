@@ -1,7 +1,6 @@
 # Helper Scripts
 
-A collection of scripts to automate certain debugging tasks related to the
-project.
+A collection of scripts to automate certain tasks related to the project.
 
 ## License
 
