@@ -5,8 +5,9 @@
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include <groundlift/defaults.h>
 #include <groundlift/client.h>
+#include <groundlift/defaults.h>
+#include <groundlift/obex.h>
 #include <groundlift/server.h>
 #include <pthread.h>
 #include <signal.h>
@@ -83,6 +84,50 @@ int main(int argc, char **argv) {
 			ret = 1;
 			goto cleanup;
 		}
+	} else if (argv[1][0] == 'o') {
+		obex_header_t header;
+
+		/* Byte */
+		header.identifier.id = OBEX_HEADER_ACTION_ID;
+		header.value.byte = 0x23;
+		obex_print_header(&header);
+		printf("\n");
+
+		/* Word 64-bit */
+		header.identifier.id = OBEX_HEADER_COUNT;
+		header.value.word64 = 1234567890;
+		obex_print_header(&header);
+		printf("\n");
+
+		/* String */
+		header.identifier.id = OBEX_HEADER_TYPE;
+		header.value.string.fhlength = strlen("text/plain") + 1 + 3;
+		header.value.string.text =
+			(char *)malloc((header.value.string.fhlength - 3) * sizeof(char));
+		strcpy(header.value.string.text, "text/plain");
+		obex_print_header(&header);
+		free(header.value.string.text);
+		header.value.string.text = NULL;
+		printf("\n");
+
+		/* UTF-16 String */
+		header.identifier.id = OBEX_HEADER_NAME;
+		header.value.wstring.fhlength = ((strlen("jumar.txt") + 1) * 2) + 3;
+		header.value.wstring.text =
+			(uint16_t *)malloc(((header.value.wstring.fhlength - 3) / 2) * sizeof(uint16_t));
+		header.value.wstring.text[0] = 'j';
+		header.value.wstring.text[1] = 'u';
+		header.value.wstring.text[2] = 'm';
+		header.value.wstring.text[3] = 'a';
+		header.value.wstring.text[4] = 'r';
+		header.value.wstring.text[5] = '.';
+		header.value.wstring.text[6] = 't';
+		header.value.wstring.text[7] = 'x';
+		header.value.wstring.text[8] = 't';
+		header.value.wstring.text[9] = 0x0000;
+		obex_print_header(&header);
+		free(header.value.wstring.text);
+		header.value.wstring.text = NULL;
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		return 1;

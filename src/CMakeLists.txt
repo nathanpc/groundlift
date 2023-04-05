@@ -1,6 +1,7 @@
 # Define source files.
 set(GROUNDLIFT_LIB_SOURCES
 	groundlift/tcp.c
+	groundlift/obex.c
 	groundlift/server.c
 	groundlift/client.c)
 
