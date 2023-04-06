@@ -3,7 +3,8 @@ set(GROUNDLIFT_LIB_SOURCES
 	groundlift/tcp.c
 	groundlift/obex.c
 	groundlift/server.c
-	groundlift/client.c)
+	groundlift/client.c
+	groundlift/utf16utils.c)
 
 # Build the main groundlift library.
 add_library(groundlift

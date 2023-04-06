@@ -61,19 +61,10 @@ void obex_print_header_encoding(const obex_header_t *header) {
  */
 void obex_print_header_value(const obex_header_t *header) {
 	switch (header->identifier.encoding) {
-		case OBEX_HEADER_ENCODING_UTF16: {
-			const uint16_t *wstr;
-
-			printf("(%u) L\"", header->value.wstring.fhlength);
-			wstr = header->value.wstring.text;
-			while (*wstr != 0x0000) {
-				putchar((char)(*wstr & 0xFF));
-				wstr++;
-			}
-			putchar('\"');
-
+		case OBEX_HEADER_ENCODING_UTF16:
+			wprintf(L"(%u) L\"%ls\"", header->value.wstring.fhlength,
+					header->value.wstring.text);
 			break;
-		}
 		case OBEX_HEADER_ENCODING_STRING:
 			printf("(%u) \"%s\"", header->value.string.fhlength,
 				   header->value.string.text);

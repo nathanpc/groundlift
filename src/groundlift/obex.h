@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 #include "tcp.h"
 
@@ -92,7 +93,7 @@ typedef struct {
 
 		struct {
 			uint16_t fhlength;
-			uint16_t *text;
+			wchar_t *text;
 		} wstring;
 	} value;
 } obex_header_t;
