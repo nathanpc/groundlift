@@ -86,49 +86,42 @@ int main(int argc, char **argv) {
 			goto cleanup;
 		}
 	} else if (argv[1][0] == 'o') {
-		obex_header_t header;
+		obex_header_t *header;
+		wchar_t *wbuf;
 
 		/* Byte */
-		header.identifier.id = OBEX_HEADER_ACTION_ID;
-		header.value.byte = 0x23;
-		obex_print_header(&header);
-		printf("\n");
+		header = obex_header_new(OBEX_HEADER_ACTION_ID);
+		header->value.byte = 0x23;
+		obex_print_header(header, true);
+		obex_header_free(header);
 
 		/* Word 64-bit */
-		header.identifier.id = OBEX_HEADER_COUNT;
-		header.value.word64 = 1234567890;
-		obex_print_header(&header);
-		printf("\n");
+		header = obex_header_new(OBEX_HEADER_COUNT);
+		header->value.word32 = 1234567890;
+		obex_print_header(header, false);
+		obex_header_free(header);
 
 		/* String */
-		header.identifier.id = OBEX_HEADER_TYPE;
-		header.value.string.fhlength = strlen("text/plain") + 1;
-		header.value.string.text =
-			(char *)malloc(header.value.string.fhlength * sizeof(char));
-		header.value.string.fhlength += 3;
-		strcpy(header.value.string.text, "text/plain");
-		obex_print_header(&header);
-		free(header.value.string.text);
-		header.value.string.text = NULL;
-		printf("\n");
+		header = obex_header_new(OBEX_HEADER_TYPE);
+		obex_header_string_copy(header, "text/plain");
+		obex_print_header(header, false);
+		obex_header_free(header);
 
 		/* UTF-16 String */
-		header.identifier.id = OBEX_HEADER_NAME;
-		header.value.wstring.fhlength = strlen("jumar.txt") + 1;
-		header.value.wstring.text =
-			(wchar_t *)malloc(header.value.wstring.fhlength * sizeof(wchar_t));
+		header = obex_header_new(OBEX_HEADER_NAME);
+		wbuf = (wchar_t *)malloc((strlen("jumar.txt") + 1) * sizeof(wchar_t));
 		/* Simulating a UTF-16 string being put into a 32-bit wchar_t. */
-		header.value.wstring.text[0] = ('j' << 16) | 'u';
-		header.value.wstring.text[1] = ('m' << 16) | 'a';
-		header.value.wstring.text[2] = ('r' << 16) | '.';
-		header.value.wstring.text[3] = ('t' << 16) | 'x';
-		header.value.wstring.text[4] = ('t' << 16) | 0;
-		utf16_wchar32_fix(header.value.wstring.text);
-		header.value.wstring.fhlength *= 2;
-		header.value.wstring.fhlength += 3;
-		obex_print_header(&header);
-		free(header.value.wstring.text);
-		header.value.wstring.text = NULL;
+		wbuf[0] = ('j' << 16) | 'u';
+		wbuf[1] = ('m' << 16) | 'a';
+		wbuf[2] = ('r' << 16) | '.';
+		wbuf[3] = ('t' << 16) | 'x';
+		wbuf[4] = ('t' << 16) | 0;
+		utf16_wchar32_fix(wbuf);
+		obex_header_wstring_copy(header, wbuf);
+		obex_print_header(header, false);
+		obex_header_free(header);
+
+		printf("\n");
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		return 1;

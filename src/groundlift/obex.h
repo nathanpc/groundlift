@@ -37,7 +37,7 @@ extern "C" {
  *
  * @param opcode Opcode to have its final bit set.
  */
-#define OBEX_SET_FINAL_BIT(opcode) ((opcode) | 0b10000000)
+#define OBEX_SET_FINAL_BIT(opcode) ((opcode) | (1 << 7))
 
 /**
  * OBEX header encoding. (Upper 2 bits of the header identifier shifted)
@@ -46,7 +46,7 @@ typedef enum {
 	OBEX_HEADER_ENCODING_UTF16  = 0,
 	OBEX_HEADER_ENCODING_STRING = 1,
 	OBEX_HEADER_ENCODING_BYTE   = 2,
-	OBEX_HEADER_ENCODING_WORD64 = 3
+	OBEX_HEADER_ENCODING_WORD32 = 3
 } obex_header_encoding_t;
 
 /**
@@ -85,6 +85,7 @@ typedef enum {
  * Standard OBEX opcodes with the final bit already set when applicable.
  */
 typedef enum {
+	/* Opcodes */
 	OBEX_OPCODE_CONNECT = 0x80,
 	OBEX_OPCODE_DISCONNECT = 0x81,
 	OBEX_OPCODE_PUT = 0x02,
@@ -93,14 +94,9 @@ typedef enum {
 	OBEX_OPCODE_SETPATH = 0x85,
 	OBEX_OPCODE_ACTION = 0x06,
 	OBEX_OPCODE_SESSION = 0x87,
-	OBEX_OPCODE_ABORT = 0xFF
-} obex_opcodes_t;
+	OBEX_OPCODE_ABORT = 0xFF,
 
-/**
- * Most commonly used set of standard OBEX response codes, all without the final
- * bit set.
- */
-typedef enum {
+	/* Response Codes */
 	OBEX_RESPONSE_CONTINUE = 0x10,
 	OBEX_RESPONSE_SUCCESS = 0x20,
 	OBEX_RESPONSE_BAD_REQUEST = 0x40,
@@ -111,7 +107,7 @@ typedef enum {
 	OBEX_RESPONSE_INTERNAL_ERROR = 0x50,
 	OBEX_RESPONSE_NOT_IMPLEMENTED = 0x51,
 	OBEX_RESPONSE_SERVICE_UNAVAILABLE = 0x53
-} obex_response_codes_t;
+} obex_opcodes_t;
 
 /**
  * OBEX header representation.
@@ -127,17 +123,16 @@ typedef struct {
 	} identifier;
 
 	union {
-		void *data;
 		uint8_t byte;
-		uint64_t word64;
+		uint32_t word32;
 
 		struct {
-			uint16_t fhlength;
+			uint16_t length;
 			char *text;
 		} string;
 
 		struct {
-			uint16_t fhlength;
+			uint16_t length;
 			wchar_t *text;
 		} wstring;
 	} value;
@@ -148,18 +143,33 @@ typedef struct {
  */
 typedef struct {
 	uint8_t opcode;
-	uint16_t length;
+	uint16_t size;
 
-	obex_header_t *headers;
+	obex_header_t **headers;
 	uint16_t header_count;
 
-	void *data;
+	uint16_t body_length;
+	void *body;
 } obex_packet_t;
 
+/* Packet manipulation. */
+obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool final);
+void obex_packet_free(obex_packet_t *packet);
+bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
+void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body);
+bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src);
+
+/* Header manipulation. */
+obex_header_t *obex_header_new(obex_header_id_t id);
+void obex_header_free(obex_header_t *header);
+bool obex_header_string_copy(obex_header_t *header, const char *str);
+bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr);
+
 /* Debug */
-void obex_print_header(const obex_header_t *header);
+void obex_print_header(const obex_header_t *header, bool th);
 void obex_print_header_encoding(const obex_header_t *header);
 void obex_print_header_value(const obex_header_t *header);
+void obex_print_packet(const obex_packet_t *packet);
 
 #ifdef __cplusplus
 }
