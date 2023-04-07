@@ -148,28 +148,38 @@ typedef struct {
 	obex_header_t **headers;
 	uint16_t header_count;
 
+	bool body_end;
 	uint16_t body_length;
 	void *body;
 } obex_packet_t;
 
 /* Packet manipulation. */
-obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool final);
+obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final);
 void obex_packet_free(obex_packet_t *packet);
 bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
-void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body);
-bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src);
+void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
+bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);
+uint16_t obex_packet_size_refresh(obex_packet_t *packet);
 
 /* Header manipulation. */
 obex_header_t *obex_header_new(obex_header_id_t id);
 void obex_header_free(obex_header_t *header);
 bool obex_header_string_copy(obex_header_t *header, const char *str);
 bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr);
+uint16_t obex_header_size(const obex_header_t *header);
 
-/* Debug */
+/* Packet encoding and decoding. */
+bool obex_packet_encode(obex_packet_t *packet, void **buf);
+void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf);
+
+/* Common packet constructors. */
+obex_packet_t *obex_packet_new_connect(void);
+
+/* Debugging */
 void obex_print_header(const obex_header_t *header, bool th);
 void obex_print_header_encoding(const obex_header_t *header);
 void obex_print_header_value(const obex_header_t *header);
-void obex_print_packet(const obex_packet_t *packet);
+void obex_print_packet(obex_packet_t *packet);
 
 #ifdef __cplusplus
 }

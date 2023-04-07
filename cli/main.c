@@ -122,6 +122,28 @@ int main(int argc, char **argv) {
 		obex_header_free(header);
 
 		printf("\n");
+	} else if (argv[1][0] == 'p') {
+		obex_packet_t *packet;
+		void *buf;
+
+		/* Create a new packet. */
+		packet = obex_packet_new_connect();
+
+		/* Convert the packet into a network buffer. */
+		if (!obex_packet_encode(packet, &buf)) {
+			fprintf(stderr, "Failed to encode the packet for transferring.\n");
+			obex_packet_free(packet);
+
+			return 1;
+		}
+
+		/* Print all the information we can get. */
+		obex_print_packet(packet);
+		printf("Network buffer:\n");
+		tcp_print_net_buffer(buf, packet->size);
+		printf("\n");
+
+		obex_packet_free(packet);
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		return 1;

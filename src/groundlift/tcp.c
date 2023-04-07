@@ -725,3 +725,20 @@ char *tcp_client_get_ipstr(const tcp_client_t *client) {
 
 	return buf;
 }
+
+/**
+ * Prints out the contents of a buffer ready to be transferred over the network.
+ * Keep in mind that this means that everything will be in network byte order.
+ *
+ * @param buf Network byte ordered buffer to be inspected.
+ * @param len Length of the buffer.
+ */
+void tcp_print_net_buffer(const void *buf, size_t len) {
+	size_t i;
+	const uint8_t *p;
+
+	p = buf;
+	for (i = 0; i < len; i++) {
+		printf("%02X ", p[i]);
+	}
+}

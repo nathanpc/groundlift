@@ -6,22 +6,30 @@
  */
 
 #include "obex.h"
+
+#include <arpa/inet.h>
+#include <bits/stdint-uintn.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "utf16utils.h"
+
+/* Private methods. */
+void *memcpy_n(void *dest, const void *src, size_t len);
 
 /**
  * Creates a brand new OBEX packet object.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param opcode Opcode or return code for this brand new packet.
- * @param final  Should we set the final bit?
+ * @param opcode    Opcode or return code for this brand new packet.
+ * @param set_final Should we set the final bit?
  *
  * @return Newly allocated packet object or NULL if we couldn't allocate the
  *         object.
  *
  * @see obex_packet_free
  */
-obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool final) {
+obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final) {
 	obex_packet_t *packet;
 
 	/* Allocate some memory for our packet object. */
@@ -34,11 +42,12 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool final) {
 	packet->size = 0;
 	packet->headers = NULL;
 	packet->header_count = 0;
+	packet->body_end = false;
 	packet->body_length = 0;
 	packet->body = NULL;
 
 	/* Set the final bit if needed. */
-	if (final)
+	if (set_final)
 		packet->opcode = OBEX_SET_FINAL_BIT(packet->opcode);
 
 	return packet;
@@ -103,12 +112,14 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
  * @param body   Body contents. (Won't be copied by this function, so it must
  *               remain valid for the lifetime of the packet and will be free'd
  *               when the packet is free'd.)
+ * @param eob    Should we set the End of Body flag?
  *
  * @see obex_packet_body_copy
  */
-void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body) {
+void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob) {
 	packet->body_length = size;
 	packet->body = body;
+	packet->body_end = eob;
 }
 
 /**
@@ -119,12 +130,13 @@ void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body) {
  * @param src    Body contents. (Won't be copied by this function, so it must
  *               remain valid for the lifetime of the packet and will be free'd
  *               when the packet is free'd.)
+ * @param eob    Should we set the End of Body flag?
  *
  * @return TRUE when the operation was successful.
  *
  * @see obex_packet_body_set
  */
-bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src) {
+bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob) {
 	void *body;
 
 	/* Allocate memory for the body contents. */
@@ -136,9 +148,35 @@ bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src
 	memcpy(body, src, size);
 
 	/* Set the packet body. */
-	obex_packet_body_set(packet, size, body);
+	obex_packet_body_set(packet, size, body, eob);
 
 	return true;
+}
+
+/**
+ * Recalculates the network size of the packet taking into account everything
+ * that's populated within it.
+ *
+ * @param packet Packet object to have its network size updated.
+ *
+ * @return New network size of the entire packet.
+ */
+uint16_t obex_packet_size_refresh(obex_packet_t *packet) {
+	uint16_t i;
+
+	/* A packet must contain at least the opcode and the length. */
+	packet->size = 3;
+
+	/* Do we have a body to sum up as well? */
+	if ((packet->body != NULL) || (packet->body_end))
+		packet->size += packet->body_length + 3;
+
+	/* Better count those headers! */
+	for (i = 0; i < packet->header_count; i++) {
+		packet->size += obex_header_size(packet->headers[i]);
+	}
+
+	return packet->size;
 }
 
 /**
@@ -251,13 +289,190 @@ bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr) {
 }
 
 /**
- * Prints the contents of a packet in a human-readable, debug-friendly, way.
+ * Gets the full size of a header as it will be when sent in a packet. This will
+ * take into account the header ID, encoding, and the length field itself.
  *
- * @param packet OBEX packet to have its contents inspected.
+ * @param header Header object.
+ *
+ * @return Size of the header as it should be used in the length field.
+ */
+uint16_t obex_header_size(const obex_header_t *header) {
+	switch (header->identifier.fields.encoding) {
+		case OBEX_HEADER_ENCODING_UTF16:
+			return (header->value.wstring.length * 2) + 3;
+		case OBEX_HEADER_ENCODING_STRING:
+			return header->value.string.length + 3;
+		case OBEX_HEADER_ENCODING_BYTE:
+			return sizeof(uint8_t) + 1;
+		case OBEX_HEADER_ENCODING_WORD32:
+			return sizeof(int32_t) + 1;
+		default:
+			fprintf(stderr, "obex_header_size: Unknown header encoding\n");
+			return 0;
+	}
+}
+
+/**
+ * Encodes an OBEX packet structure to be transferred over the network. Will
+ * also set the appropriate size of the final packet to the structure to be used
+ * when sending.
+ *
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param packet Packet object to be encoded.
+ * @param buf    Pointer to a buffer that will contain the encoded data. (Will
+ *               be allocated by this function)
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool obex_packet_encode(obex_packet_t *packet, void **buf) {
+	uint16_t i;
+	uint16_t n;
+	void *p;
+	obex_header_t *body_header;
+
+	/* Calculate the length of the whole packet */
+	obex_packet_size_refresh(packet);
+
+	/* Allocate some memory for our packet buffer. */
+	*buf = malloc(packet->size);
+	if (*buf == NULL) {
+		buf = NULL;
+		return false;
+	}
+
+	/* Start copying over the opcode and the length of the packet. */
+	p = *buf;
+	p = memcpy_n(p, &packet->opcode, 1);
+	n = htons(packet->size);
+	p = memcpy_n(p, &n, 2);
+
+	/* Copy over the headers. */
+	for (i = 0; i < packet->header_count; i++) {
+		p = obex_packet_encode_header_memcpy(packet->headers[i], p);
+	}
+
+	/* Check if we should send an empty end-of-body header. */
+	if (packet->body_end && (packet->body == NULL)) {
+		body_header = obex_header_new(OBEX_HEADER_END_BODY);
+		body_header->value.word32 = 0;
+
+		p = obex_packet_encode_header_memcpy(body_header, p);
+		obex_header_free(body_header);
+		body_header = NULL;
+	}
+
+	/* Copy over the body over if needed. */
+	if (packet->body != NULL) {
+		body_header = obex_header_new(
+			(packet->body_end) ? OBEX_HEADER_END_BODY : OBEX_HEADER_BODY);
+		body_header->value.word32 = packet->body_length;
+
+		p = obex_packet_encode_header_memcpy(body_header, p);
+		obex_header_free(body_header);
+		body_header = NULL;
+	}
+
+	return true;
+}
+
+/**
+ * Encodes a header structure to be transferred over the network and appends it
+ * to the packet buffer returning the next byte just like memcpy_n.
+ *
+ * @param header Header object.
+ * @param buf    Buffer to have the header copied to.
+ *
+ * @return Next byte in the buffer after the copied data. (memcpy_n returned)
+ *
+ * @see obex_packet_encode
+ * @see memcpy_n
+ */
+void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
+	void *p;
+
+	/* Start by copying the header identifier. */
+	p = buf;
+	p = memcpy_n(p, &header->identifier.id, 1);
+
+	/* Copy the value over. */
+	switch (header->identifier.fields.encoding) {
+		case OBEX_HEADER_ENCODING_UTF16: {
+			uint16_t len;
+			const wchar_t *wstr;
+			uint16_t wc;
+
+			/* Copy length first. */
+			len = htons(obex_header_size(header));
+			p = memcpy_n(p, &len, sizeof(uint16_t));
+
+			/* Copy the wide string over. */
+			wstr = header->value.wstring.text;
+			while (*wstr != L'\0') {
+				wc = htons(utf16_conv_ltos(*wstr));
+				p = memcpy_n(p, &wc, 1);
+			}
+			wc = htons(L'\0');
+			p = memcpy_n(p, &wc, 1);
+
+			break;
+		}
+		case OBEX_HEADER_ENCODING_STRING: {
+			uint16_t len;
+
+			/* Copy length first. */
+			len = htons(obex_header_size(header));
+			p = memcpy_n(p, &len, sizeof(uint16_t));
+
+			/* Copy the string over. */
+			p = memcpy_n(p, header->value.string.text,
+						 header->value.string.length + 1);
+
+			break;
+		}
+		case OBEX_HEADER_ENCODING_BYTE:
+			p = memcpy_n(p, &header->value.byte, 1);
+			break;
+		case OBEX_HEADER_ENCODING_WORD32: {
+			uint32_t n = htonl(header->value.word32);
+			p = memcpy_n(p, &n, sizeof(uint32_t));
+			break;
+		}
+		default:
+			fprintf(stderr, "obex_packet_encode_header_memcpy: Unknown header "
+					"encoding\n");
+			return 0;
+	}
+
+	return p;
+}
+
+/**
+ * Creates a brand new CONNECT packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @return Brand new CONNECT packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_connect(void) {
+	obex_packet_t *packet;
+
+	/* Create the packet and populate it with default parameters. */
+	packet = obex_packet_new(OBEX_OPCODE_CONNECT, true);
+	/* TODO: Set parameters. */
+
+	return packet;
+}
+
+/**
+ * Prints the contents of a packet in a human-readable, debug-friendly, way.
+ * This function will also recalculate and update the packet network size.
+ *
+ * @param packet OBEX packet to have its contents inspected and its size
+ *               updated.
  *
  * @see obex_print_header
  */
-void obex_print_packet(const obex_packet_t *packet) {
+void obex_print_packet(obex_packet_t *packet) {
 	uint16_t i;
 
 	/* Opcode or response code. */
@@ -298,6 +513,7 @@ void obex_print_packet(const obex_packet_t *packet) {
 	}
 
 	/* Show opcode in hex and display the packet length and header count. */
+	obex_packet_size_refresh(packet);
 	printf("[0x%02X] %u bytes and %u headers\n", packet->opcode, packet->size,
 		   packet->header_count);
 
@@ -398,4 +614,22 @@ void obex_print_header_value(const obex_header_t *header) {
 				   "currently not supported.");
 			break;
 	}
+}
+
+/**
+ * Performs a memcpy operation but returns a pointer to the next byte after the
+ * copied data instead of just a pointer to dest.
+ *
+ * @param dest Destination buffer.
+ * @param src  Source buffer.
+ * @param len  Number of bytes to copy.
+ *
+ * @return Pointer to the next byte after the copied data in dest. Warning: This
+ *         pointer may be after the end of the allocated buffer.
+ *
+ * @see memcpy
+ */
+void *memcpy_n(void *dest, const void *src, size_t len) {
+	memcpy(dest, src, len);
+	return ((char *)dest) + len;
 }

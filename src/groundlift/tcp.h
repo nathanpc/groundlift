@@ -94,6 +94,9 @@ char *tcp_server_get_ipstr(const server_t *server);
 char *tcp_server_conn_get_ipstr(const server_conn_t *conn);
 char *tcp_client_get_ipstr(const tcp_client_t *client);
 
+/* Debugging */
+void tcp_print_net_buffer(const void *buf, size_t len);
+
 #ifdef __cplusplus
 }
 #endif
