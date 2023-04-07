@@ -4,7 +4,6 @@
 	"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
 	"sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
 	"cSpell.words": [
-		"Avahi",
 		"EBIND",
 		"ECLOSE",
 		"ECONNECT",
@@ -14,14 +13,11 @@
 		"ESOCKET",
 		"fhlength",
 		"itos",
-		"libavahi",
-		"mdns",
-		"mdnscommon",
-		"mdnshelper",
 		"OBEX",
 		"tcpserver",
 		"TCPSERVERCLIENT",
 		"tjoin",
-		"WSAENOTCONN"
+		"WSAENOTCONN",
+		"SETPATH"
 	]
 }

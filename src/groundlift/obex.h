@@ -20,11 +20,24 @@ extern "C" {
 #endif
 
 /**
+ * Maximum size of an OBEX packet in bytes as defined by the OBEX 1.5
+ * specification.
+ */
+#define OBEX_MAX_PACKET_SIZE 65535
+
+/**
  * Converts a header encoding flag into a mask.
  *
  * @param flag Header encoding bits to be shifted into a mask.
  */
 #define OBEX_HEADER_ENCODING_MASK(flag) ((flag) << 6)
+
+/**
+ * Sets the Final Bit Flag of an opcode to indicate the end of an operation.
+ *
+ * @param opcode Opcode to have its final bit set.
+ */
+#define OBEX_SET_FINAL_BIT(opcode) ((opcode) | 0b10000000)
 
 /**
  * OBEX header encoding. (Upper 2 bits of the header identifier shifted)
@@ -37,7 +50,7 @@ typedef enum {
 } obex_header_encoding_t;
 
 /**
- * Standard OBEX header identifiers. (Includes their standard encoding bits)
+ * Standard OBEX header identifiers including their standard encoding bits.
  */
 typedef enum {
 	OBEX_HEADER_COUNT = 0xC0,
@@ -69,6 +82,21 @@ typedef enum {
 } obex_header_id_t;
 
 /**
+ * Standard OBEX opcodes with the final bit already set when applicable.
+ */
+typedef enum {
+	OBEX_OPCODE_CONNECT = 0x80,
+	OBEX_OPCODE_DISCONNECT = 0x81,
+	OBEX_OPCODE_PUT = 0x02,
+	OBEX_OPCODE_GET = 0x03,
+	OBEX_OPCODE_RESERVED = 0x04,
+	OBEX_OPCODE_SETPATH = 0x85,
+	OBEX_OPCODE_ACTION = 0x06,
+	OBEX_OPCODE_SESSION = 0x87,
+	OBEX_OPCODE_ABORT = 0xFF
+} obex_opcodes_t;
+
+/**
  * OBEX header representation.
  */
 typedef struct {
@@ -97,6 +125,19 @@ typedef struct {
 		} wstring;
 	} value;
 } obex_header_t;
+
+/**
+ * OBEX packet representation.
+ */
+typedef struct {
+	uint8_t opcode;
+	uint16_t length;
+
+	obex_header_t *headers;
+	uint16_t header_count;
+
+	void *data;
+} obex_packet_t;
 
 /* Debug */
 void obex_print_header(const obex_header_t *header);
