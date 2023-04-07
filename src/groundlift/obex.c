@@ -21,7 +21,7 @@ void obex_print_header(const obex_header_t *header) {
 	/* Print header identifier and its various bits separated. */
 	printf("0x%02X\t", header->identifier.id);
 	obex_print_header_encoding(header);
-	printf("\t0x%02X\t", header->identifier.meaning);
+	printf("\t0x%02X\t", header->identifier.fields.meaning);
 
 	/* Print the header value. */
 	obex_print_header_value(header);
@@ -35,21 +35,21 @@ void obex_print_header(const obex_header_t *header) {
  * @param header Header object to be inspected.
  */
 void obex_print_header_encoding(const obex_header_t *header) {
-	switch (header->identifier.encoding) {
+	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
-			printf("UTF-16 (0x%02X)", header->identifier.encoding);
+			printf("UTF-16 (0x%02X)", header->identifier.fields.encoding);
 			break;
 		case OBEX_HEADER_ENCODING_STRING:
-			printf("String (0x%02X)", header->identifier.encoding);
+			printf("String (0x%02X)", header->identifier.fields.encoding);
 			break;
 		case OBEX_HEADER_ENCODING_BYTE:
-			printf("Byte (0x%02X)", header->identifier.encoding);
+			printf("Byte (0x%02X)", header->identifier.fields.encoding);
 			break;
 		case OBEX_HEADER_ENCODING_WORD64:
-			printf("4 Bytes (0x%02X)", header->identifier.encoding);
+			printf("4 Bytes (0x%02X)", header->identifier.fields.encoding);
 			break;
 		default:
-			printf("Unknown (0x%02X)", header->identifier.encoding);
+			printf("Unknown (0x%02X)", header->identifier.fields.encoding);
 			break;
 	}
 }
@@ -60,7 +60,7 @@ void obex_print_header_encoding(const obex_header_t *header) {
  * @param header Header object to be inspected.
  */
 void obex_print_header_value(const obex_header_t *header) {
-	switch (header->identifier.encoding) {
+	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
 			wprintf(L"(%u) L\"%ls\"", header->value.wstring.fhlength,
 					header->value.wstring.text);

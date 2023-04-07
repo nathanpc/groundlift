@@ -43,10 +43,10 @@ extern "C" {
  * OBEX header encoding. (Upper 2 bits of the header identifier shifted)
  */
 typedef enum {
-	OBEX_HEADER_ENCODING_UTF16  = 0b00,
-	OBEX_HEADER_ENCODING_STRING = 0b01,
-	OBEX_HEADER_ENCODING_BYTE   = 0b10,
-	OBEX_HEADER_ENCODING_WORD64 = 0b11
+	OBEX_HEADER_ENCODING_UTF16  = 0,
+	OBEX_HEADER_ENCODING_STRING = 1,
+	OBEX_HEADER_ENCODING_BYTE   = 2,
+	OBEX_HEADER_ENCODING_WORD64 = 3
 } obex_header_encoding_t;
 
 /**
@@ -123,7 +123,7 @@ typedef struct {
 		struct {
 			unsigned int meaning : 6;
 			unsigned int encoding : 2;
-		};
+		} fields;
 	} identifier;
 
 	union {
