@@ -7,6 +7,7 @@
  */
 
 #include "utf16utils.h"
+#include <bits/stdint-uintn.h>
 
 /**
  * Fixes a UTF-16 that was caught up inside a 32-bit wchar_t and rearranges the
@@ -78,4 +79,20 @@ size_t utf16_wchar32_len(const wchar_t *str) {
 #else
 	return wcslen(str);
 #endif /* _SIZEOF_WCHAR == 4 */
+}
+
+/**
+ * Converts a 32-bit wchar_t into a uint16_t on platforms that need the
+ * conversion.
+ *
+ * @param wc Wide character to be converted.
+ *
+ * @return Guaranteed UTF-16 character.
+ */
+uint16_t utf16_conv_ltos(wchar_t wc) {
+#if _SIZEOF_WCHAR == 2
+	return (uint16_t)wc;
+#else
+	return (uint16_t)(wc & 0xFFFF);
+#endif /* _SIZEOF_WCHAR == 2 */
 }

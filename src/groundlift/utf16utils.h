@@ -35,6 +35,9 @@ extern "C" {
 void utf16_wchar32_fix(wchar_t *str);
 size_t utf16_wchar32_len(const wchar_t *str);
 
+/* Conversions */
+uint16_t utf16_conv_ltos(wchar_t wc);
+
 #ifdef __cplusplus
 }
 #endif
