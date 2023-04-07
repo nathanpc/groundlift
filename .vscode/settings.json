@@ -13,11 +13,12 @@
 		"ESOCKET",
 		"fhlength",
 		"itos",
+		"ltos",
 		"OBEX",
+		"SETPATH",
 		"tcpserver",
 		"TCPSERVERCLIENT",
 		"tjoin",
-		"WSAENOTCONN",
-		"SETPATH"
+		"WSAENOTCONN"
 	]
 }

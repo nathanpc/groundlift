@@ -7,7 +7,7 @@
  */
 
 #include "utf16utils.h"
-#include <bits/stdint-uintn.h>
+#include "defaults.h"
 
 /**
  * Fixes a UTF-16 that was caught up inside a 32-bit wchar_t and rearranges the

@@ -18,19 +18,6 @@
 extern "C" {
 #endif
 
-/* Check if the all important wchar_t size macro is defined. */
-#ifndef _SIZEOF_WCHAR
-	#ifdef _WIN32
-		#define _SIZEOF_WCHAR 2
-	#elif defined(__SIZEOF_WCHAR_T__)
-		#define _SIZEOF_WCHAR __SIZEOF_WCHAR_T__
-	#else
-		#error _SIZEOF_WCHAR was not defined. Use the script under \
-		scripts/wchar-size.sh to determine its size and define the macro in your \
-		build system.
-	#endif
-#endif /* _SIZEOF_WCHAR */
-
 /* UTF-16 mangled inside a 32-bit wchar_t. */
 void utf16_wchar32_fix(wchar_t *str);
 size_t utf16_wchar32_len(const wchar_t *str);
