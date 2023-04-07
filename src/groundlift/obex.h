@@ -97,6 +97,23 @@ typedef enum {
 } obex_opcodes_t;
 
 /**
+ * Most commonly used set of standard OBEX response codes, all without the final
+ * bit set.
+ */
+typedef enum {
+	OBEX_RESPONSE_CONTINUE = 0x10,
+	OBEX_RESPONSE_SUCCESS = 0x20,
+	OBEX_RESPONSE_BAD_REQUEST = 0x40,
+	OBEX_RESPONSE_UNAUTHORIZED = 0x41,
+	OBEX_RESPONSE_FORBIDDEN = 0x43,
+	OBEX_RESPONSE_METHOD_NOT_ALLOWED = 0x45,
+	OBEX_RESPONSE_CONFLICT = 0x49,
+	OBEX_RESPONSE_INTERNAL_ERROR = 0x50,
+	OBEX_RESPONSE_NOT_IMPLEMENTED = 0x51,
+	OBEX_RESPONSE_SERVICE_UNAVAILABLE = 0x53
+} obex_response_codes_t;
+
+/**
  * OBEX header representation.
  */
 typedef struct {

@@ -66,6 +66,61 @@ our $opcodes = {
 	]
 };
 
+=item I<\%response_codes>
+
+Enum generation hash containing a list of valid OBEX standard response codes.
+Each item contains a hash reference with the response code (I<value>) without
+the final bit set and a human-readable standard HTTP response code I<name>.
+
+=cut
+
+our $response_codes = {
+	name => "obex_response_codes_t",
+	prefix => "OBEX_RESPONSE_",
+	items => [
+		{
+			value => 0x10,
+			name => "Continue"
+		},
+		{
+			value => 0x20,
+			name => "Success"
+		},
+		{
+			value => 0x40,
+			name => "Bad Request"
+		},
+		{
+			value => 0x41,
+			name => "Unauthorized"
+		},
+		{
+			value => 0x43,
+			name => "Forbidden"
+		},
+		{
+			value => 0x45,
+			name => "Method Not Allowed"
+		},
+		{
+			value => 0x49,
+			name => "Conflict"
+		},
+		{
+			value => 0x50,
+			name => "Internal Error"
+		},
+		{
+			value => 0x51,
+			name => "Not Implemented"
+		},
+		{
+			value => 0x53,
+			name => "Service Unavailable"
+		}
+	]
+};
+
 =item I<\%headers>
 
 Enum generation hash containing a list of valid OBEX standard headers. Each item
@@ -206,9 +261,11 @@ sub main {
 		print_enum($headers);
 	} elsif ($ARGV[0] eq "opcodes") {
 		print_enum($opcodes);
+	} elsif ($ARGV[0] eq "response_codes") {
+		print_enum($response_codes);
 	} else {
 		print "Invalid enum identifier.\n";
-		print "Valid identifiers: headers, opcodes\n";
+		print "Valid identifiers: headers, opcodes, response_codes\n";
 	}
 }
 
