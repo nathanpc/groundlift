@@ -73,7 +73,7 @@ void obex_print_header_value(const obex_header_t *header) {
 			printf("0x%02X", header->value.byte);
 			break;
 		case OBEX_HEADER_ENCODING_WORD64:
-			printf("%llu", header->value.word64);
+			printf("%lu", header->value.word64);
 			break;
 		default:
 			printf("Printing the contents of an unknown header encoding is "

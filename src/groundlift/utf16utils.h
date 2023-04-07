@@ -25,7 +25,7 @@ extern "C" {
 	#elif defined(__SIZEOF_WCHAR_T__)
 		#define _SIZEOF_WCHAR __SIZEOF_WCHAR_T__
 	#else
-		#error _SIZEOF_WCHAR wasn't defined. Use the script under \
+		#error _SIZEOF_WCHAR was not defined. Use the script under \
 		scripts/wchar-size.sh to determine its size and define the macro in your \
 		build system.
 	#endif
