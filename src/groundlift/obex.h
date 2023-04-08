@@ -183,6 +183,9 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf);
 
 /* Common packet constructors. */
 obex_packet_t *obex_packet_new_connect(void);
+obex_packet_t *obex_packet_new_disconnect(void);
+obex_packet_t *obex_packet_new_success(bool final);
+obex_packet_t *obex_packet_new_continue(bool final);
 
 /* Debugging */
 void obex_print_header(const obex_header_t *header, bool th);

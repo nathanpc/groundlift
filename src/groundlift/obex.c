@@ -538,11 +538,60 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 obex_packet_t *obex_packet_new_connect(void) {
 	obex_packet_t *packet;
 
-	/* Create the packet and populate it with default parameters. */
+	/* Create the packet and populate it with default parameters and headers. */
 	packet = obex_packet_new(OBEX_OPCODE_CONNECT, true);
 	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
 	obex_packet_param_add(packet, 0x00, 1);
 	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
+
+	return packet;
+}
+
+/**
+ * Creates a brand new DISCONNECT packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @return Brand new DISCONNECT packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_disconnect(void) {
+	obex_packet_t *packet;
+
+	/* Create the packet and populate it with default parameters and headers. */
+	packet = obex_packet_new(OBEX_OPCODE_DISCONNECT, true);
+
+	return packet;
+}
+
+/**
+ * Creates a brand new SUCCESS packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param final Set the final bit?
+ *
+ * @return Brand new SUCCESS packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_success(bool final) {
+	obex_packet_t *packet;
+
+	/* Create the packet and populate it with default parameters and headers. */
+	packet = obex_packet_new(OBEX_RESPONSE_SUCCESS, final);
+
+	return packet;
+}
+
+/**
+ * Creates a brand new CONTINUE packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param final Set the final bit?
+ *
+ * @return Brand new CONTINUE packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_continue(bool final) {
+	obex_packet_t *packet;
+
+	/* Create the packet and populate it with default parameters and headers. */
+	packet = obex_packet_new(OBEX_RESPONSE_CONTINUE, final);
 
 	return packet;
 }
