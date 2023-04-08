@@ -19,6 +19,12 @@ static pthread_t *m_server_thread;
 static pthread_mutex_t *m_server_mutex;
 static pthread_mutex_t *m_conn_mutex;
 
+/* Function callbacks. */
+static gl_server_evt_start_func evt_server_start_cb_func;
+static gl_server_conn_evt_accept_func evt_server_conn_accept_cb_func;
+static gl_server_conn_evt_close_func evt_server_conn_close_cb_func;
+static gl_server_evt_stop_func evt_server_stop_cb_func;
+
 /* Private methods. */
 void *server_thread_func(void *args);
 
@@ -36,6 +42,10 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	evt_server_start_cb_func = NULL;
+	evt_server_conn_accept_cb_func = NULL;
+	evt_server_conn_close_cb_func = NULL;
+	evt_server_stop_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -179,15 +189,6 @@ bool gl_server_thread_join(void) {
 }
 
 /**
- * Gets the server object handle.
- *
- * @return Server object handle.
- */
-server_t *gl_server_get(void) {
-	return m_server;
-}
-
-/**
  * Server thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
@@ -198,11 +199,9 @@ server_t *gl_server_get(void) {
  */
 void *server_thread_func(void *args) {
 	tcp_err_t *err;
-	char *tmp;
 
 	/* Ignore the argument passed and initialize things. */
 	(void)args;
-	tmp = NULL;
 	err = (tcp_err_t *)malloc(sizeof(tcp_err_t));
 
 	/* Start the server and listen for incoming connections. */
@@ -210,12 +209,9 @@ void *server_thread_func(void *args) {
 	if (*err)
 		return (void *)err;
 
-	/* Print some information about the current state of the server. */
-	tmp = tcp_server_get_ipstr(m_server);
-	printf("Server listening on %s port %u\n", tmp,
-		   ntohs(m_server->addr_in.sin_port));
-	free(tmp);
-	tmp = NULL;
+	/* Trigger the server started event. */
+	if (evt_server_start_cb_func != NULL)
+		evt_server_start_cb_func(m_server);
 
 	/* Accept incoming connections. */
 	while ((m_conn = tcp_server_conn_accept(m_server, NULL)) != NULL) {
@@ -228,9 +224,9 @@ void *server_thread_func(void *args) {
 			continue;
 		}
 
-		/* Print out some client information. */
-		tmp = tcp_server_conn_get_ipstr(m_conn);
-		printf("Client at %s connection accepted\n", tmp);
+		/* Trigger the connection accepted event. */
+		if (evt_server_conn_accept_cb_func != NULL)
+			evt_server_conn_accept_cb_func(m_conn);
 
 		/* Send some data to the client. */
 		*err = tcp_server_conn_send(m_conn, "Hello, world!", 13);
@@ -241,12 +237,12 @@ void *server_thread_func(void *args) {
 		while ((*err = tcp_server_conn_recv(m_conn, buf, 99, &len, false)) == TCP_OK) {
 			/* Properly terminate the received string and print it. */
 			buf[len] = '\0';
-			printf("Data received from %s: \"%s\"\n", tmp, buf);
+			printf("Data received: \"%s\"\n", buf);
 		}
 
 		/* Check if the connection was closed gracefully. */
 		if (*err == TCP_EVT_CONN_CLOSED)
-			printf("Connection closed by the client at %s\n", tmp);
+			printf("Connection closed by the client\n");
 
 	close_conn:
 		/* Close the connection and free up any resources. */
@@ -254,14 +250,62 @@ void *server_thread_func(void *args) {
 		gl_server_conn_destroy();
 		pthread_mutex_unlock(m_conn_mutex);
 
-		/* Inform of the connection being closed. */
-		printf("Client %s connection closed\n", tmp);
-		free(tmp);
+		/* Trigger the connection closed event. */
+		if (evt_server_conn_close_cb_func != NULL)
+			evt_server_conn_close_cb_func();
 	}
 
 	/* Stop the server and free up any resources. */
 	gl_server_stop();
-	printf("Server stopped\n");
+
+	/* Trigger the server stopped event. */
+	if (evt_server_stop_cb_func != NULL)
+		evt_server_stop_cb_func();
 
 	return (void *)err;
+}
+
+/**
+ * Gets the server object handle.
+ *
+ * @return Server object handle.
+ */
+server_t *gl_server_get(void) {
+	return m_server;
+}
+
+/**
+ * Sets the Started event callback function.
+ *
+ * @param func Started event callback function.
+ */
+void gl_server_evt_start_set(gl_server_evt_start_func func) {
+	evt_server_start_cb_func = func;
+}
+
+/**
+ * Sets the Connection Accepted event callback function.
+ *
+ * @param func Connection Accepted event callback function.
+ */
+void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func) {
+	evt_server_conn_accept_cb_func = func;
+}
+
+/**
+ * Sets the Connection Closed event callback function.
+ *
+ * @param func Connection Closed event callback function.
+ */
+void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func) {
+	evt_server_conn_close_cb_func = func;
+}
+
+/**
+ * Sets the Stopped event callback function.
+ *
+ * @param func Stopped event callback function.
+ */
+void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
+	evt_server_stop_cb_func = func;
 }

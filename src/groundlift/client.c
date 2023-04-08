@@ -40,6 +40,8 @@ bool gl_client_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_client_thread = (pthread_t *)malloc(sizeof(pthread_t));
 	evt_conn_cb_func = NULL;
+	evt_close_cb_func = NULL;
+	evt_disconn_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));

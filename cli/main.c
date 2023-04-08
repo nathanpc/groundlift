@@ -19,6 +19,10 @@
 
 /* Private methods. */
 void sigint_handler(int sig);
+void server_event_started(const server_t *server);
+void server_conn_event_accepted(const server_conn_t *conn);
+void server_conn_event_closed(void);
+void server_event_stopped(void);
 void client_event_connected(const tcp_client_t *client);
 void client_event_conn_closed(const tcp_client_t *client);
 void client_event_disconnected(const tcp_client_t *client);
@@ -49,6 +53,12 @@ int main(int argc, char **argv) {
 			ret = 1;
 			goto cleanup;
 		}
+
+		/* Setup callbacks. */
+		gl_server_evt_start_set(server_event_started);
+		gl_server_conn_evt_accept_set(server_conn_event_accepted);
+		gl_server_conn_evt_close_set(server_conn_event_closed);
+		gl_server_evt_stop_set(server_event_stopped);
 
 		/* Start it up. */
 		if (!gl_server_start()) {
@@ -182,6 +192,51 @@ void sigint_handler(int sig) {
 
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
+}
+
+/**
+ * Handles the server started event.
+ *
+ * @param server Server handle object.
+ */
+void server_event_started(const server_t *server) {
+	char *ipstr;
+
+	/* Print some information about the current state of the server. */
+	ipstr = tcp_server_get_ipstr(server);
+	printf("Server listening on %s port %u\n", ipstr,
+		   ntohs(server->addr_in.sin_port));
+
+	free(ipstr);
+}
+
+/**
+ * Handles the server connection accepted event.
+ *
+ * @param conn Client connection handle object.
+ */
+void server_conn_event_accepted(const server_conn_t *conn) {
+	char *ipstr;
+
+	/* Print out some client information. */
+	ipstr = tcp_server_conn_get_ipstr(conn);
+	printf("Client at %s connection accepted\n", ipstr);
+
+	free(ipstr);
+}
+
+/**
+ * Handles the server connection closed event.
+ */
+void server_conn_event_closed(void) {
+	printf("Client connection closed\n");
+}
+
+/**
+ * Handles the server stopped event.
+ */
+void server_event_stopped(void) {
+	printf("Server stopped\n");
 }
 
 /**
