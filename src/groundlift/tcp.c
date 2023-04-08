@@ -382,7 +382,17 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
  * @see tcp_socket_recv
  */
 tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
-	return tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
+	tcp_err_t err;
+
+	/* Receive the data. */
+	err = tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
+
+	/* Call the callback function. */
+	if ((client->recv_cb_func != NULL) && !peek && (err == TCP_OK)) {
+		client->recv_cb_func(buf, *recv_len);
+	}
+
+	return err;
 }
 
 /**
