@@ -20,12 +20,6 @@ extern "C" {
 #endif
 
 /**
- * Maximum size of an OBEX packet in bytes as defined by the OBEX 1.5
- * specification.
- */
-#define OBEX_MAX_PACKET_SIZE 65535
-
-/**
  * Converts a header encoding flag into a mask.
  *
  * @param flag Header encoding bits to be shifted into a mask.
@@ -110,7 +104,7 @@ typedef enum {
 } obex_opcodes_t;
 
 /**
- * OBEX header representation.
+ * OBEX header abstraction.
  */
 typedef struct {
 	union {
@@ -139,11 +133,25 @@ typedef struct {
 } obex_header_t;
 
 /**
- * OBEX packet representation.
+ * OBEX packet parameter abstraction.
+ */
+typedef struct {
+	uint8_t size;
+	union {
+		uint8_t byte;
+		uint16_t uint16;
+	} value;
+} obex_packet_param_t;
+
+/**
+ * OBEX packet abstraction.
  */
 typedef struct {
 	uint8_t opcode;
 	uint16_t size;
+
+	uint8_t params_count;
+	obex_packet_param_t *params;
 
 	obex_header_t **headers;
 	uint16_t header_count;
@@ -156,6 +164,7 @@ typedef struct {
 /* Packet manipulation. */
 obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final);
 void obex_packet_free(obex_packet_t *packet);
+bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size);
 bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
 void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
 bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);

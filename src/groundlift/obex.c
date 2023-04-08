@@ -9,9 +9,11 @@
 
 #include <arpa/inet.h>
 #include <bits/stdint-uintn.h>
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "defaults.h"
 #include "utf16utils.h"
 
 /* Private methods. */
@@ -40,6 +42,8 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final) {
 	/* Ensure we have a known initial state for everything. */
 	packet->opcode = (uint8_t)opcode;
 	packet->size = 0;
+	packet->params_count = 0;
+	packet->params = NULL;
 	packet->headers = NULL;
 	packet->header_count = 0;
 	packet->body_end = false;
@@ -63,6 +67,12 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final) {
 void obex_packet_free(obex_packet_t *packet) {
 	uint16_t i;
 
+	/* Free our parameters. */
+	if (packet->params) {
+		free(packet->params);
+		packet->params = NULL;
+	}
+
 	/* Free our headers. */
 	for (i = 0; i < packet->header_count; i++) {
 		obex_header_free(packet->headers[i]);
@@ -83,7 +93,46 @@ void obex_packet_free(obex_packet_t *packet) {
 }
 
 /**
- * Appends a header to the packet.
+ * Appends a parameter to a packet.
+ *
+ * @param packet Packet to have the parameter appended to.
+ * @param value  Value of the parameter.
+ * @param size   Size in bytes of the parameter.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size) {
+	/* Reallocate the memory for the parameters array. */
+	packet->params = (obex_packet_param_t *)realloc(packet->params,
+		(packet->params_count + 1) * sizeof(obex_packet_param_t));
+
+	/* Ensure we were able to allocate the memory. */
+	if (packet->params == NULL) {
+		packet->params_count = 0;
+		return false;
+	}
+
+	/* Append the new parameter and increment the parameter count. */
+	packet->params[packet->params_count].size = size;
+	switch (size) {
+		case 1:
+			packet->params[packet->params_count].value.byte = (value & 0xFF);
+			break;
+		case 2:
+			packet->params[packet->params_count].value.uint16 = value;
+			break;
+		default:
+			fprintf(stderr, "obex_packet_param_add: Invalid parameter size: "
+					"%u\n", size);
+			return false;
+	}
+	packet->params_count++;
+
+	return true;
+}
+
+/**
+ * Appends a header to a packet.
  *
  * @param packet Packet to have the header appended to.
  * @param header Header to be appended to the packet. (Won't be copied)
@@ -94,10 +143,14 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
 	/* Reallocate the memory for the headers array. */
 	packet->headers = (obex_header_t **)realloc(packet->headers,
 		(packet->header_count + 1) * sizeof(obex_header_t*));
-	if (packet->headers == NULL)
-		return false;
 
-	/* Increment the header count and set the new packet. */
+	/* Ensure we were able to allocate the memory. */
+	if (packet->headers == NULL) {
+		packet->header_count = 0;
+		return false;
+	}
+
+	/* Append the new header and increment the header count. */
 	packet->headers[packet->header_count] = header;
 	packet->header_count++;
 
@@ -166,6 +219,13 @@ uint16_t obex_packet_size_refresh(obex_packet_t *packet) {
 
 	/* A packet must contain at least the opcode and the length. */
 	packet->size = 3;
+
+	/* Any parameters to account for? */
+	if (packet->params != NULL) {
+		for (i = 0; i < packet->params_count; i++) {
+			packet->size += packet->params[i].size;
+		}
+	}
 
 	/* Do we have a body to sum up as well? */
 	if ((packet->body != NULL) || (packet->body_end))
@@ -307,7 +367,8 @@ uint16_t obex_header_size(const obex_header_t *header) {
 		case OBEX_HEADER_ENCODING_WORD32:
 			return sizeof(int32_t) + 1;
 		default:
-			fprintf(stderr, "obex_header_size: Unknown header encoding\n");
+			fprintf(stderr, "obex_header_size: Unknown header encoding: %u\n",
+					header->identifier.fields.encoding);
 			return 0;
 	}
 }
@@ -346,6 +407,27 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 	p = memcpy_n(p, &packet->opcode, 1);
 	n = htons(packet->size);
 	p = memcpy_n(p, &n, 2);
+
+	/* Copy over any parameters that we might have. */
+	for (i = 0; i < packet->params_count; i++) {
+		obex_packet_param_t param = packet->params[i];
+
+		switch (param.size) {
+			case 1:
+				p = memcpy_n(p, &param.value.byte, 1);
+				break;
+			case 2:
+				n = htons(param.value.uint16);
+				p = memcpy_n(p, &n, 2);
+				break;
+			default:
+				fprintf(stderr, "obex_packet_encode: Invalid packet parameter "
+						"size: %u\n", param.size);
+				free(*buf);
+
+				return false;
+		}
+	}
 
 	/* Copy over the headers. */
 	for (i = 0; i < packet->header_count; i++) {
@@ -440,7 +522,7 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 		}
 		default:
 			fprintf(stderr, "obex_packet_encode_header_memcpy: Unknown header "
-					"encoding\n");
+					"encoding: %u\n", header->identifier.fields.encoding);
 			return 0;
 	}
 
@@ -458,7 +540,9 @@ obex_packet_t *obex_packet_new_connect(void) {
 
 	/* Create the packet and populate it with default parameters. */
 	packet = obex_packet_new(OBEX_OPCODE_CONNECT, true);
-	/* TODO: Set parameters. */
+	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
+	obex_packet_param_add(packet, 0x00, 1);
+	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
 
 	return packet;
 }
@@ -516,6 +600,26 @@ void obex_print_packet(obex_packet_t *packet) {
 	obex_packet_size_refresh(packet);
 	printf("[0x%02X] %u bytes and %u headers\n", packet->opcode, packet->size,
 		   packet->header_count);
+
+	/* Print out any parameters that we might have. */
+	if (packet->params != NULL) {
+		for (i = 0; i < packet->params_count; i++) {
+			obex_packet_param_t param = packet->params[i];
+
+			switch (param.size) {
+				case 1:
+					printf("[%02X] ", param.value.byte);
+					break;
+				case 2:
+					printf("[%04X] ", param.value.uint16);
+					break;
+				default:
+					printf("[Invalid parameter size %u] ", param.size);
+			}
+		}
+
+		printf("\n");
+	}
 
 	/* Print out the headers. */
 	for (i = 0; i < packet->header_count; i++) {
@@ -610,8 +714,8 @@ void obex_print_header_value(const obex_header_t *header) {
 			printf("%u", header->value.word32);
 			break;
 		default:
-			printf("Printing the contents of an unknown header encoding is "
-				   "currently not supported.");
+			printf("Unknown header encoding: %u",
+				   header->identifier.fields.encoding);
 			break;
 	}
 }

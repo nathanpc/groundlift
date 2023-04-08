@@ -23,6 +23,16 @@ extern "C" {
 #define TCPSERVER_BACKLOG 10
 #endif /* TCPSERVER_BACKLOG */
 
+/* OBEX protocol version to be disclosed to clients. */
+#ifndef OBEX_PROTO_VERSION
+#define OBEX_PROTO_VERSION 0x10
+#endif /* OBEX_PROTO_VERSION */
+
+/* Maximum size of an OBEX packet in bytes supported by the application. */
+#ifndef OBEX_MAX_PACKET_SIZE
+#define OBEX_MAX_PACKET_SIZE 65535
+#endif /* OBEX_MAX_PACKET_SIZE */
+
 /* Ensure we know the size of a wchar_t in this platform. */
 #ifndef _SIZEOF_WCHAR
 	#ifdef _WIN32
