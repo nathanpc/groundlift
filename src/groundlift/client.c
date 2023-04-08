@@ -15,7 +15,13 @@
 /* Private variables. */
 static tcp_client_t *m_client;
 static pthread_mutex_t *m_client_mutex;
+static pthread_mutex_t *m_client_send_mutex;
 static pthread_t *m_client_thread;
+
+/* Function callbacks. */
+static gl_client_evt_conn_func evt_conn_cb_func;
+static gl_client_evt_close_func evt_close_cb_func;
+static gl_client_evt_disconn_func evt_disconn_cb_func;
 
 /* Private methods. */
 void *client_thread_func(void *args);
@@ -33,10 +39,13 @@ void *client_thread_func(void *args);
 bool gl_client_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_client_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	evt_conn_cb_func = NULL;
 
-	/* Initialize our mutex. */
+	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_client_mutex, NULL);
+	m_client_send_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(m_client_send_mutex, NULL);
 
 	/* Get a server handle. */
 	m_client = tcp_client_new(addr, port);
@@ -58,7 +67,13 @@ void gl_client_free(void) {
 	/* Join the client thread. */
 	gl_client_thread_join();
 
-	/* Free our mutex. */
+	/* Free our client send mutex. */
+	if (m_client_send_mutex) {
+		free(m_client_send_mutex);
+		m_client_send_mutex = NULL;
+	}
+
+	/* Free our client mutex. */
 	if (m_client_mutex) {
 		free(m_client_mutex);
 		m_client_mutex = NULL;
@@ -108,6 +123,29 @@ bool gl_client_disconnect(void) {
 }
 
 /**
+ * Sends some arbitrary data to the server.
+ *
+ * @param buf Arbitrary data to be sent.
+ * @param len Length of the data buffer.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool gl_client_send_data(const void *buf, size_t len) {
+	tcp_err_t err;
+
+	/* Check if we are even connected to something. */
+	if (m_client->sockfd == -1)
+		return false;
+
+	/* Send the data. */
+	pthread_mutex_lock(m_client_send_mutex);
+	err = tcp_client_send(m_client, buf, len);
+	pthread_mutex_unlock(m_client_send_mutex);
+
+	return err == TCP_OK;
+}
+
+/**
  * Waits for the client thread to return.
  *
  * @return TRUE if the operation was successful.
@@ -134,15 +172,6 @@ bool gl_client_thread_join(void) {
 }
 
 /**
- * Gets the client object handle.
- *
- * @return Client object handle.
- */
-tcp_client_t *gl_client_get(void) {
-	return m_client;
-}
-
-/**
  * Client's thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
@@ -153,13 +182,11 @@ tcp_client_t *gl_client_get(void) {
  */
 void *client_thread_func(void *args) {
 	tcp_err_t *err;
-	char *tmp;
 	char buf[100];
 	size_t len;
 
 	/* Ignore the argument passed. */
 	(void)args;
-	tmp = NULL;
 	err = (tcp_err_t *)malloc(sizeof(tcp_err_t));
 
 	/* Get a client handle. */
@@ -171,39 +198,69 @@ void *client_thread_func(void *args) {
 	}
 
 	/* Connect our client to a server. */
-	*err = tcp_client_connect(m_client);
+	*err = tcp_client_connect(m_client, NULL);
 	if (*err)
 		return (void *)err;
 
-	/* Print some information about the current state of the connection. */
-	tmp = tcp_client_get_ipstr(m_client);
-	printf("Client connected to server on %s port %u\n", tmp,
-		   ntohs(m_client->addr_in.sin_port));
+	/* Trigger the connected event callback. */
+	if (evt_conn_cb_func != NULL)
+		evt_conn_cb_func(m_client);
 
 	/* Read incoming data until the connection is closed by the server. */
 	while ((*err = tcp_client_recv(m_client, buf, 99, &len, false)) == TCP_OK) {
 		/* Properly terminate the received string and print it. */
 		buf[len] = '\0';
-		printf("Data received from %s: \"%s\"\n", tmp, buf);
+		printf("Data received: \"%s\"\n", buf);
 
 		/* Echo data back. */
-		tcp_client_send(m_client, "Echo: ", 6);
-		tcp_client_send(m_client, buf, len);
+		gl_client_send_data("Echo: ", 6);
+		gl_client_send_data(buf, len);
 	}
 
-	/* Check if the connection was closed gracefully. */
-	if (*err == TCP_EVT_CONN_CLOSED) {
-		printf("Connection closed by the server at %s:%u\n", tmp,
-			   ntohs(m_client->addr_in.sin_port));
-	}
+	/* Check if connection was closed gracefully and trigger event callback. */
+	if ((*err == TCP_EVT_CONN_CLOSED) && (evt_close_cb_func != NULL))
+		evt_close_cb_func(m_client);
 
-	/* Disconnect from the server and free up any resources. */
+	/* Disconnect from server, free up any resources, and trigger callback. */
 	gl_client_disconnect();
-	printf("Client disconnected from server at %s\n", tmp);
-
-	/* Ensure temp buffer is free'd. */
-	if (tmp)
-		free(tmp);
+	if (evt_disconn_cb_func != NULL)
+		evt_disconn_cb_func(m_client);
 
 	return (void *)err;
+}
+
+/**
+ * Gets the client object handle.
+ *
+ * @return Client object handle.
+ */
+tcp_client_t *gl_client_get(void) {
+	return m_client;
+}
+
+/**
+ * Sets the Connected event callback function.
+ *
+ * @param func Connected event callback function.
+ */
+void gl_client_evt_conn_set(gl_client_evt_conn_func func) {
+	evt_conn_cb_func = func;
+}
+
+/**
+ * Sets the Connection Closed event callback function.
+ *
+ * @param func Connection Closed event callback function.
+ */
+void gl_client_evt_close_set(gl_client_evt_close_func func) {
+	evt_close_cb_func = func;
+}
+
+/**
+ * Sets the Disconnected event callback function.
+ *
+ * @param func Disconnected event callback function.
+ */
+void gl_client_evt_disconn_set(gl_client_evt_disconn_func func) {
+	evt_disconn_cb_func = func;
 }

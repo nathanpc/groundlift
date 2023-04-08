@@ -18,6 +18,29 @@
 extern "C" {
 #endif
 
+/**
+ * Client connected to server event callback function pointer type definition.
+ *
+ * @param client Client connection handle object.
+ */
+typedef void (*gl_client_evt_conn_func)(const tcp_client_t *client);
+
+/**
+ * Server connection closed gracefully event callback function pointer type
+ * definition.
+ *
+ * @param client Client connection handle object.
+ */
+typedef void (*gl_client_evt_close_func)(const tcp_client_t *client);
+
+/**
+ * Client disconnected to server event callback function pointer type
+ * definition.
+ *
+ * @param client Client connection handle object.
+ */
+typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client);
+
 /* Initialization and destruction. */
 bool gl_client_init(const char *addr, uint16_t port);
 void gl_client_free(void);
@@ -27,8 +50,16 @@ bool gl_client_connect(void);
 bool gl_client_disconnect(void);
 bool gl_client_thread_join(void);
 
+/* Client interactions. */
+bool gl_client_send_data(const void *buf, size_t len);
+
 /* Getters and setters. */
 tcp_client_t *gl_client_get(void);
+
+/* Callbacks */
+void gl_client_evt_conn_set(gl_client_evt_conn_func func);
+void gl_client_evt_close_set(gl_client_evt_close_func func);
+void gl_client_evt_disconn_set(gl_client_evt_disconn_func func);
 
 #ifdef __cplusplus
 }

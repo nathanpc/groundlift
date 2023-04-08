@@ -9,6 +9,7 @@
 #include <groundlift/defaults.h>
 #include <groundlift/obex.h>
 #include <groundlift/server.h>
+#include <groundlift/tcp.h>
 #include <groundlift/utf16utils.h>
 #include <pthread.h>
 #include <signal.h>
@@ -18,6 +19,9 @@
 
 /* Private methods. */
 void sigint_handler(int sig);
+void client_event_connected(const tcp_client_t *client);
+void client_event_conn_closed(const tcp_client_t *client);
+void client_event_disconnected(const tcp_client_t *client);
 
 /**
  * Program's main entry point.
@@ -69,6 +73,11 @@ int main(int argc, char **argv) {
 			ret = 1;
 			goto cleanup;
 		}
+
+		/* Setup callbacks. */
+		gl_client_evt_conn_set(client_event_connected);
+		gl_client_evt_close_set(client_event_conn_closed);
+		gl_client_evt_disconn_set(client_event_disconnected);
 
 		/* Connect to the server. */
 		if (!gl_client_connect()) {
@@ -173,4 +182,55 @@ void sigint_handler(int sig) {
 
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
+}
+
+/**
+ * Handles the client connected event.
+ *
+ * @param client Client connection handle object.
+ */
+void client_event_connected(const tcp_client_t *client) {
+	char *ipstr;
+
+	/* Print some information about the current state of the connection. */
+	ipstr = tcp_client_get_ipstr(client);
+	printf("Client connected to server on %s port %u\n", ipstr,
+		   ntohs(client->addr_in.sin_port));
+
+	/* Send some test data. */
+	if (!gl_client_send_data("Hello!", 7))
+		fprintf(stderr, "Failed to send data.\n");
+
+	free(ipstr);
+}
+
+/**
+ * Handles the client connection closed event.
+ *
+ * @param client Client connection handle object.
+ */
+void client_event_conn_closed(const tcp_client_t *client) {
+	char *ipstr;
+
+	/* Print some information about the connection closing. */
+	ipstr = tcp_client_get_ipstr(client);
+	printf("Connection closed by the server at %s:%u\n", ipstr,
+		   ntohs(client->addr_in.sin_port));
+
+	free(ipstr);
+}
+
+/**
+ * Handles the client disconnection event.
+ *
+ * @param client Client connection handle object.
+ */
+void client_event_disconnected(const tcp_client_t *client) {
+	char *ipstr;
+
+	/* Print some information about the disconnection. */
+	ipstr = tcp_client_get_ipstr(client);
+	printf("Client disconnected from server at %s\n", ipstr);
+
+	free(ipstr);
 }

@@ -18,6 +18,14 @@
 extern "C" {
 #endif
 
+/**
+ * Data received callback function pointer type definition.
+ *
+ * @param buf Buffer with the received data.
+ * @param len Length of the received data buffer.
+ */
+typedef void (*socket_recvd_func)(void *buf, size_t len);
+
 /* TCP error codes. */
 typedef enum {
 	TCP_EVT_CONN_SHUTDOWN = -2,
@@ -48,6 +56,8 @@ typedef struct {
 
 	struct sockaddr_storage addr;
 	socklen_t addr_size;
+
+	socket_recvd_func recv_cb_func;
 } server_conn_t;
 
 /* Client handle. */
@@ -56,6 +66,8 @@ typedef struct {
 
 	struct sockaddr_in addr_in;
 	socklen_t addr_in_size;
+
+	socket_recvd_func recv_cb_func;
 } tcp_client_t;
 
 /* Initialization and destruction. */
@@ -71,8 +83,8 @@ tcp_err_t tcp_server_stop(server_t *server);
 tcp_err_t tcp_server_shutdown(server_t *server);
 
 /* Connection handling. */
-server_conn_t *tcp_server_conn_accept(const server_t *server);
-tcp_err_t tcp_client_connect(tcp_client_t *client);
+server_conn_t *tcp_server_conn_accept(const server_t *server, socket_recvd_func recv_cb);
+tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb);
 tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len);
 tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t len);
 tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek);

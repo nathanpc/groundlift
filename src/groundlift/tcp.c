@@ -66,6 +66,7 @@ tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
 
 	/* Ensure we have a known invalid state for our socket file descriptor. */
 	client->sockfd = -1;
+	client->recv_cb_func = NULL;
 
 	/* Setup the socket address structure for connecting. */
 	client->addr_in_size = tcp_socket_setup(&client->addr_in, addr, port);
@@ -231,14 +232,15 @@ tcp_err_t tcp_server_shutdown(server_t *server) {
  * Accepts an incoming connection.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param server    Server handle object.
+ * @param server  Server handle object.
+ * @param recv_cb Received data callback function. NULL if it isn't needed.
  *
  * @return Newly allocated server client connection handle object.
  *         NULL in case of an error.
  *
  * @see tcp_server_conn_free
  */
-server_conn_t *tcp_server_conn_accept(const server_t *server) {
+server_conn_t *tcp_server_conn_accept(const server_t *server, socket_recvd_func recv_cb) {
 	server_conn_t *conn;
 
 	/* Check if we even have a socket to accept things from. */
@@ -251,6 +253,7 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 		return NULL;
 
 	/* Accept the new connection. */
+	conn->recv_cb_func = recv_cb;
 	conn->addr_size = sizeof(struct sockaddr_storage);
 	conn->sockfd = accept(server->sockfd, (struct sockaddr *)&conn->addr,
 						  &conn->addr_size);
@@ -274,13 +277,14 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 /**
  * Connects to a client to a server.
  *
- * @param client Client handle object.
+ * @param client  Client handle object.
+ * @param recv_cb Received data callback function. NULL if it isn't needed.
  *
  * @return TCP_OK if the operation was successful.
  *         TCP_ERR_ESOCKET if the socket function failed.
  *         TCP_ERR_ECONNECT if the connect function failed.
  */
-tcp_err_t tcp_client_connect(tcp_client_t *client) {
+tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb) {
 	/* Create a new socket file descriptor. */
 	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (client->sockfd == -1) {
@@ -294,6 +298,9 @@ tcp_err_t tcp_client_connect(tcp_client_t *client) {
 		perror("tcp_client_connect@connect");
 		return TCP_ERR_ECONNECT;
 	}
+
+	/* Set the received data callback function. */
+	client->recv_cb_func = recv_cb;
 
 	return TCP_OK;
 }
@@ -346,7 +353,17 @@ tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t le
  * @see tcp_socket_recv
  */
 tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
-	return tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
+	tcp_err_t err;
+
+	/* Receive the data. */
+	err = tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
+
+	/* Call the callback function. */
+	if ((conn->recv_cb_func != NULL) && !peek && (err == TCP_OK)) {
+		conn->recv_cb_func(buf, *recv_len);
+	}
+
+	return err;
 }
 
 /**

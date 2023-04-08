@@ -218,7 +218,7 @@ void *server_thread_func(void *args) {
 	tmp = NULL;
 
 	/* Accept incoming connections. */
-	while ((m_conn = tcp_server_conn_accept(m_server)) != NULL) {
+	while ((m_conn = tcp_server_conn_accept(m_server, NULL)) != NULL) {
 		char buf[100];
 		size_t len;
 
