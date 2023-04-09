@@ -49,8 +49,13 @@ gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg) {
  * @param err Error reporting object to be free'd.
  */
 void gl_error_free(gl_err_t *err) {
+	/* Do we even have anything to free? */
+	if (err == NULL)
+		return;
+
 	/* Free the error message string. */
-	free(err->msg);
+	if (err->msg)
+		free(err->msg);
 	err->msg = NULL;
 
 	/* Free ourselves. */
@@ -65,7 +70,7 @@ void gl_error_free(gl_err_t *err) {
  */
 void gl_error_print(gl_err_t *err) {
 	/* Check if we need to print first. */
-	if (err->error.generic == 0)
+	if ((err == NULL) || (err->error.generic == 0))
 		return;
 
 	/* Print the error out. */
