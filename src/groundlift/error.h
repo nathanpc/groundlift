@@ -66,6 +66,9 @@ typedef struct {
 gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg);
 void gl_error_free(gl_err_t *err);
 
+/* Report manipulation. */
+gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg);
+
 /* Debugging */
 void gl_error_print(gl_err_t *err);
 

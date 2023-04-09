@@ -20,6 +20,8 @@
  *
  * @return Brand newly allocated, fully populated, error reporting object or
  *         NULL if we were able to allocate the necessary memory.
+ *
+ * @see gl_error_free
  */
 gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg) {
 	gl_err_t *report;
@@ -61,6 +63,29 @@ void gl_error_free(gl_err_t *err) {
 	/* Free ourselves. */
 	free(err);
 	err = NULL;
+}
+
+/**
+ * Substitutes the message in an error report.
+ *
+ * @param err Error report object.
+ * @param msg New error message.
+ *
+ * @return Same error report object passed in err.
+ */
+gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg) {
+	/* Do we even have an error? */
+	if (err == NULL)
+		return NULL;
+
+	/* Do we have anything in the message field currently? */
+	if (err->msg)
+		free(err->msg);
+
+	/* Put the new message in. */
+	err->msg = strdup(msg);
+
+	return err;
 }
 
 /**
