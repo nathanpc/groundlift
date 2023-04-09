@@ -1,4 +1,4 @@
 # Ensures we have proper code completion for this project.
 
 CompileFlags:
-  Add: [--language=c, -std=gnu89, -Wall, -DUSE_AVAHI]
+  Add: [--language=c, -std=gnu89, -Wall, -Wno-c99-extensions]
