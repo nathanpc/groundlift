@@ -14,6 +14,8 @@
 #include <string.h>
 
 #include "defaults.h"
+#include "error.h"
+#include "tcp.h"
 #include "utf16utils.h"
 
 /* Private methods. */
@@ -66,6 +68,10 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final) {
  */
 void obex_packet_free(obex_packet_t *packet) {
 	uint16_t i;
+
+	/* Do we even have a packet to free? */
+	if (packet == NULL)
+		return;
 
 	/* Free our parameters. */
 	if (packet->params) {
@@ -424,6 +430,7 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 				fprintf(stderr, "obex_packet_encode: Invalid packet parameter "
 						"size: %u\n", param.size);
 				free(*buf);
+				*buf = NULL;
 
 				return false;
 		}
@@ -527,6 +534,125 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 	}
 
 	return p;
+}
+
+/**
+ * Decodes an OBEX network packet into an OBEX packet object.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param buf OBEX network packet buffer.
+ * @param len Length of the buffer in bytes.
+ *
+ * @return Fully populated OBEX packet or NULL if an error occurred.
+ */
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len) {
+	obex_packet_t *packet;
+	const uint8_t *cur;
+
+	tcp_print_net_buffer(buf, len);
+	printf("\n");
+
+	/* Create our packet object. */
+	cur = (const uint8_t *)buf;
+	packet = obex_packet_new(*cur, false);
+	packet->size = len;
+	cur++;
+
+	return packet;
+}
+
+/**
+ * Sends an OBEX packet over the network.
+ *
+ * @param sockfd Socket to send the packet over.
+ * @param packet Packet object to be sent.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+	void *buf;
+
+	/* Do we have a packet to send? */
+	if (packet == NULL) {
+		return gl_error_new(ERR_TYPE_GL, OBEX_ERR_NO_PACKET,
+			EMSG("No packet supplied to be sent"));
+	}
+
+	/* Initialize variables. */
+	buf = NULL;
+	err = NULL;
+
+	/* Get the packet network buffer. */
+	if (!obex_packet_encode(packet, &buf)) {
+		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_ENCODE,
+						   EMSG("Failed to encode the OBEX connect packet"));
+		goto cleanup;
+	}
+
+	/* Get the network buffer for the packet and send it out. */
+	tcp_err = tcp_socket_send(sockfd, buf, packet->size, NULL);
+	if (tcp_err != TCP_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+						   EMSG("Failed to send OBEX packet"));
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free up any resources. */
+	if (buf)
+		free(buf);
+
+	return err;
+}
+
+/**
+ * Handles the reception of an OBEX packet via the network.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param sockfd Socket to read our packet from.
+ *
+ * @return Decoded packet object or NULL if the received packet was invalid.
+ */
+obex_packet_t *obex_net_packet_recv(int sockfd) {
+	size_t len;
+	tcp_err_t tcp_err;
+	obex_packet_t *packet;
+	uint16_t psize;
+	uint8_t *buf;
+	uint8_t peek_buf[3];
+
+	/* Receive the packet's opcode and length. */
+	tcp_err = tcp_socket_recv(sockfd, peek_buf, 3, &len, true);
+	if ((tcp_err >= TCP_OK) && (len != 3)) {
+		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
+				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
+		return NULL;
+	} else if ((tcp_err == TCP_EVT_CONN_CLOSED) ||
+			   (tcp_err == TCP_EVT_CONN_SHUTDOWN)) {
+		return NULL;
+	}
+
+	/* Allocate memory to receive the entire packet. */
+	psize = (uint16_t)((peek_buf[1] << 8) | peek_buf[2]);
+	buf = malloc(psize);
+
+	/* Read the full packet that was sent. */
+	tcp_err = tcp_socket_recv(sockfd, buf, psize, &len, false);
+	if ((tcp_err != TCP_OK) || (len != psize)) {
+		fprintf(stderr, "obex_net_packet_recv: Failed to receive full OBEX "
+				"packet. (tcp_err %d psize %u len %lu)\n", tcp_err, psize, len);
+		free(buf);
+
+		return NULL;
+	}
+
+	/* Decode the packet and free up any temporary resources. */
+	packet = obex_packet_decode(buf, psize);
+	free(buf);
+
+	return packet;
 }
 
 /**

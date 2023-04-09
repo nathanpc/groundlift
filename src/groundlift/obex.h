@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+#include "error.h"
 #include "tcp.h"
 
 #ifdef __cplusplus
@@ -180,6 +181,11 @@ uint16_t obex_header_size(const obex_header_t *header);
 /* Packet encoding and decoding. */
 bool obex_packet_encode(obex_packet_t *packet, void **buf);
 void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf);
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len);
+
+/* Networking */
+gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
+obex_packet_t *obex_net_packet_recv(int sockfd);
 
 /* Common packet constructors. */
 obex_packet_t *obex_packet_new_connect(void);
