@@ -31,11 +31,23 @@ extern "C" {
 #endif /* DEBUG */
 
 /**
+ * OBEX function status return codes.
+ */
+typedef enum {
+	OBEX_OK = 0,
+	OBEX_ERR_ENCODE,
+	OBEX_ERR_NO_PACKET,
+	OBEX_ERR_UNKNOWN
+} obex_err_t;
+
+/**
  * Return codes for high level GroundLift functions.
  */
 typedef enum {
 	GL_OK = 0,
-	GL_CONN_REFUSED
+	GL_CONN_REFUSED,
+	GL_ERR_OBEX,
+	GL_ERR_UNKNOWN
 } gl_ret_t;
 
 /**
@@ -44,7 +56,8 @@ typedef enum {
 typedef enum {
 	ERR_TYPE_UNKNOWN = 0,
 	ERR_TYPE_TCP,
-	ERR_TYPE_GL
+	ERR_TYPE_GL,
+	ERR_TYPE_OBEX
 } err_type_t;
 
 /**
@@ -56,6 +69,7 @@ typedef struct {
 		int8_t generic;
 
 		tcp_err_t tcp;
+		obex_err_t obex;
 		gl_ret_t gl;
 	} error;
 
