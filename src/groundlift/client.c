@@ -10,7 +10,9 @@
 #include <pthread.h>
 
 #include "defaults.h"
+#include "error.h"
 #include "tcp.h"
+#include "obex.h"
 
 /* Private variables. */
 static tcp_client_t *m_client;
@@ -153,7 +155,7 @@ bool gl_client_send_data(const void *buf, size_t len) {
  * @return TRUE if the operation was successful.
  */
 bool gl_client_thread_join(void) {
-	tcp_err_t *err;
+	gl_err_t *err;
 	bool success;
 
 	/* Do we even need to do something? */
@@ -165,9 +167,14 @@ bool gl_client_thread_join(void) {
 	free(m_client_thread);
 	m_client_thread = NULL;
 
+	/* Check if we got any returned errors. */
+	if (err == NULL)
+		return true;
+
 	/* Check for success and free our returned value. */
-	success = *err <= TCP_OK;
-	free(err);
+	success = err->error.generic <= 0;
+	gl_error_print(err);
+	gl_error_free(err);
 
 	/* Check if the thread join was successful. */
 	return success;
@@ -183,33 +190,43 @@ bool gl_client_thread_join(void) {
  *         free'd by you.
  */
 void *client_thread_func(void *args) {
-	tcp_err_t *err;
 	char buf[100];
+	tcp_err_t tcp_err;
+	gl_err_t *gl_err;
 	size_t len;
 
 	/* Ignore the argument passed. */
 	(void)args;
-	err = (tcp_err_t *)malloc(sizeof(tcp_err_t));
+	gl_err = NULL;
 
 	/* Get a client handle. */
 	if (m_client == NULL) {
-		fprintf(stderr, "server_thread_func: Client handle is NULL.\n");
-
-		*err = TCP_ERR_UNKNOWN;
-		return (void *)err;
+		return gl_error_new(ERR_TYPE_TCP, TCP_ERR_UNKNOWN,
+							EMSG("Client handle is NULL"));
 	}
 
 	/* Connect our client to a server. */
-	*err = tcp_client_connect(m_client, NULL);
-	if (*err)
-		return (void *)err;
+	tcp_err = tcp_client_connect(m_client, NULL);
+	switch (tcp_err) {
+		case TCP_OK:
+			break;
+		case TCP_ERR_ESOCKET:
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ESOCKET,
+				EMSG("Client failed to create a socket"));
+		case TCP_ERR_ECONNECT:
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,
+				EMSG("Client failed to connect to server"));
+		default:
+			return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+				EMSG("tcp_client_connect returned a weird error code"));
+	}
 
 	/* Trigger the connected event callback. */
 	if (evt_conn_cb_func != NULL)
 		evt_conn_cb_func(m_client);
 
 	/* Read incoming data until the connection is closed by the server. */
-	while ((*err = tcp_client_recv(m_client, buf, 99, &len, false)) == TCP_OK) {
+	while ((tcp_err = tcp_client_recv(m_client, buf, 99, &len, false)) == TCP_OK) {
 		/* Properly terminate the received string and print it. */
 		buf[len] = '\0';
 		printf("Data received: \"%s\"\n", buf);
@@ -220,15 +237,21 @@ void *client_thread_func(void *args) {
 	}
 
 	/* Check if connection was closed gracefully and trigger event callback. */
-	if ((*err == TCP_EVT_CONN_CLOSED) && (evt_close_cb_func != NULL))
+	if ((tcp_err == TCP_EVT_CONN_CLOSED) && (evt_close_cb_func != NULL)) {
 		evt_close_cb_func(m_client);
+	} else if (tcp_err != TCP_OK) {
+		/* Looks like we got an error. */
+		gl_err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+							  EMSG("Unknown TCP error in main loop"));
+	}
 
+disconnect:
 	/* Disconnect from server, free up any resources, and trigger callback. */
 	gl_client_disconnect();
 	if (evt_disconn_cb_func != NULL)
 		evt_disconn_cb_func(m_client);
 
-	return (void *)err;
+	return (void *)gl_err;
 }
 
 /**

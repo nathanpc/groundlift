@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "error.h"
 #include "tcp.h"
 
 #ifdef __cplusplus
