@@ -7,6 +7,7 @@
 
 #include <groundlift/client.h>
 #include <groundlift/defaults.h>
+#include <groundlift/error.h>
 #include <groundlift/obex.h>
 #include <groundlift/server.h>
 #include <groundlift/tcp.h>
@@ -18,6 +19,7 @@
 #include <string.h>
 
 /* Private methods. */
+gl_err_t *client_send(const char *ip, uint16_t port);
 void sigint_handler(int sig);
 void server_event_started(const server_t *server);
 void server_conn_event_accepted(const server_conn_t *conn);
@@ -36,10 +38,12 @@ void client_event_disconnected(const tcp_client_t *client);
  * @return Application's return code.
  */
 int main(int argc, char **argv) {
+	gl_err_t *err;
 	int ret;
 
 	/* Setup our defaults. */
 	ret = 0;
+	err = NULL;
 
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
@@ -76,34 +80,8 @@ int main(int argc, char **argv) {
 			goto cleanup;
 		}
 	} else if ((argc == 4) && (argv[1][0] == 'c')) {
-		/* Initialize the client. */
-		if (!gl_client_init(argv[2], (uint16_t)atoi(argv[3]))) {
-			fprintf(stderr, "Failed to initialize the client.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Setup callbacks. */
-		gl_client_evt_conn_set(client_event_connected);
-		gl_client_evt_close_set(client_event_conn_closed);
-		gl_client_evt_disconn_set(client_event_disconnected);
-
-		/* Connect to the server. */
-		if (!gl_client_connect()) {
-			fprintf(stderr, "Failed to connect the client to the server.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Wait for it to return. */
-		if (!gl_client_thread_join()) {
-			fprintf(stderr, "Client thread returned with errors.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
+		/* Exchange some information with the server. */
+		err = client_send(argv[2], (uint16_t)atoi(argv[3]));
 	} else if (argv[1][0] == 'o') {
 		obex_header_t *header;
 		wchar_t *wbuf;
@@ -169,11 +147,58 @@ int main(int argc, char **argv) {
 	}
 
 cleanup:
+	/* Check if we had any errors to report. */
+	gl_error_print(err);
+	if (err != NULL)
+		ret = 1;
+
 	/* Free up any resources. */
 	gl_server_free();
-	gl_client_free();
+	gl_error_free(err);
 
 	return ret;
+}
+
+/**
+ * Perform an entire send exchange with the server.
+ *
+ * @param ip   Server's IP to send the data to.
+ * @param port Server port to talk to.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
+gl_err_t *client_send(const char *ip, uint16_t port) {
+	gl_err_t *err = NULL;
+
+	/* Initialize the client. */
+	if (!gl_client_init(ip, port)) {
+		fprintf(stderr, "Failed to initialize the client.\n");
+		goto cleanup;
+	}
+
+	/* Setup callbacks. */
+	gl_client_evt_conn_set(client_event_connected);
+	gl_client_evt_close_set(client_event_conn_closed);
+	gl_client_evt_disconn_set(client_event_disconnected);
+
+	/* Connect to the server. */
+	if (!gl_client_connect()) {
+		fprintf(stderr, "Failed to connect the client to the server.\n");
+		goto cleanup;
+	}
+
+	/* Wait for it to return. */
+	if (!gl_client_thread_join()) {
+		fprintf(stderr, "Client thread returned with errors.\n");
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free up any resources. */
+	gl_client_free();
+
+	return err;
 }
 
 /**
@@ -251,10 +276,6 @@ void client_event_connected(const tcp_client_t *client) {
 	ipstr = tcp_client_get_ipstr(client);
 	printf("Client connected to server on %s port %u\n", ipstr,
 		   ntohs(client->addr_in.sin_port));
-
-	/* Send some test data. */
-	if (!gl_client_send_data("Hello!", 7))
-		fprintf(stderr, "Failed to send data.\n");
 
 	free(ipstr);
 }

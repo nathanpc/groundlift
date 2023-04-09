@@ -11,6 +11,7 @@
 
 #include "defaults.h"
 #include "tcp.h"
+#include "obex.h"
 
 /* Private variables. */
 static server_t *m_server;
@@ -215,37 +216,35 @@ void *server_thread_func(void *args) {
 
 	/* Accept incoming connections. */
 	while ((m_conn = tcp_server_conn_accept(m_server, NULL)) != NULL) {
-		char buf[100];
-		size_t len;
+		obex_packet_t *packet;
 
 		/* Check if the connection socket is valid. */
 		if (m_conn->sockfd == -1) {
 			gl_server_conn_destroy();
-			continue;
+			break;
 		}
 
 		/* Trigger the connection accepted event. */
 		if (evt_server_conn_accept_cb_func != NULL)
 			evt_server_conn_accept_cb_func(m_conn);
 
-		/* Send some data to the client. */
-		*err = tcp_server_conn_send(m_conn, "Hello, world!", 13);
-		if (*err)
-			goto close_conn;
+		/* Read packets until the connection is closed or an error occurs. */
+		while ((packet = obex_net_packet_recv(m_conn->sockfd)) != NULL) {
+			printf("== Packet received ====================\n");
+			obex_print_packet(packet);
+			printf("\n=======================================\n");
 
-		/* Read incoming data until the connection is closed by the client. */
-		while ((*err = tcp_server_conn_recv(m_conn, buf, 99, &len, false)) == TCP_OK) {
-			/* Properly terminate the received string and print it. */
-			buf[len] = '\0';
-			printf("Data received: \"%s\"\n", buf);
+			/* Make sure we free our packet. */
+			obex_packet_free(packet);
+			packet = NULL;
 		}
 
 		/* Check if the connection was closed gracefully. */
 		if (*err == TCP_EVT_CONN_CLOSED)
 			printf("Connection closed by the client\n");
 
-	close_conn:
 		/* Close the connection and free up any resources. */
+		obex_packet_free(packet);
 		pthread_mutex_lock(m_conn_mutex);
 		gl_server_conn_destroy();
 		pthread_mutex_unlock(m_conn_mutex);

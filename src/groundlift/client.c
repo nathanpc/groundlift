@@ -132,21 +132,73 @@ bool gl_client_disconnect(void) {
  * @param buf Arbitrary data to be sent.
  * @param len Length of the data buffer.
  *
- * @return TRUE if the operation was successful.
+ * @return An error object if an error occurred or NULL if it was successful.
  */
-bool gl_client_send_data(const void *buf, size_t len) {
-	tcp_err_t err;
+gl_err_t *gl_client_send_data(const void *buf, size_t len) {
+	tcp_err_t tcp_err;
+	gl_err_t *err;
 
 	/* Check if we are even connected to something. */
-	if (m_client->sockfd == -1)
-		return false;
+	if (m_client->sockfd == -1) {
+		return gl_error_new(ERR_TYPE_TCP, TCP_ERR_UNKNOWN,
+			EMSG("No socket associated to send data through"));
+	}
 
 	/* Send the data. */
 	pthread_mutex_lock(m_client_send_mutex);
-	err = tcp_client_send(m_client, buf, len);
+	tcp_err = tcp_client_send(m_client, buf, len);
 	pthread_mutex_unlock(m_client_send_mutex);
 
-	return err == TCP_OK;
+	/* Check for TCP errors. */
+	err = NULL;
+	if (tcp_err != TCP_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+						   EMSG("Failed to send data"));
+	}
+
+	return err;
+}
+
+/**
+ * Send an OBEX connection request.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *gl_client_send_conn_req(void) {
+	gl_err_t *err;
+	obex_packet_t *packet;
+	void *buf;
+
+	/* Initialize variables. */
+	buf = NULL;
+	err = NULL;
+
+	/* Create the OBEX packet. */
+	packet = obex_packet_new_connect();
+
+	/* Send the packet. */
+	pthread_mutex_lock(m_client_send_mutex);
+	err = obex_net_packet_send(m_client->sockfd, packet);
+	pthread_mutex_unlock(m_client_send_mutex);
+	if (err)
+		goto cleanup;
+
+	/* Read the response packet. */
+	obex_packet_free(packet);
+	packet = obex_net_packet_recv(m_client->sockfd);
+	if (packet == NULL)
+		goto cleanup;
+	printf("== Packet received ====================\n");
+	obex_print_packet(packet);
+	printf("\n=======================================\n");
+
+cleanup:
+	/* Free up any resources. */
+	obex_packet_free(packet);
+	if (buf)
+		free(buf);
+
+	return err;
 }
 
 /**
@@ -190,10 +242,8 @@ bool gl_client_thread_join(void) {
  *         free'd by you.
  */
 void *client_thread_func(void *args) {
-	char buf[100];
 	tcp_err_t tcp_err;
 	gl_err_t *gl_err;
-	size_t len;
 
 	/* Ignore the argument passed. */
 	(void)args;
@@ -225,25 +275,10 @@ void *client_thread_func(void *args) {
 	if (evt_conn_cb_func != NULL)
 		evt_conn_cb_func(m_client);
 
-	/* Read incoming data until the connection is closed by the server. */
-	while ((tcp_err = tcp_client_recv(m_client, buf, 99, &len, false)) == TCP_OK) {
-		/* Properly terminate the received string and print it. */
-		buf[len] = '\0';
-		printf("Data received: \"%s\"\n", buf);
-
-		/* Echo data back. */
-		gl_client_send_data("Echo: ", 6);
-		gl_client_send_data(buf, len);
-	}
-
-	/* Check if connection was closed gracefully and trigger event callback. */
-	if ((tcp_err == TCP_EVT_CONN_CLOSED) && (evt_close_cb_func != NULL)) {
-		evt_close_cb_func(m_client);
-	} else if (tcp_err != TCP_OK) {
-		/* Looks like we got an error. */
-		gl_err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-							  EMSG("Unknown TCP error in main loop"));
-	}
+	/* Send the OBEX connection request. */
+	gl_err = gl_client_send_conn_req();
+	if (gl_err != NULL)
+		goto disconnect;
 
 disconnect:
 	/* Disconnect from server, free up any resources, and trigger callback. */

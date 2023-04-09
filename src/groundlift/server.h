@@ -52,6 +52,9 @@ bool gl_server_stop(void);
 tcp_err_t gl_server_conn_destroy(void);
 bool gl_server_thread_join(void);
 
+/* Server interactions. */
+uint16_t gl_server_recv_obex_packet(void **buf);
+
 /* Getters and setters. */
 server_t *gl_server_get(void);
 

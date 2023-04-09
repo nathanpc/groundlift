@@ -52,7 +52,8 @@ bool gl_client_disconnect(void);
 bool gl_client_thread_join(void);
 
 /* Client interactions. */
-bool gl_client_send_data(const void *buf, size_t len);
+gl_err_t *gl_client_send_data(const void *buf, size_t len);
+gl_err_t *gl_client_send_conn_req(void);
 
 /* Getters and setters. */
 tcp_client_t *gl_client_get(void);
