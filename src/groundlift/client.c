@@ -185,7 +185,7 @@ gl_err_t *gl_client_send_conn_req(void) {
 
 	/* Read the response packet. */
 	obex_packet_free(packet);
-	packet = obex_net_packet_recv(m_client->sockfd);
+	packet = obex_net_packet_recv(m_client->sockfd, true);
 	if (packet == NULL)
 		goto cleanup;
 	printf("== Packet received ====================\n");

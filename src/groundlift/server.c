@@ -229,7 +229,7 @@ void *server_thread_func(void *args) {
 			evt_server_conn_accept_cb_func(m_conn);
 
 		/* Read packets until the connection is closed or an error occurs. */
-		while ((packet = obex_net_packet_recv(m_conn->sockfd)) != NULL) {
+		while ((packet = obex_net_packet_recv(m_conn->sockfd, true)) != NULL) {
 			printf("== Packet received ====================\n");
 			obex_print_packet(packet);
 			printf("\n=======================================\n");

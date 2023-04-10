@@ -17,6 +17,7 @@
 #include "error.h"
 #include "tcp.h"
 #include "utf16utils.h"
+#include "bitutils.h"
 
 /* Private methods. */
 void *memcpy_n(void *dest, const void *src, size_t len);
@@ -141,7 +142,10 @@ bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size) 
  * Appends a header to a packet.
  *
  * @param packet Packet to have the header appended to.
- * @param header Header to be appended to the packet. (Won't be copied)
+ * @param header Header to be appended to the packet. (Will be directly assigned
+ *               to the packet by this function, so it must remain valid for the
+ *               lifetime of the packet and will be free'd when the packet is
+ *               free'd.)
  *
  * @return TRUE if the operation was successful.
  */
@@ -159,6 +163,32 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
 	/* Append the new header and increment the header count. */
 	packet->headers[packet->header_count] = header;
 	packet->header_count++;
+
+	return true;
+}
+
+/**
+ * Removes the last header from a packet.
+ *
+ * @param packet Packet to have the header popped from.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool obex_packet_header_pop(obex_packet_t *packet) {
+	/* Free the last header. */
+	packet->header_count--;
+	obex_header_free(packet->headers[packet->header_count]);
+	packet->headers[packet->header_count] = NULL;
+
+	/* Reallocate the memory for the headers array. */
+	packet->headers = (obex_header_t **)realloc(packet->headers,
+		packet->header_count * sizeof(obex_header_t *));
+
+	/* Ensure we were able to allocate the memory. */
+	if (packet->headers == NULL) {
+		packet->header_count = 0;
+		return false;
+	}
 
 	return true;
 }
@@ -186,9 +216,7 @@ void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool
  *
  * @param packet Packet to have the body appended to.
  * @param size   Size of the contents of the body in bytes.
- * @param src    Body contents. (Won't be copied by this function, so it must
- *               remain valid for the lifetime of the packet and will be free'd
- *               when the packet is free'd.)
+ * @param src    Body contents.
  * @param eob    Should we set the End of Body flag?
  *
  * @return TRUE when the operation was successful.
@@ -365,9 +393,9 @@ bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr) {
 uint16_t obex_header_size(const obex_header_t *header) {
 	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
-			return (header->value.wstring.length * 2) + 3;
+			return (header->value.wstring.length * 2) + 4;
 		case OBEX_HEADER_ENCODING_STRING:
-			return header->value.string.length + 3;
+			return header->value.string.length + 4;
 		case OBEX_HEADER_ENCODING_BYTE:
 			return sizeof(uint8_t) + 1;
 		case OBEX_HEADER_ENCODING_WORD32:
@@ -499,10 +527,10 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 			wstr = header->value.wstring.text;
 			while (*wstr != L'\0') {
 				wc = htons(utf16_conv_ltos(*wstr));
-				p = memcpy_n(p, &wc, 1);
+				p = memcpy_n(p, &wc, sizeof(uint16_t));
 			}
 			wc = htons(L'\0');
-			p = memcpy_n(p, &wc, 1);
+			p = memcpy_n(p, &wc, sizeof(uint16_t));
 
 			break;
 		}
@@ -540,23 +568,180 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
  * Decodes an OBEX network packet into an OBEX packet object.
  * @warning This function allocates memory that must be free'd by you!
  *
- * @param buf OBEX network packet buffer.
- * @param len Length of the buffer in bytes.
+ * @param buf        OBEX network packet buffer.
+ * @param len        Length of the buffer in bytes.
+ * @param has_params Does this packet contain parameters?
  *
  * @return Fully populated OBEX packet or NULL if an error occurred.
  */
-obex_packet_t *obex_packet_decode(const void *buf, uint16_t len) {
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params) {
 	obex_packet_t *packet;
 	const uint8_t *cur;
+	uint16_t rlen;
 
 	tcp_print_net_buffer(buf, len);
 	printf("\n");
 
-	/* Create our packet object. */
+	/* Set some starting values. */
+	rlen = 0;
 	cur = (const uint8_t *)buf;
+
+	/* Create our packet object. */
 	packet = obex_packet_new(*cur, false);
-	packet->size = len;
 	cur++;
+	rlen++;
+
+	/* Read the packet size. */
+	packet->size = len;
+	cur += 2;
+	rlen += 2;
+
+	/* Deal with the parameters if needed. */
+	if (has_params) {
+		switch (packet->opcode) {
+			case OBEX_OPCODE_CONNECT:
+			case OBEX_RESPONSE_SUCCESS:
+				/* Protocol version. */
+				obex_packet_param_add(packet, *cur, 1);
+				cur++;
+				rlen++;
+
+				/* Connection flags. */
+				obex_packet_param_add(packet, *cur, 1);
+				cur++;
+				rlen++;
+
+				/* Packet maximum length. */
+				obex_packet_param_add(packet,
+									  U8BUF_TO_USHORT(cur),
+									  2);
+				cur += 2;
+				rlen += 2;
+				break;
+			default:
+				/* Unhandled opcode. */
+				fprintf(stderr, "obex_packet_decode: Invalid opcode 0x%02X "
+						"received with has_params flag.\n", packet->opcode);
+				obex_packet_free(packet);
+				return NULL;
+		}
+	}
+
+	/* Decode the headers. */
+	while (rlen != len) {
+		/* Start creating a new header. */
+		obex_header_t *header = obex_header_new(*cur);
+		cur++;
+		rlen++;
+
+		/* Preemptively append the header to the packet. */
+		if (!obex_packet_header_add(packet, header)) {
+			obex_header_free(header);
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+
+		/* Copy the data or just the length depending on the encoding. */
+		switch (header->identifier.fields.encoding) {
+			case OBEX_HEADER_ENCODING_UTF16:
+				header->value.wstring.length = (U8BUF_TO_USHORT(cur) / 2) - 4;
+				cur += 2;
+				rlen += 2;
+				break;
+			case OBEX_HEADER_ENCODING_STRING:
+				header->value.string.length = U8BUF_TO_USHORT(cur);
+				header->value.string.length -= 4;
+				cur += 2;
+				rlen += 2;
+				break;
+			case OBEX_HEADER_ENCODING_BYTE:
+				header->value.byte = *cur;
+				cur++;
+				rlen++;
+				continue;
+			case OBEX_HEADER_ENCODING_WORD32:
+				header->value.word32 = U8BUF_TO_U32(cur);
+				cur += 4;
+				rlen += 4;
+				continue;
+			default:
+				fprintf(stderr, "obex_packet_decode: Invalid header identifier "
+						"encoding.\n");
+				obex_packet_free(packet);
+				return NULL;
+		}
+
+		/* Copy over some of the special values. */
+		if ((header->identifier.id == OBEX_HEADER_BODY) ||
+			(header->identifier.id == OBEX_HEADER_END_BODY)) {
+			/* Body header. */
+			uint16_t blen;
+			bool eob;
+
+			/* Get the last bit of information needed from the header. */
+			eob = header->identifier.id == OBEX_HEADER_END_BODY;
+
+			/* Remove this header from the packet since it will be redundant. */
+			if (!obex_packet_header_pop(packet)) {
+				obex_packet_free(packet);
+				return NULL;
+			}
+
+			/* Copy the body over. */
+			blen = len - rlen;
+			if (!obex_packet_body_copy(packet, blen, cur, eob)) {
+				obex_packet_free(packet);
+				return NULL;
+			}
+
+			cur += blen;
+			rlen += blen;
+		} else if (header->identifier.fields.encoding == OBEX_HEADER_ENCODING_STRING) {
+			/* Header containing an regular string. */
+			char *str;
+			uint16_t str_len;
+			uint16_t c;
+
+			/* Allocate some memory for our string. */
+			str_len = header->value.string.length + 1;
+			header->value.string.text = (char *)malloc(str_len * sizeof(char));
+			if (header->value.string.text == NULL) {
+				obex_packet_free(packet);
+				return NULL;
+			}
+
+			/* Copy over the contents to our string. */
+			str = header->value.string.text;
+			for (c = 0; c < str_len; c++) {
+				str[c] = *cur;
+				cur++;
+				rlen++;
+			}
+		} else if (header->identifier.fields.encoding == OBEX_HEADER_ENCODING_UTF16) {
+			/* Header containing an UTF-16 string. */
+			wchar_t *wstr;
+			uint16_t wstr_len;
+			uint16_t c;
+
+			/* Allocate some memory for our string. */
+			wstr_len = header->value.wstring.length + 1;
+			header->value.wstring.text =
+				(wchar_t *)malloc(wstr_len * sizeof(wchar_t));
+			if (header->value.wstring.text == NULL) {
+				obex_packet_free(packet);
+				return NULL;
+			}
+
+			/* Copy over the contents to our string. */
+			wstr = header->value.wstring.text;
+			for (c = 0; c < wstr_len; c++) {
+				wstr[c] = U8BUF_TO_WCHAR(cur);
+				cur += 2;
+				rlen += 2;
+			}
+		}
+	}
 
 	return packet;
 }
@@ -612,10 +797,11 @@ cleanup:
  * @warning This function allocates memory that must be free'd by you!
  *
  * @param sockfd Socket to read our packet from.
+ * @param has_params Does this packet contain parameters?
  *
  * @return Decoded packet object or NULL if the received packet was invalid.
  */
-obex_packet_t *obex_net_packet_recv(int sockfd) {
+obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	size_t len;
 	tcp_err_t tcp_err;
 	obex_packet_t *packet;
@@ -635,7 +821,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd) {
 	}
 
 	/* Allocate memory to receive the entire packet. */
-	psize = (uint16_t)((peek_buf[1] << 8) | peek_buf[2]);
+	psize = BYTES_TO_USHORT(peek_buf[1], peek_buf[2]);
 	buf = malloc(psize);
 
 	/* Read the full packet that was sent. */
@@ -649,7 +835,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd) {
 	}
 
 	/* Decode the packet and free up any temporary resources. */
-	packet = obex_packet_decode(buf, psize);
+	packet = obex_packet_decode(buf, psize, has_params);
 	free(buf);
 
 	return packet;
@@ -799,7 +985,6 @@ void obex_print_packet(obex_packet_t *packet) {
 	/* Print out the headers. */
 	for (i = 0; i < packet->header_count; i++) {
 		obex_print_header(packet->headers[i], i == 0);
-		printf("\n");
 	}
 
 	/* Print out the data body. */
@@ -814,8 +999,6 @@ void obex_print_packet(obex_packet_t *packet) {
 
 		printf("\n");
 	}
-
-	printf("\n");
 }
 
 /**
@@ -875,11 +1058,11 @@ void obex_print_header_encoding(const obex_header_t *header) {
 void obex_print_header_value(const obex_header_t *header) {
 	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
-			printf("(%u) L\"%ls\"", (header->value.wstring.length * 2) + 3,
+			printf("(%u) L\"%ls\"", obex_header_size(header),
 				   header->value.wstring.text);
 			break;
 		case OBEX_HEADER_ENCODING_STRING:
-			printf("(%u) \"%s\"", header->value.string.length + 3,
+			printf("(%u) \"%s\"", obex_header_size(header),
 				   header->value.string.text);
 			break;
 		case OBEX_HEADER_ENCODING_BYTE:

@@ -122,12 +122,12 @@ typedef struct {
 		uint32_t word32;
 
 		struct {
-			uint16_t length;
+			uint16_t length; /* Number of characters in the string. */
 			char *text;
 		} string;
 
 		struct {
-			uint16_t length;
+			uint16_t length; /* Number of characters in the string. */
 			wchar_t *text;
 		} wstring;
 	} value;
@@ -137,7 +137,7 @@ typedef struct {
  * OBEX packet parameter abstraction.
  */
 typedef struct {
-	uint8_t size;
+	uint8_t size; /* Size in bytes of the parameter. */
 	union {
 		uint8_t byte;
 		uint16_t uint16;
@@ -149,7 +149,7 @@ typedef struct {
  */
 typedef struct {
 	uint8_t opcode;
-	uint16_t size;
+	uint16_t size; /* Size in bytes of the entire packet in transport format. */
 
 	uint8_t params_count;
 	obex_packet_param_t *params;
@@ -167,6 +167,7 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final);
 void obex_packet_free(obex_packet_t *packet);
 bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size);
 bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
+bool obex_packet_header_pop(obex_packet_t *packet);
 void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
 bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);
 uint16_t obex_packet_size_refresh(obex_packet_t *packet);
@@ -181,11 +182,11 @@ uint16_t obex_header_size(const obex_header_t *header);
 /* Packet encoding and decoding. */
 bool obex_packet_encode(obex_packet_t *packet, void **buf);
 void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf);
-obex_packet_t *obex_packet_decode(const void *buf, uint16_t len);
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params);
 
 /* Networking */
 gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
-obex_packet_t *obex_net_packet_recv(int sockfd);
+obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
 
 /* Common packet constructors. */
 obex_packet_t *obex_packet_new_connect(void);
