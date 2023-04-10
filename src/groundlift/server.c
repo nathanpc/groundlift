@@ -10,8 +10,14 @@
 #include <pthread.h>
 
 #include "defaults.h"
-#include "tcp.h"
-#include "obex.h"
+#include "error.h"
+
+/* Client connection states. */
+typedef enum {
+	CONN_STATE_CREATED = 0,
+	CONN_STATE_ACCEPTED,
+	CONN_STATE_REFUSED
+} conn_state_t;
 
 /* Private variables. */
 static server_t *m_server;
@@ -25,6 +31,7 @@ static gl_server_evt_start_func evt_server_start_cb_func;
 static gl_server_conn_evt_accept_func evt_server_conn_accept_cb_func;
 static gl_server_conn_evt_close_func evt_server_conn_close_cb_func;
 static gl_server_evt_stop_func evt_server_stop_cb_func;
+static gl_server_evt_client_conn_req_func evt_server_client_conn_req_cb_func;
 
 /* Private methods. */
 void *server_thread_func(void *args);
@@ -47,6 +54,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	evt_server_conn_accept_cb_func = NULL;
 	evt_server_conn_close_cb_func = NULL;
 	evt_server_stop_cb_func = NULL;
+	evt_server_client_conn_req_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -164,12 +172,61 @@ tcp_err_t gl_server_conn_destroy(void) {
 }
 
 /**
+ * Sends an OBEX packet to the client.
+ *
+ * @param packet OBEX packet object.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *gl_server_send_packet(obex_packet_t *packet) {
+	gl_err_t *err;
+
+	pthread_mutex_lock(m_conn_mutex);
+	err = obex_net_packet_send(m_conn->sockfd, packet);
+	pthread_mutex_unlock(m_conn_mutex);
+
+	return err;
+}
+
+/**
+ * Handles a client's connection request.
+ *
+ * @param packet   OBEX packet object.
+ * @param accepted Pointer to a boolean that will store a flag of whether the
+ *                 connection request was accepted.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted) {
+	gl_err_t *err;
+	obex_packet_t *resp;
+
+	/* Trigger the connection requested event. */
+	*accepted = true;
+	if (evt_server_client_conn_req_cb_func != NULL)
+		*accepted = evt_server_client_conn_req_cb_func();
+
+	/* Initialize reply packet. */
+	if (*accepted) {
+		resp = obex_packet_new_success(true);
+	} else {
+		resp = obex_packet_new_unauthorized(true);
+	}
+
+	/* Send reply. */
+	err = gl_server_send_packet(resp);
+	obex_packet_free(resp);
+
+	return err;
+}
+
+/**
  * Waits for the server thread to return.
  *
  * @return TRUE if the operation was successful.
  */
 bool gl_server_thread_join(void) {
-	tcp_err_t *err;
+	gl_err_t *err;
 	bool success;
 
 	/* Do we even need to do something? */
@@ -181,9 +238,14 @@ bool gl_server_thread_join(void) {
 	free(m_server_thread);
 	m_server_thread = NULL;
 
+	/* Check if we got any returned errors. */
+	if (err == NULL)
+		return true;
+
 	/* Check for success and free our returned value. */
-	success = *err <= TCP_OK;
-	free(err);
+	success = err->error.generic <= 0;
+	gl_error_print(err);
+	gl_error_free(err);
 
 	/* Check if the thread join was successful. */
 	return success;
@@ -195,20 +257,35 @@ bool gl_server_thread_join(void) {
  *
  * @param args No arguments should be passed.
  *
- * @return Pointer to a tcp_err_t with the last error code. This pointer must be
+ * @return Pointer to a gl_err_t with the last error code. This pointer must be
  *         free'd by you.
  */
 void *server_thread_func(void *args) {
-	tcp_err_t *err;
+	tcp_err_t tcp_err;
+	gl_err_t *gl_err;
 
 	/* Ignore the argument passed and initialize things. */
 	(void)args;
-	err = (tcp_err_t *)malloc(sizeof(tcp_err_t));
+	gl_err = NULL;
 
 	/* Start the server and listen for incoming connections. */
-	*err = tcp_server_start(m_server);
-	if (*err)
-		return (void *)err;
+	tcp_err = tcp_server_start(m_server);
+	switch (tcp_err) {
+		case TCP_OK:
+			break;
+		case TCP_ERR_ESOCKET:
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ESOCKET,
+				EMSG("Server failed to create a socket"));
+		case TCP_ERR_EBIND:
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,
+				EMSG("Server failed to bind to a socket"));
+		case TCP_ERR_ELISTEN:
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,
+				EMSG("Server failed to listen on a socket"));
+		default:
+			return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+				EMSG("tcp_server_start returned a weird error code"));
+	}
 
 	/* Trigger the server started event. */
 	if (evt_server_start_cb_func != NULL)
@@ -217,6 +294,8 @@ void *server_thread_func(void *args) {
 	/* Accept incoming connections. */
 	while ((m_conn = tcp_server_conn_accept(m_server, NULL)) != NULL) {
 		obex_packet_t *packet;
+		conn_state_t state;
+		bool running;
 
 		/* Check if the connection socket is valid. */
 		if (m_conn->sockfd == -1) {
@@ -229,19 +308,39 @@ void *server_thread_func(void *args) {
 			evt_server_conn_accept_cb_func(m_conn);
 
 		/* Read packets until the connection is closed or an error occurs. */
-		while ((packet = obex_net_packet_recv(m_conn->sockfd, true)) != NULL) {
+		state = CONN_STATE_CREATED;
+		running = true;
+		while (((packet = obex_net_packet_recv(m_conn->sockfd, true)) != NULL) && running) {
 			printf("== Packet received ====================\n");
 			obex_print_packet(packet);
 			printf("\n=======================================\n");
+
+			/* Handle operations for the different states. */
+			switch (state) {
+				case CONN_STATE_CREATED:
+					if (packet->opcode == OBEX_OPCODE_CONNECT) {
+						/* Got a connection request packet. */
+						gl_err = gl_server_handle_conn_req(packet, &running);
+					} else {
+						/* Invalid opcode for this state. */
+						gl_err = gl_error_new(ERR_TYPE_GL,
+							GL_ERR_INVALID_STATE_OPCODE,
+							EMSG("Invalid opcode for created state"));
+						running = false;
+					}
+					break;
+				default:
+					/* Invalid state. */
+					gl_err = gl_error_new(ERR_TYPE_GL, GL_ERR_UNHANDLED_STATE,
+						EMSG("Unhandled state condition"));
+					running = false;
+					break;
+			}
 
 			/* Make sure we free our packet. */
 			obex_packet_free(packet);
 			packet = NULL;
 		}
-
-		/* Check if the connection was closed gracefully. */
-		if (*err == TCP_EVT_CONN_CLOSED)
-			printf("Connection closed by the client\n");
 
 		/* Close the connection and free up any resources. */
 		obex_packet_free(packet);
@@ -261,7 +360,7 @@ void *server_thread_func(void *args) {
 	if (evt_server_stop_cb_func != NULL)
 		evt_server_stop_cb_func();
 
-	return (void *)err;
+	return (void *)gl_err;
 }
 
 /**
@@ -307,4 +406,13 @@ void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func) {
  */
 void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
 	evt_server_stop_cb_func = func;
+}
+
+/**
+ * Sets the Client Connection Requested event callback function.
+ *
+ * @param func Client Connection Requested event callback function.
+ */
+void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func) {
+	evt_server_client_conn_req_cb_func = func;
 }

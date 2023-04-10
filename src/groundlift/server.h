@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "error.h"
+#include "obex.h"
 #include "tcp.h"
 
 #ifdef __cplusplus
@@ -42,6 +44,11 @@ typedef void (*gl_server_conn_evt_close_func)(void);
  */
 typedef void (*gl_server_evt_stop_func)(void);
 
+/**
+ * Client connection request event callback function pointer type definition.
+ */
+typedef int (*gl_server_evt_client_conn_req_func)(void);
+
 /* Initialization and destruction. */
 bool gl_server_init(const char *addr, uint16_t port);
 void gl_server_free(void);
@@ -53,7 +60,8 @@ tcp_err_t gl_server_conn_destroy(void);
 bool gl_server_thread_join(void);
 
 /* Server interactions. */
-uint16_t gl_server_recv_obex_packet(void **buf);
+gl_err_t *gl_server_send_packet(obex_packet_t *packet);
+gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted);
 
 /* Getters and setters. */
 server_t *gl_server_get(void);
@@ -63,6 +71,7 @@ void gl_server_evt_start_set(gl_server_evt_start_func func);
 void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func);
 void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func);
 void gl_server_evt_stop_set(gl_server_evt_stop_func func);
+void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func);
 
 #ifdef __cplusplus
 }

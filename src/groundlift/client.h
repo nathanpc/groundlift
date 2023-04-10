@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "error.h"
+#include "obex.h"
 #include "tcp.h"
 
 #ifdef __cplusplus
@@ -52,7 +53,7 @@ bool gl_client_disconnect(void);
 bool gl_client_thread_join(void);
 
 /* Client interactions. */
-gl_err_t *gl_client_send_data(const void *buf, size_t len);
+gl_err_t *gl_client_send_packet(obex_packet_t *packet);
 gl_err_t *gl_client_send_conn_req(void);
 
 /* Getters and setters. */

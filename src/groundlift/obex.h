@@ -193,6 +193,7 @@ obex_packet_t *obex_packet_new_connect(void);
 obex_packet_t *obex_packet_new_disconnect(void);
 obex_packet_t *obex_packet_new_success(bool final);
 obex_packet_t *obex_packet_new_continue(bool final);
+obex_packet_t *obex_packet_new_unauthorized(bool final);
 
 /* Debugging */
 void obex_print_header(const obex_header_t *header, bool th);

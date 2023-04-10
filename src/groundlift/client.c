@@ -10,9 +10,6 @@
 #include <pthread.h>
 
 #include "defaults.h"
-#include "error.h"
-#include "tcp.h"
-#include "obex.h"
 
 /* Private variables. */
 static tcp_client_t *m_client;
@@ -127,34 +124,20 @@ bool gl_client_disconnect(void) {
 }
 
 /**
- * Sends some arbitrary data to the server.
+ * Sends an OBEX packet to the server.
  *
- * @param buf Arbitrary data to be sent.
- * @param len Length of the data buffer.
+ * @param packet OBEX packet object.
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_client_send_data(const void *buf, size_t len) {
-	tcp_err_t tcp_err;
+gl_err_t *gl_client_send_packet(obex_packet_t *packet) {
 	gl_err_t *err;
 
-	/* Check if we are even connected to something. */
-	if (m_client->sockfd == -1) {
-		return gl_error_new(ERR_TYPE_TCP, TCP_ERR_UNKNOWN,
-			EMSG("No socket associated to send data through"));
-	}
-
-	/* Send the data. */
+	pthread_mutex_lock(m_client_mutex);
 	pthread_mutex_lock(m_client_send_mutex);
-	tcp_err = tcp_client_send(m_client, buf, len);
+	err = obex_net_packet_send(m_client->sockfd, packet);
 	pthread_mutex_unlock(m_client_send_mutex);
-
-	/* Check for TCP errors. */
-	err = NULL;
-	if (tcp_err != TCP_OK) {
-		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-						   EMSG("Failed to send data"));
-	}
+	pthread_mutex_unlock(m_client_mutex);
 
 	return err;
 }
@@ -167,19 +150,15 @@ gl_err_t *gl_client_send_data(const void *buf, size_t len) {
 gl_err_t *gl_client_send_conn_req(void) {
 	gl_err_t *err;
 	obex_packet_t *packet;
-	void *buf;
 
 	/* Initialize variables. */
-	buf = NULL;
 	err = NULL;
 
 	/* Create the OBEX packet. */
 	packet = obex_packet_new_connect();
 
 	/* Send the packet. */
-	pthread_mutex_lock(m_client_send_mutex);
-	err = obex_net_packet_send(m_client->sockfd, packet);
-	pthread_mutex_unlock(m_client_send_mutex);
+	err = gl_client_send_packet(packet);
 	if (err)
 		goto cleanup;
 
@@ -195,8 +174,6 @@ gl_err_t *gl_client_send_conn_req(void) {
 cleanup:
 	/* Free up any resources. */
 	obex_packet_free(packet);
-	if (buf)
-		free(buf);
 
 	return err;
 }
@@ -238,7 +215,7 @@ bool gl_client_thread_join(void) {
  *
  * @param args No arguments should be passed.
  *
- * @return Pointer to a tcp_err_t with the last error code. This pointer must be
+ * @return Pointer to a gl_err_t with the last error code. This pointer must be
  *         free'd by you.
  */
 void *client_thread_func(void *args) {

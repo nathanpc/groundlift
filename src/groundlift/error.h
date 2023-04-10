@@ -45,8 +45,8 @@ typedef enum {
  */
 typedef enum {
 	GL_OK = 0,
-	GL_CONN_REFUSED,
-	GL_ERR_OBEX,
+	GL_ERR_UNHANDLED_STATE,
+	GL_ERR_INVALID_STATE_OPCODE,
 	GL_ERR_UNKNOWN
 } gl_ret_t;
 

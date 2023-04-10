@@ -8,7 +8,6 @@
 #include "obex.h"
 
 #include <arpa/inet.h>
-#include <bits/stdint-uintn.h>
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <string.h>
@@ -609,7 +608,8 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 	if (has_params) {
 		switch (packet->opcode) {
 			case OBEX_OPCODE_CONNECT:
-			case OBEX_RESPONSE_SUCCESS:
+			case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS):
+			case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_UNAUTHORIZED):
 				/* Protocol version. */
 				obex_packet_param_add(packet, *cur, 1);
 				cur++;
@@ -621,9 +621,7 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 				rlen++;
 
 				/* Packet maximum length. */
-				obex_packet_param_add(packet,
-									  U8BUF_TO_USHORT(cur),
-									  2);
+				obex_packet_param_add(packet, U8BUF_TO_USHORT(cur), 2);
 				cur += 2;
 				rlen += 2;
 				break;
@@ -896,6 +894,9 @@ obex_packet_t *obex_packet_new_success(bool final) {
 
 	/* Create the packet and populate it with default parameters and headers. */
 	packet = obex_packet_new(OBEX_RESPONSE_SUCCESS, final);
+	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
+	obex_packet_param_add(packet, 0x00, 1);
+	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
 
 	return packet;
 }
@@ -913,6 +914,26 @@ obex_packet_t *obex_packet_new_continue(bool final) {
 
 	/* Create the packet and populate it with default parameters and headers. */
 	packet = obex_packet_new(OBEX_RESPONSE_CONTINUE, final);
+
+	return packet;
+}
+
+/**
+ * Creates a brand new UNAUTHORIZED packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param final Set the final bit?
+ *
+ * @return Brand new UNAUTHORIZED packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_unauthorized(bool final) {
+	obex_packet_t *packet;
+
+	/* Create the packet and populate it with default parameters and headers. */
+	packet = obex_packet_new(OBEX_RESPONSE_UNAUTHORIZED, final);
+	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
+	obex_packet_param_add(packet, 0x00, 1);
+	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
 
 	return packet;
 }
@@ -956,10 +977,16 @@ void obex_print_packet(obex_packet_t *packet) {
 			printf("ABORT ");
 			break;
 		case OBEX_RESPONSE_CONTINUE:
+		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_CONTINUE):
 			printf("CONTINUE ");
 			break;
 		case OBEX_RESPONSE_SUCCESS:
+		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS):
 			printf("SUCCESS ");
+			break;
+		case OBEX_RESPONSE_UNAUTHORIZED:
+		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_UNAUTHORIZED):
+			printf("UNAUTHORIZED ");
 			break;
 		default:
 			printf("OTHER ");
