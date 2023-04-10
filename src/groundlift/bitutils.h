@@ -15,18 +15,6 @@
 extern "C" {
 #endif
 
-/* Decorate the error message with more information. */
-#ifdef DEBUG
-#define STRINGIZE(x) STRINGIZE_WRAPPER(x)
-#define STRINGIZE_WRAPPER(x) #x
-#define EMSG(msg) msg " [" __FILE__ ":" STRINGIZE(__LINE__) "]"
-#define DEBUG_LOG(msg) \
-	printf("[DEBUG] \"%s\" [" __FILE__ ":" STRINGIZE(__LINE__) "]\n", (msg))
-#else
-#define EMSG(msg) msg
-#define DEBUG_LOG(msg) (void)0
-#endif /* DEBUG */
-
 /**
  * Converts 2 bytes into a single 16-bit value.
  *
