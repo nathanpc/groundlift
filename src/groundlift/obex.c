@@ -393,9 +393,9 @@ bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr) {
 uint16_t obex_header_size(const obex_header_t *header) {
 	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
-			return (header->value.wstring.length * 2) + 4;
+			return ((header->value.wstring.length + 1) * 2) + 3;
 		case OBEX_HEADER_ENCODING_STRING:
-			return header->value.string.length + 4;
+			return (header->value.string.length + 1) + 3;
 		case OBEX_HEADER_ENCODING_BYTE:
 			return sizeof(uint8_t) + 1;
 		case OBEX_HEADER_ENCODING_WORD32:
@@ -528,6 +528,8 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 			while (*wstr != L'\0') {
 				wc = htons(utf16_conv_ltos(*wstr));
 				p = memcpy_n(p, &wc, sizeof(uint16_t));
+
+				wstr++;
 			}
 			wc = htons(L'\0');
 			p = memcpy_n(p, &wc, sizeof(uint16_t));
@@ -548,7 +550,7 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 			break;
 		}
 		case OBEX_HEADER_ENCODING_BYTE:
-			p = memcpy_n(p, &header->value.byte, 1);
+			p = memcpy_n(p, &header->value.byte, sizeof(uint8_t));
 			break;
 		case OBEX_HEADER_ENCODING_WORD32: {
 			uint32_t n = htonl(header->value.word32);
@@ -628,7 +630,7 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 	}
 
 	/* Decode the headers. */
-	while (rlen != len) {
+	while (rlen < len) {
 		/* Start creating a new header. */
 		obex_header_t *header = obex_header_new(*cur);
 		cur++;
@@ -645,13 +647,13 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 		/* Copy the data or just the length depending on the encoding. */
 		switch (header->identifier.fields.encoding) {
 			case OBEX_HEADER_ENCODING_UTF16:
-				header->value.wstring.length = (U8BUF_TO_USHORT(cur) / 2) - 4;
+				header->value.wstring.length =
+					(U8BUF_TO_USHORT(cur) - 3 - 2) / 2;
 				cur += 2;
 				rlen += 2;
 				break;
 			case OBEX_HEADER_ENCODING_STRING:
-				header->value.string.length = U8BUF_TO_USHORT(cur);
-				header->value.string.length -= 4;
+				header->value.string.length = U8BUF_TO_USHORT(cur) - 4;
 				cur += 2;
 				rlen += 2;
 				break;
