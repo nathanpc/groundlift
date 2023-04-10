@@ -175,10 +175,22 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
  * @return TRUE if the operation was successful.
  */
 bool obex_packet_header_pop(obex_packet_t *packet) {
+	/* Do we even have anything to pop? */
+	if (packet->header_count == 0)
+		return false;
+
 	/* Free the last header. */
 	packet->header_count--;
 	obex_header_free(packet->headers[packet->header_count]);
 	packet->headers[packet->header_count] = NULL;
+
+	/* Do we want to pop everything? */
+	if (packet->header_count == 0) {
+		free(packet->headers);
+		packet->headers = NULL;
+
+		return true;
+	}
 
 	/* Reallocate the memory for the headers array. */
 	packet->headers = (obex_header_t **)realloc(packet->headers,
@@ -424,7 +436,6 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 	uint16_t i;
 	uint16_t n;
 	void *p;
-	obex_header_t *body_header;
 
 	/* Calculate the length of the whole packet */
 	obex_packet_size_refresh(packet);
@@ -452,7 +463,7 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 				break;
 			case 2:
 				n = htons(param.value.uint16);
-				p = memcpy_n(p, &n, 2);
+				p = memcpy_n(p, &n, sizeof(uint16_t));
 				break;
 			default:
 				fprintf(stderr, "obex_packet_encode: Invalid packet parameter "
@@ -469,25 +480,21 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 		p = obex_packet_encode_header_memcpy(packet->headers[i], p);
 	}
 
-	/* Check if we should send an empty end-of-body header. */
-	if (packet->body_end && (packet->body == NULL)) {
-		body_header = obex_header_new(OBEX_HEADER_END_BODY);
-		body_header->value.word32 = 0;
-
-		p = obex_packet_encode_header_memcpy(body_header, p);
-		obex_header_free(body_header);
-		body_header = NULL;
-	}
-
 	/* Copy over the body over if needed. */
-	if (packet->body != NULL) {
-		body_header = obex_header_new(
-			(packet->body_end) ? OBEX_HEADER_END_BODY : OBEX_HEADER_BODY);
-		body_header->value.word32 = packet->body_length;
+	if ((packet->body != NULL) || packet->body_end) {
+		uint8_t hi;
 
-		p = obex_packet_encode_header_memcpy(body_header, p);
-		obex_header_free(body_header);
-		body_header = NULL;
+		/* Header identifier. */
+		hi = (packet->body_end) ? OBEX_HEADER_END_BODY : OBEX_HEADER_BODY;
+		p = memcpy_n(p, &hi, 1);
+
+		/* Header length */
+		n = htons(packet->body_length + 3);
+		p = memcpy_n(p, &n, sizeof(uint16_t));
+
+		/* Body contents. */
+		if ((packet->body_length > 0) && (packet->body != NULL))
+			p = memcpy_n(p, packet->body, packet->body_length);
 	}
 
 	return true;
@@ -994,7 +1001,7 @@ void obex_print_packet(obex_packet_t *packet) {
 		const unsigned char *p = (const unsigned char *)packet->body;
 
 		/* Print out each byte of the body. */
-		printf("\n");
+		printf("\n%s:\n", (packet->body_end) ? "End of Body" : "Body");
 		for (i = 0; i < packet->body_length; i++) {
 			printf("%02X ", p[i]);
 		}
