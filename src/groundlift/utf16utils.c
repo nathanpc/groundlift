@@ -7,6 +7,10 @@
  */
 
 #include "utf16utils.h"
+
+#include <stdlib.h>
+#include <string.h>
+
 #include "defaults.h"
 
 /**
@@ -95,4 +99,37 @@ uint16_t utf16_conv_ltos(wchar_t wc) {
 #else
 	return (uint16_t)(wc & 0xFFFF);
 #endif /* _SIZEOF_WCHAR == 2 */
+}
+
+/**
+ * Converts a UTF-8 multibyte string into an UTF-16 wide-character string.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param str UTF-8 string to be converted.
+ *
+ * @return UTF-16 wide-character converted string or NULL if an error occurred.
+ */
+wchar_t *utf16_mbstowcs(const char *str) {
+	wchar_t *wstr;
+
+#ifdef _WIN32
+	#error Not yet implemented.
+#else
+	size_t len;
+
+	/* Allocate some memory for our converted string. */
+	len = mbstowcs(NULL, str, 0) + 1;
+	wstr = (wchar_t *)malloc(len * sizeof(wchar_t));
+	if (wstr == NULL)
+		return NULL;
+
+	/* Perform the string conversion. */
+	len = mbstowcs(wstr, str, len);
+	if (len == (size_t)-1) {
+		free(wstr);
+		return NULL;
+	}
+#endif /* _WIN32 */
+
+	return wstr;
 }
