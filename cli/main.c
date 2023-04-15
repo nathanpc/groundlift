@@ -19,7 +19,7 @@
 #include <string.h>
 
 /* Private methods. */
-gl_err_t *client_send(const char *ip, uint16_t port);
+gl_err_t *client_send(const char *ip, uint16_t port, char *fname);
 void sigint_handler(int sig);
 void server_event_started(const server_t *server);
 void server_conn_event_accepted(const server_conn_t *conn);
@@ -79,9 +79,9 @@ int main(int argc, char **argv) {
 			ret = 1;
 			goto cleanup;
 		}
-	} else if ((argc == 4) && (argv[1][0] == 'c')) {
+	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
-		err = client_send(argv[2], (uint16_t)atoi(argv[3]));
+		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
 	} else if (argv[1][0] == 'o') {
 		obex_header_t *header;
 		wchar_t *wbuf;
@@ -162,13 +162,14 @@ cleanup:
 /**
  * Perform an entire send exchange with the server.
  *
- * @param ip   Server's IP to send the data to.
- * @param port Server port to talk to.
+ * @param ip    Server's IP to send the data to.
+ * @param port  Server port to talk to.
+ * @param fname Path to a file to be sent to the server.
  *
  * @return An error report if something unexpected happened or NULL if the
  *         operation was successful.
  */
-gl_err_t *client_send(const char *ip, uint16_t port) {
+gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 	gl_err_t *err = NULL;
 
 	/* Initialize the client. */
@@ -183,7 +184,7 @@ gl_err_t *client_send(const char *ip, uint16_t port) {
 	gl_client_evt_disconn_set(client_event_disconnected);
 
 	/* Connect to the server. */
-	if (!gl_client_connect()) {
+	if (!gl_client_connect(fname)) {
 		fprintf(stderr, "Failed to connect the client to the server.\n");
 		goto cleanup;
 	}

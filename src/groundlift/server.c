@@ -12,13 +12,6 @@
 #include "defaults.h"
 #include "error.h"
 
-/* Client connection states. */
-typedef enum {
-	CONN_STATE_CREATED = 0,
-	CONN_STATE_ACCEPTED,
-	CONN_STATE_REFUSED
-} conn_state_t;
-
 /* Private variables. */
 static server_t *m_server;
 static server_conn_t *m_conn;
@@ -208,9 +201,42 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted)
 
 	/* Initialize reply packet. */
 	if (*accepted) {
-		resp = obex_packet_new_success(true);
+		resp = obex_packet_new_success(true, true);
 	} else {
 		resp = obex_packet_new_unauthorized(true);
+	}
+
+	/* Send reply. */
+	err = gl_server_send_packet(resp);
+	obex_packet_free(resp);
+
+	return err;
+}
+
+/**
+ * Handles a file transfer from a client.
+ *
+ * @param packet  OBEX packet object.
+ * @param running Pointer to a boolean that will store a flag of whether the
+ *                connection should continue running.
+ * @param state   Pointer to the variable that's holding the current state of
+ *                of the client's connection.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *packet, bool *running, conn_state_t *state) {
+	gl_err_t *err;
+	obex_packet_t *resp;
+
+	/* TODO: Actually handle the file saving and etc. */
+
+	/* Initialize reply packet. */
+	if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
+		printf("Sending back SUCCESS.\n");
+		resp = obex_packet_new_success(true, false);
+	} else {
+		printf("Sending back CONTINUE.\n");
+		resp = obex_packet_new_continue(true);
 	}
 
 	/* Send reply. */
@@ -296,6 +322,7 @@ void *server_thread_func(void *args) {
 		obex_packet_t *packet;
 		conn_state_t state;
 		bool running;
+		bool has_params;
 
 		/* Check if the connection socket is valid. */
 		if (m_conn->sockfd == -1) {
@@ -310,7 +337,8 @@ void *server_thread_func(void *args) {
 		/* Read packets until the connection is closed or an error occurs. */
 		state = CONN_STATE_CREATED;
 		running = true;
-		while (((packet = obex_net_packet_recv(m_conn->sockfd, true)) != NULL) && running) {
+		has_params = true;
+		while (((packet = obex_net_packet_recv(m_conn->sockfd, has_params)) != NULL) && running) {
 			printf("== Packet received ====================\n");
 			obex_print_packet(packet);
 			printf("\n=======================================\n");
@@ -321,11 +349,28 @@ void *server_thread_func(void *args) {
 					if (packet->opcode == OBEX_OPCODE_CONNECT) {
 						/* Got a connection request packet. */
 						gl_err = gl_server_handle_conn_req(packet, &running);
+						if (running) {
+							state = CONN_STATE_RECV_FILES;
+							has_params = false;
+						}
 					} else {
 						/* Invalid opcode for this state. */
 						gl_err = gl_error_new(ERR_TYPE_GL,
 							GL_ERR_INVALID_STATE_OPCODE,
 							EMSG("Invalid opcode for created state"));
+						running = false;
+					}
+					break;
+				case CONN_STATE_RECV_FILES:
+					/* Receiving files from the client. */
+					if (OBEX_IGNORE_FINAL_BIT(packet->opcode) == OBEX_OPCODE_PUT) {
+						/* Received a chunk of a file. */
+						gl_err = gl_server_handle_put_req(packet, &running, &state);
+					} else {
+						/* Invalid opcode for this state. */
+						gl_err = gl_error_new(ERR_TYPE_GL,
+							GL_ERR_INVALID_STATE_OPCODE,
+							EMSG("Invalid opcode for file receiving state"));
 						running = false;
 					}
 					break;

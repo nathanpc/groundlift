@@ -5,6 +5,7 @@ set(GROUNDLIFT_LIB_SOURCES
 	groundlift/server.c
 	groundlift/client.c
 	groundlift/utf16utils.c
+	groundlift/fileutils.c
 	groundlift/error.c)
 
 # Build the main groundlift library.

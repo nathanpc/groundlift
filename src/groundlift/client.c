@@ -10,6 +10,9 @@
 #include <pthread.h>
 
 #include "defaults.h"
+#include "error.h"
+#include "obex.h"
+#include "fileutils.h"
 
 /* Private variables. */
 static tcp_client_t *m_client;
@@ -21,9 +24,10 @@ static pthread_t *m_client_thread;
 static gl_client_evt_conn_func evt_conn_cb_func;
 static gl_client_evt_close_func evt_close_cb_func;
 static gl_client_evt_disconn_func evt_disconn_cb_func;
+static gl_client_evt_conn_req_accepted_func evt_conn_req_accepted_cb_func;
 
 /* Private methods. */
-void *client_thread_func(void *args);
+void *client_thread_func(void *fname);
 
 /**
  * Initializes everything related to the client to a known clean state.
@@ -41,6 +45,7 @@ bool gl_client_init(const char *addr, uint16_t port) {
 	evt_conn_cb_func = NULL;
 	evt_close_cb_func = NULL;
 	evt_disconn_cb_func = NULL;
+	evt_conn_req_accepted_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -84,16 +89,19 @@ void gl_client_free(void) {
 /**
  * Connects the client to a server.
  *
+ * @param fname Path to a file to be sent to the server.
+ *
  * @return TRUE if the operation was successful.
  *
  * @see gl_client_loop
  * @see gl_client_disconnect
  */
-bool gl_client_connect(void) {
+bool gl_client_connect(char *fname) {
 	int ret;
 
 	/* Create the client thread. */
-	ret = pthread_create(m_client_thread, NULL, client_thread_func, NULL);
+	ret = pthread_create(m_client_thread, NULL, client_thread_func,
+		(void *)fname);
 	if (ret)
 		m_client_thread = NULL;
 
@@ -143,11 +151,14 @@ gl_err_t *gl_client_send_packet(obex_packet_t *packet) {
 }
 
 /**
- * Send an OBEX connection request.
+ * Handles a connection request.
+ *
+ * @param accepted Pointer to a boolean that will store a flag of whether the
+ *                 connection request was accepted.
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_client_send_conn_req(void) {
+gl_err_t *gl_client_send_conn_req(bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *packet;
 
@@ -164,16 +175,156 @@ gl_err_t *gl_client_send_conn_req(void) {
 
 	/* Read the response packet. */
 	obex_packet_free(packet);
+	pthread_mutex_lock(m_client_mutex);
 	packet = obex_net_packet_recv(m_client->sockfd, true);
-	if (packet == NULL)
+	pthread_mutex_unlock(m_client_mutex);
+	if (packet == NULL) {
+		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
+			EMSG("Failed to receive or decode the received packet"));
 		goto cleanup;
+	}
+
 	printf("== Packet received ====================\n");
 	obex_print_packet(packet);
 	printf("\n=======================================\n");
 
+	/* Check if our request was accepted. */
+	*accepted = packet->opcode == OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
+
 cleanup:
 	/* Free up any resources. */
 	obex_packet_free(packet);
+
+	return err;
+}
+
+/**
+ * Handles the send operation of a file.
+ *
+ * @param fname Path to a file to be sent.
+ * @param psize Maximum size of each packet to be sent.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
+	gl_err_t *err;
+	FILE *fh;
+	int64_t fsize;
+	uint16_t csize;
+	uint8_t chunks;
+	uint8_t cc;
+
+	/* Set some defaults. */
+	err = NULL;
+
+	/* Get the size of the full file for transferring. */
+	fsize = file_size(fname);
+	if (fsize < 0L) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE, EMSG("Failed to get the "
+			"length of the file for upload"));
+	}
+
+	/* Calculate the size of each file chunk. */
+	csize = OBEX_MAX_FILE_CHUNK;
+	if (psize < OBEX_MAX_FILE_CHUNK)
+		csize = psize;  /* TODO: Properly take into account the negotiated packet size. */
+	chunks = (uint8_t)(fsize / csize);
+	if ((csize * chunks) < fsize)
+		chunks++;
+
+	printf("file size %ld csize %u chunks %u\n", fsize, csize, chunks);
+
+	/* Open the file. */
+	fh = file_open(fname);
+	if (fh == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
+			"the file for upload"));
+	}
+
+	/* Read the file in chunks for sending over OBEX packets. */
+	for (cc = 0; cc < chunks; cc++) {
+		obex_packet_t *packet;
+		void *buf;
+		ssize_t len;
+		bool last_chunk;
+
+		/* Are we in our last chunk? */
+		last_chunk = cc == (chunks - 1);
+
+		/* Read a chunk of the file. */
+		len = file_read(fh, &buf, csize);
+		if (len < 0L) {
+			err = gl_error_new(ERR_TYPE_GL, GL_ERR_FREAD, EMSG("Failed to read "
+				"a part of the file for upload"));
+			break;
+		}
+
+		/* Create the OBEX packet object. */
+		if (cc == 0) {
+			packet = obex_packet_new_put(fname, (uint32_t *)&fsize, last_chunk);
+		} else {
+			packet = obex_packet_new_put(NULL, NULL, last_chunk);
+		}
+
+		/* Check if the packet object was created. */
+		if (packet == NULL) {
+			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_NEW,
+				EMSG("Failed to create the PUT packet for file upload"));
+			free(buf);
+
+			break;
+		}
+
+		/* Put the chunk of the file in the body of the packet. */
+		obex_packet_body_set(packet, (uint16_t)len, buf, last_chunk);
+
+		/* Send the packet. */
+		err = obex_net_packet_send(m_client->sockfd, packet);
+		obex_packet_free(packet);
+		if (err)
+			break;
+
+		/* Read the response packet. */
+		pthread_mutex_lock(m_client_mutex);
+		packet = obex_net_packet_recv(m_client->sockfd, false);
+		pthread_mutex_unlock(m_client_mutex);
+		if (packet == NULL) {
+			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
+				EMSG("Failed to receive or decode the received packet"));
+			break;
+		}
+
+		/* Check if the response was correct. */
+		switch (packet->opcode) {
+			case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS):
+				if (!last_chunk) {
+					err = gl_error_new(ERR_TYPE_GL, GL_ERR_INVALID_STATE_OPCODE,
+						EMSG("SUCCESS packet received before last file chunk"));
+				}
+				break;
+			case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_CONTINUE):
+				if (last_chunk) {
+					err = gl_error_new(ERR_TYPE_GL, GL_ERR_INVALID_STATE_OPCODE,
+						EMSG("CONTINUE packet received for last file chunk"));
+				}
+				break;
+			default:
+				err = gl_error_new(ERR_TYPE_GL, GL_ERR_INVALID_STATE_OPCODE,
+					EMSG("Invalid opcode response for PUT operation"));
+				break;
+		}
+
+		/* Free our response packet and check for errors. */
+		obex_packet_free(packet);
+		if (err)
+			break;
+	}
+
+	/* Close the file. */
+	if (!file_close(fh)) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FCLOSE, EMSG("Failed to close "
+			"the file that was uploaded"));
+	}
 
 	return err;
 }
@@ -213,18 +364,25 @@ bool gl_client_thread_join(void) {
  * Client's thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param args No arguments should be passed.
+ * @param fname Path to a file to be sent.
  *
  * @return Pointer to a gl_err_t with the last error code. This pointer must be
  *         free'd by you.
  */
-void *client_thread_func(void *args) {
+void *client_thread_func(void *fname) {
 	tcp_err_t tcp_err;
 	gl_err_t *gl_err;
+	bool running;
 
 	/* Ignore the argument passed. */
-	(void)args;
 	gl_err = NULL;
+	running = false;
+
+	/* Check if the file exists. */
+	if (!file_exists(fname)) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+							EMSG("File to be sent doesn't exist"));
+	}
 
 	/* Get a client handle. */
 	if (m_client == NULL) {
@@ -253,8 +411,17 @@ void *client_thread_func(void *args) {
 		evt_conn_cb_func(m_client);
 
 	/* Send the OBEX connection request. */
-	gl_err = gl_client_send_conn_req();
-	if (gl_err != NULL)
+	gl_err = gl_client_send_conn_req(&running);
+	if (!running || (gl_err != NULL))
+		goto disconnect;
+
+	/* Trigger the connection accepted event callback. */
+	if (evt_conn_req_accepted_cb_func != NULL)
+		evt_conn_req_accepted_cb_func();
+
+	/* Send the file to the server. */
+	gl_err = gl_client_send_put_file((const char *)fname, 10);
+	if (!running || (gl_err != NULL))
 		goto disconnect;
 
 disconnect:
@@ -300,4 +467,13 @@ void gl_client_evt_close_set(gl_client_evt_close_func func) {
  */
 void gl_client_evt_disconn_set(gl_client_evt_disconn_func func) {
 	evt_disconn_cb_func = func;
+}
+
+/**
+ * Sets the Connection Request Accepted event callback function.
+ *
+ * @param func Connection Request Accepted event callback function.
+ */
+void gl_client_evt_conn_req_accepted_set(gl_client_evt_conn_req_accepted_func func) {
+	evt_conn_req_accepted_cb_func = func;
 }

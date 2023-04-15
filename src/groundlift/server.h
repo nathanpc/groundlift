@@ -49,6 +49,14 @@ typedef void (*gl_server_evt_stop_func)(void);
  */
 typedef int (*gl_server_evt_client_conn_req_func)(void);
 
+/**
+ * Client connection states.
+ */
+typedef enum {
+	CONN_STATE_CREATED = 0,
+	CONN_STATE_RECV_FILES
+} conn_state_t;
+
 /* Initialization and destruction. */
 bool gl_server_init(const char *addr, uint16_t port);
 void gl_server_free(void);
@@ -62,6 +70,7 @@ bool gl_server_thread_join(void);
 /* Server interactions. */
 gl_err_t *gl_server_send_packet(obex_packet_t *packet);
 gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted);
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *packet, bool *running, conn_state_t *state);
 
 /* Getters and setters. */
 server_t *gl_server_get(void);

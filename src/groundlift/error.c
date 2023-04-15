@@ -99,5 +99,6 @@ void gl_error_print(gl_err_t *err) {
 		return;
 
 	/* Print the error out. */
-	fprintf(stderr, "%s (%d/%d)\n", err->msg, err->type, err->error.generic);
+	fprintf(stderr, "%s (err type %d code %d)\n", err->msg, err->type,
+			err->error.generic);
 }

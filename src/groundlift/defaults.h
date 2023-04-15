@@ -33,6 +33,11 @@ extern "C" {
 #define OBEX_MAX_PACKET_SIZE 65535
 #endif /* OBEX_MAX_PACKET_SIZE */
 
+/* Maximum size of a file chunk in an OBEX PUT packet in bytes. */
+#ifndef OBEX_MAX_FILE_CHUNK
+#define OBEX_MAX_FILE_CHUNK 8000
+#endif /* OBEX_MAX_FILE_CHUNK */
+
 /* Ensure we know the size of a wchar_t in this platform. */
 #ifndef _SIZEOF_WCHAR
 	#ifdef _WIN32
