@@ -15,6 +15,7 @@
 		"ESEND",
 		"ESOCKET",
 		"fhlength",
+		"fileutils",
 		"itos",
 		"ltos",
 		"OBEX",
@@ -23,6 +24,7 @@
 		"tcpserver",
 		"TCPSERVERCLIENT",
 		"tjoin",
+		"wfname",
 		"WSAENOTCONN"
 	]
 }
