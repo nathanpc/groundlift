@@ -29,5 +29,5 @@ to test the project out.
 
 ## License
 
-This project is licensed under the **MIT License**.
-
+This project is licensed under the
+[Mozilla Public License Version 2.0](https://www.mozilla.org/en-US/MPL/2.0/).
