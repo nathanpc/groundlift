@@ -35,6 +35,20 @@ extern "C" {
 #define OBEX_SET_FINAL_BIT(opcode) ((opcode) | (1 << 7))
 
 /**
+ * Checks wether the opcode has the Final Bit Flag set.
+ *
+ * @param opcode Opcode to have its final bit inspected.
+ */
+#define OBEX_IS_FINAL_OPCODE(opcode) ((opcode) & (1 << 7))
+
+/**
+ * Ignores the Final Bit Flag of an opcode.
+ *
+ * @param opcode Opcode to have its final bit removed.
+ */
+#define OBEX_IGNORE_FINAL_BIT(opcode) ((opcode) & 0x7F)
+
+/**
  * OBEX header encoding. (Upper 2 bits of the header identifier shifted)
  */
 typedef enum {
@@ -175,7 +189,9 @@ uint16_t obex_packet_size_refresh(obex_packet_t *packet);
 /* Header manipulation. */
 obex_header_t *obex_header_new(obex_header_id_t id);
 void obex_header_free(obex_header_t *header);
+bool obex_header_string_set(obex_header_t *header, char *str);
 bool obex_header_string_copy(obex_header_t *header, const char *str);
+bool obex_header_wstring_set(obex_header_t *header, wchar_t *wstr);
 bool obex_header_wstring_copy(obex_header_t *header, const wchar_t *wstr);
 uint16_t obex_header_size(const obex_header_t *header);
 
@@ -191,9 +207,10 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
 /* Common packet constructors. */
 obex_packet_t *obex_packet_new_connect(void);
 obex_packet_t *obex_packet_new_disconnect(void);
-obex_packet_t *obex_packet_new_success(bool final);
+obex_packet_t *obex_packet_new_success(bool final, bool conn);
 obex_packet_t *obex_packet_new_continue(bool final);
 obex_packet_t *obex_packet_new_unauthorized(bool final);
+obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final);
 
 /* Debugging */
 void obex_print_header(const obex_header_t *header, bool th);

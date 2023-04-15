@@ -321,11 +321,13 @@ void obex_header_free(obex_header_t *header) {
 	/* Free strings that might have been allocated. */
 	switch (header->identifier.fields.encoding) {
 		case OBEX_HEADER_ENCODING_UTF16:
-			free(header->value.wstring.text);
+			if (header->value.wstring.text)
+				free(header->value.wstring.text);
 			header->value.wstring.text = NULL;
 			break;
 		case OBEX_HEADER_ENCODING_STRING:
-			free(header->value.string.text);
+			if (header->value.string.text)
+				free(header->value.string.text);
 			header->value.string.text = NULL;
 			break;
 		default:
@@ -335,6 +337,28 @@ void obex_header_free(obex_header_t *header) {
 	/* Free ourselves. */
 	free(header);
 	header = NULL;
+}
+
+/**
+ * Sets a string into the header and sets the appropriate length. This string
+ * pointer must survive the entire lifetime of the header. Will only operate if
+ * the header ID has the correct encoding.
+ *
+ * @param header Header object.
+ * @param str    String to be set into the header.
+ *
+ * @return TRUE if the header ID encoding is correct.
+ */
+bool obex_header_string_set(obex_header_t *header, char *str) {
+	/* Do we have the right encoding to operate on? */
+	if (header->identifier.fields.encoding != OBEX_HEADER_ENCODING_STRING)
+		return false;
+
+	/* Get the string length and sets the pointer. */
+	header->value.string.length = (uint16_t)strlen(str);
+	header->value.string.text = str;
+
+	return true;
 }
 
 /**
@@ -361,6 +385,28 @@ bool obex_header_string_copy(obex_header_t *header, const char *str) {
 
 	/* Actually copy the string over. */
 	strcpy(header->value.string.text, str);
+
+	return true;
+}
+
+/**
+ * Sets a wide string into the header and sets the appropriate length. This wide
+ * string pointer must survive the entire lifetime of the header. Will only
+ * operate if the header ID has the correct encoding.
+ *
+ * @param header Header object.
+ * @param wstr   Wide string to be set into the header.
+ *
+ * @return TRUE if the header ID encoding is correct.
+ */
+bool obex_header_wstring_set(obex_header_t *header, wchar_t *wstr) {
+	/* Do we have the right encoding to operate on? */
+	if (header->identifier.fields.encoding != OBEX_HEADER_ENCODING_UTF16)
+		return false;
+
+	/* Get the string length and sets the pointer. */
+	header->value.wstring.length = (uint16_t)wcslen(wstr);
+	header->value.wstring.text = wstr;
 
 	return true;
 }
@@ -829,6 +875,11 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 
 	/* Allocate memory to receive the entire packet. */
 	psize = BYTES_TO_USHORT(peek_buf[1], peek_buf[2]);
+	if (psize > OBEX_MAX_PACKET_SIZE) {
+		fprintf(stderr, "obex_net_packet_recv: Peek'd packet length %u is "
+				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
+		return NULL;
+	}
 	buf = malloc(psize);
 
 	/* Read the full packet that was sent. */
@@ -886,17 +937,20 @@ obex_packet_t *obex_packet_new_disconnect(void) {
  * @warning This function allocates memory that must be free'd by you.
  *
  * @param final Set the final bit?
+ * @param conn  Is this a response to a connection request?
  *
  * @return Brand new SUCCESS packet or NULL if we were unable to create it.
  */
-obex_packet_t *obex_packet_new_success(bool final) {
+obex_packet_t *obex_packet_new_success(bool final, bool conn) {
 	obex_packet_t *packet;
 
 	/* Create the packet and populate it with default parameters and headers. */
 	packet = obex_packet_new(OBEX_RESPONSE_SUCCESS, final);
-	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
-	obex_packet_param_add(packet, 0x00, 1);
-	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
+	if (conn) {
+		obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
+		obex_packet_param_add(packet, 0x00, 1);
+		obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
+	}
 
 	return packet;
 }
@@ -939,6 +993,97 @@ obex_packet_t *obex_packet_new_unauthorized(bool final) {
 }
 
 /**
+ * Creates a brand new PUT packet with the headers fully populated, only missing
+ * the body.
+ *
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param fname Name of the file to be sent or NULL if one isn't needed.
+ * @param fsize Pointer to the total length of the file in bytes or NULL if one
+ *              isn't needed.
+ * @param final Set the final bit?
+ *
+ * @return New populated PUT packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final) {
+	obex_packet_t *packet;
+	obex_header_t *header;
+
+	/* Create the packet and populate it with default parameters. */
+	packet = obex_packet_new(OBEX_OPCODE_PUT, final);
+	if (packet == NULL)
+		return NULL;
+
+	/* Add the file name if required. */
+	if (fname != NULL) {
+		wchar_t *wfname;
+
+		/* Convert the file name to UTF-16. */
+		wfname = utf16_mbstowcs(fname);
+		if (wfname == NULL) {
+			fprintf(stderr, "obex_packet_new_put: Failed to convert file name "
+				"'%s' to UTF-16.\n", fname);
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+
+		/* Create a new packet. */
+		header = obex_header_new(OBEX_HEADER_NAME);
+		if (header == NULL) {
+			fprintf(stderr, "obex_packet_new_put: Failed to create the file "
+				"name packet header.\n");
+			free(wfname);
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+
+		/* Set the file name value. */
+		obex_header_wstring_set(header, wfname);
+
+		/* Add the header to the packet. */
+		if (!obex_packet_header_add(packet, header)) {
+			fprintf(stderr, "obex_packet_new_put: Failed to append file name "
+				"header to the packet.\n");
+			free(wfname);
+			obex_header_free(header);
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+	}
+
+	/* Add the file size if required. */
+	if (fsize != NULL) {
+		/* Create a new packet. */
+		header = obex_header_new(OBEX_HEADER_LENGTH);
+		if (header == NULL) {
+			fprintf(stderr, "obex_packet_new_put: Failed to create the file "
+				"size packet header.\n");
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+
+		/* Set the file size value. */
+		header->value.word32 = *fsize;
+
+		/* Add the header to the packet. */
+		if (!obex_packet_header_add(packet, header)) {
+			fprintf(stderr, "obex_packet_new_put: Failed to append file size "
+				"header to the packet.\n");
+			obex_header_free(header);
+			obex_packet_free(packet);
+
+			return NULL;
+		}
+	}
+
+	return packet;
+}
+
+/**
  * Prints the contents of a packet in a human-readable, debug-friendly, way.
  * This function will also recalculate and update the packet network size.
  *
@@ -953,44 +1098,52 @@ void obex_print_packet(obex_packet_t *packet) {
 	/* Opcode or response code. */
 	switch (packet->opcode) {
 		case OBEX_OPCODE_CONNECT:
-			printf("CONNECT ");
+			printf("CONNECT");
 			break;
 		case OBEX_OPCODE_DISCONNECT:
-			printf("DISCONNECT ");
+			printf("DISCONNECT");
 			break;
 		case OBEX_OPCODE_PUT:
-			printf("PUT ");
+		case OBEX_SET_FINAL_BIT(OBEX_OPCODE_PUT):
+			printf("PUT");
 			break;
 		case OBEX_OPCODE_GET:
-			printf("GET ");
+			printf("GET");
 			break;
 		case OBEX_OPCODE_SETPATH:
-			printf("SETPATH ");
+			printf("SETPATH");
 			break;
 		case OBEX_OPCODE_ACTION:
-			printf("ACTION ");
+			printf("ACTION");
 			break;
 		case OBEX_OPCODE_SESSION:
-			printf("SESSION ");
+			printf("SESSION");
 			break;
 		case OBEX_OPCODE_ABORT:
-			printf("ABORT ");
+			printf("ABORT");
 			break;
 		case OBEX_RESPONSE_CONTINUE:
 		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_CONTINUE):
-			printf("CONTINUE ");
+			printf("CONTINUE");
 			break;
 		case OBEX_RESPONSE_SUCCESS:
 		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS):
-			printf("SUCCESS ");
+			printf("SUCCESS");
 			break;
 		case OBEX_RESPONSE_UNAUTHORIZED:
 		case OBEX_SET_FINAL_BIT(OBEX_RESPONSE_UNAUTHORIZED):
-			printf("UNAUTHORIZED ");
+			printf("UNAUTHORIZED");
 			break;
 		default:
-			printf("OTHER ");
+			printf("OTHER");
 			break;
+	}
+
+	/* Indicate if the final bit is set. */
+	if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
+		printf("* ");
+	} else {
+		printf(" ");
 	}
 
 	/* Show opcode in hex and display the packet length and header count. */
@@ -1030,7 +1183,7 @@ void obex_print_packet(obex_packet_t *packet) {
 		/* Print out each byte of the body. */
 		printf("\n%s:\n", (packet->body_end) ? "End of Body" : "Body");
 		for (i = 0; i < packet->body_length; i++) {
-			printf("%02X ", p[i]);
+			printf("%02X'%c' ", p[i], p[i]);
 		}
 
 		printf("\n");
