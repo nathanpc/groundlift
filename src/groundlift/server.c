@@ -8,9 +8,13 @@
 #include "server.h"
 
 #include <pthread.h>
+#include <string.h>
 
 #include "defaults.h"
 #include "error.h"
+#include "fileutils.h"
+#include "obex.h"
+#include "utf16utils.h"
 
 /* Private variables. */
 static server_t *m_server;
@@ -25,6 +29,7 @@ static gl_server_conn_evt_accept_func evt_server_conn_accept_cb_func;
 static gl_server_conn_evt_close_func evt_server_conn_close_cb_func;
 static gl_server_evt_stop_func evt_server_stop_cb_func;
 static gl_server_evt_client_conn_req_func evt_server_client_conn_req_cb_func;
+static gl_server_conn_evt_download_success_func evt_server_conn_download_success_cb_func;
 
 /* Private methods. */
 void *server_thread_func(void *args);
@@ -48,16 +53,23 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	evt_server_conn_close_cb_func = NULL;
 	evt_server_stop_cb_func = NULL;
 	evt_server_client_conn_req_cb_func = NULL;
+	evt_server_conn_download_success_cb_func = NULL;
 
-	/* Initialize our mutexes. */
-	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+		/* Initialize our mutexes. */
+		m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_server_mutex, NULL);
 	m_conn_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_conn_mutex, NULL);
 
 	/* Get a server handle. */
 	m_server = tcp_server_new(addr, port);
-	return m_server != NULL;
+	if (m_server == NULL)
+		return false;
+
+	/* Get the default download directory. */
+	m_server->download_dir = dir_defaults_downloads();
+
+	return true;
 }
 
 /**
@@ -216,26 +228,60 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted)
 /**
  * Handles a file transfer from a client.
  *
- * @param packet  OBEX packet object.
- * @param running Pointer to a boolean that will store a flag of whether the
- *                connection should continue running.
- * @param state   Pointer to the variable that's holding the current state of
- *                of the client's connection.
+ * @param init_packet OBEX packet object.
+ * @param running     Pointer to a boolean that will store a flag of whether the
+ *                    connection should continue running.
+ * @param state       Pointer to the variable that's holding the current state
+ *                    of the client's connection.
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *packet, bool *running, conn_state_t *state) {
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *running, conn_state_t *state) {
 	gl_err_t *err;
+	obex_packet_t *packet;
 	obex_packet_t *resp;
+	const obex_header_t *header;
+	FILE *fh;
+	char *fname;
+	char *fpath;
 
-	/* TODO: Actually handle the file saving and etc. */
+	/* Get the file name. */
+	header = obex_packet_header_find(init_packet, OBEX_HEADER_NAME);
+	if ((header == NULL) || (header->value.wstring.text == NULL)) {
+		fname = strdup("Unnamed");
+	} else {
+		fname = utf16_wcstombs(header->value.wstring.text);
+	}
+
+	printf("Receiving a file: %s\n", fname);
+	fpath = path_build_download(m_server->download_dir, fname);
+	free(fname);
+	fname = NULL;
+	printf("Saving the file to: %s\n", fpath);
+
+	/* Open the file for download. */
+	fh = file_open(fpath, "wb");
+	if (fh == NULL) {
+		*running = false;
+		*state = CONN_STATE_ERROR;
+
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
+			"the file for download"));
+	}
+
+	/* Write the chunk of data to the file. */
+	if (file_write(fh, init_packet->body, init_packet->body_length) < 0) {
+		*running = false;
+		*state = CONN_STATE_ERROR;
+
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to write "
+			"initial data to the downloaded file"));
+	}
 
 	/* Initialize reply packet. */
-	if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
-		printf("Sending back SUCCESS.\n");
+	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
 		resp = obex_packet_new_success(true, false);
 	} else {
-		printf("Sending back CONTINUE.\n");
 		resp = obex_packet_new_continue(true);
 	}
 
@@ -243,8 +289,63 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *packet, bool *running, c
 	err = gl_server_send_packet(resp);
 	obex_packet_free(resp);
 
-	return err;
-}
+	/* Was this transfer just a single packet long? */
+	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
+		/* Close the downloaded file handle. */
+		file_close(fh);
+
+		/* Trigger the downloaded success event and free the path string. */
+		if (evt_server_conn_download_success_cb_func != NULL)
+			evt_server_conn_download_success_cb_func(fpath);
+		free(fpath);
+
+		return err;
+	}
+
+	/* Receive the rest of the file. */
+	while ((packet = obex_net_packet_recv(m_conn->sockfd, false)) != NULL) {
+		/* Write the chunk of data to the file. */
+		if (file_write(fh, packet->body, packet->body_length) < 0) {
+			*running = false;
+			*state = CONN_STATE_ERROR;
+			obex_packet_free(packet);
+
+			return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to write "
+				"chunked data to the downloaded file"));
+		}
+
+		/* Initialize reply packet. */
+		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
+			resp = obex_packet_new_success(true, false);
+		} else {
+			resp = obex_packet_new_continue(true);
+		}
+
+		/* Send reply. */
+		err = gl_server_send_packet(resp);
+		obex_packet_free(resp);
+
+		/* Has the transfer ended? */
+		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
+			/* Free the received packet and close the downloaded file handle. */
+			obex_packet_free(packet);
+			file_close(fh);
+
+			/* Trigger the downloaded success event and free the path string. */
+			if (evt_server_conn_download_success_cb_func != NULL)
+				evt_server_conn_download_success_cb_func(fpath);
+			free(fpath);
+
+			return err;
+		}
+
+		/* Free our resources. */
+		obex_packet_free(packet);
+	}
+
+	return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
+		EMSG("An invalid packet was received during a chunked file transfer"));
+	}
 
 /**
  * Waits for the server thread to return.
@@ -374,6 +475,9 @@ void *server_thread_func(void *args) {
 						running = false;
 					}
 					break;
+				case CONN_STATE_ERROR:
+					running = false;
+					break;
 				default:
 					/* Invalid state. */
 					gl_err = gl_error_new(ERR_TYPE_GL, GL_ERR_UNHANDLED_STATE,
@@ -460,4 +564,13 @@ void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
  */
 void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func) {
 	evt_server_client_conn_req_cb_func = func;
+}
+
+/**
+ * Sets the File Downloaded Successfully event callback function.
+ *
+ * @param func File Downloaded Successfully event callback function.
+ */
+void gl_server_conn_evt_download_success_set(gl_server_conn_evt_download_success_func func) {
+	evt_server_conn_download_success_cb_func = func;
 }

@@ -45,9 +45,10 @@ typedef enum {
 /* Server handle. */
 typedef struct {
 	int sockfd;
-
 	struct sockaddr_in addr_in;
 	socklen_t addr_in_size;
+
+	char *download_dir;
 } server_t;
 
 /* Server client connection handle. */

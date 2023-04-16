@@ -52,6 +52,7 @@ typedef enum {
 	GL_ERR_FSIZE,
 	GL_ERR_FOPEN,
 	GL_ERR_FREAD,
+	GL_ERR_FWRITE,
 	GL_ERR_FCLOSE,
 	GL_ERR_UNKNOWN
 } gl_ret_t;

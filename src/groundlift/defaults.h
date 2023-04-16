@@ -51,6 +51,15 @@ extern "C" {
 	#endif
 #endif /* _SIZEOF_WCHAR */
 
+/* Character used for separating paths in the current environment. */
+#ifndef PATH_SEPARATOR
+	#ifdef _WIN32
+		#define PATH_SEPARATOR '\\'
+	#else
+		#define PATH_SEPARATOR '/'
+	#endif
+#endif /* PATH_SEPARATOR */
+
 #ifdef __cplusplus
 }
 #endif

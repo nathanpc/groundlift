@@ -285,6 +285,26 @@ uint16_t obex_packet_size_refresh(obex_packet_t *packet) {
 }
 
 /**
+ * Searches of a specific header in a packet.
+ *
+ * @param packet Packet to have its headers searched through.
+ * @param hid    ID of the header to search for.
+ *
+ * @return Header that was being searched for or NULL if one wasn't found.
+ */
+obex_header_t *obex_packet_header_find(const obex_packet_t *packet, obex_header_id_t hid) {
+	uint16_t i;
+
+	/* Go through the headers searching for a match. */
+	for (i = 0; i < packet->header_count; i++) {
+		if (packet->headers[i]->identifier.id == hid)
+			return packet->headers[i];
+	}
+
+	return NULL;
+}
+
+/**
  * Creates a brand new OBEX header object.
  * @warning This function allocates memory that must be free'd by you.
  *

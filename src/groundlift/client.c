@@ -237,7 +237,7 @@ gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
 	printf("file size %ld csize %u chunks %u\n", fsize, csize, chunks);
 
 	/* Open the file. */
-	fh = file_open(fname);
+	fh = file_open(fname, "rb");
 	if (fh == NULL) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
 			"the file for upload"));
@@ -263,6 +263,7 @@ gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
 
 		/* Create the OBEX packet object. */
 		if (cc == 0) {
+			/* TODO: Get only the basename+ext of the file for PUT. */
 			packet = obex_packet_new_put(fname, (uint32_t *)&fsize, last_chunk);
 		} else {
 			packet = obex_packet_new_put(NULL, NULL, last_chunk);

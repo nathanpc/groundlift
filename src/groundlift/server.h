@@ -50,11 +50,17 @@ typedef void (*gl_server_evt_stop_func)(void);
 typedef int (*gl_server_evt_client_conn_req_func)(void);
 
 /**
+ * File downloaded successfully event callback function pointer type definition.
+ */
+typedef int (*gl_server_conn_evt_download_success_func)(const char *fpath);
+
+/**
  * Client connection states.
  */
 typedef enum {
 	CONN_STATE_CREATED = 0,
-	CONN_STATE_RECV_FILES
+	CONN_STATE_RECV_FILES,
+	CONN_STATE_ERROR
 } conn_state_t;
 
 /* Initialization and destruction. */
@@ -70,7 +76,7 @@ bool gl_server_thread_join(void);
 /* Server interactions. */
 gl_err_t *gl_server_send_packet(obex_packet_t *packet);
 gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted);
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *packet, bool *running, conn_state_t *state);
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *running, conn_state_t *state);
 
 /* Getters and setters. */
 server_t *gl_server_get(void);
@@ -81,6 +87,7 @@ void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func);
 void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func);
 void gl_server_evt_stop_set(gl_server_evt_stop_func func);
 void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func);
+void gl_server_conn_evt_download_success_set(gl_server_conn_evt_download_success_func func);
 
 #ifdef __cplusplus
 }

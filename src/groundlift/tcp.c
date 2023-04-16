@@ -86,6 +86,10 @@ void tcp_server_free(server_t *server) {
 	if (server == NULL)
 		return;
 
+	/* Free the downloads folder configuration. */
+	if (server->download_dir)
+		free(server->download_dir);
+
 	/* Free the object and NULL it out. */
 	free(server);
 	server = NULL;

@@ -185,6 +185,7 @@ bool obex_packet_header_pop(obex_packet_t *packet);
 void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
 bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);
 uint16_t obex_packet_size_refresh(obex_packet_t *packet);
+obex_header_t *obex_packet_header_find(const obex_packet_t *packet, obex_header_id_t hid);
 
 /* Header manipulation. */
 obex_header_t *obex_header_new(obex_header_id_t id);
