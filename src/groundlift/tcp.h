@@ -54,9 +54,10 @@ typedef struct {
 /* Server client connection handle. */
 typedef struct {
 	int sockfd;
-
 	struct sockaddr_storage addr;
 	socklen_t addr_size;
+
+	uint16_t packet_len;
 
 	socket_recvd_func recv_cb_func;
 } server_conn_t;
@@ -64,9 +65,10 @@ typedef struct {
 /* Client handle. */
 typedef struct {
 	int sockfd;
-
 	struct sockaddr_in addr_in;
 	socklen_t addr_in_size;
+
+	uint16_t packet_len;
 
 	socket_recvd_func recv_cb_func;
 } tcp_client_t;

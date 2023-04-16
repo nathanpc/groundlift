@@ -67,6 +67,7 @@ tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
 	/* Ensure we have a known invalid state for our socket file descriptor. */
 	client->sockfd = -1;
 	client->recv_cb_func = NULL;
+	client->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Setup the socket address structure for connecting. */
 	client->addr_in_size = tcp_socket_setup(&client->addr_in, addr, port);
@@ -261,6 +262,7 @@ server_conn_t *tcp_server_conn_accept(const server_t *server, socket_recvd_func 
 	conn->addr_size = sizeof(struct sockaddr_storage);
 	conn->sockfd = accept(server->sockfd, (struct sockaddr *)&conn->addr,
 						  &conn->addr_size);
+	conn->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Handle errors. */
 	if (conn->sockfd == -1) {

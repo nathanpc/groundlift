@@ -69,7 +69,7 @@ bool gl_client_thread_join(void);
 /* Client interactions. */
 gl_err_t *gl_client_send_packet(obex_packet_t *packet);
 gl_err_t *gl_client_send_conn_req(bool *accepted);
-gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize);
+gl_err_t *gl_client_send_put_file(const char *fname);
 
 /* Getters and setters. */
 tcp_client_t *gl_client_get(void);

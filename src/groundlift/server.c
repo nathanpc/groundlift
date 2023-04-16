@@ -55,8 +55,8 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	evt_server_client_conn_req_cb_func = NULL;
 	evt_server_conn_download_success_cb_func = NULL;
 
-		/* Initialize our mutexes. */
-		m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	/* Initialize our mutexes. */
+	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_server_mutex, NULL);
 	m_conn_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_conn_mutex, NULL);
@@ -210,6 +210,10 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted)
 	*accepted = true;
 	if (evt_server_client_conn_req_cb_func != NULL)
 		*accepted = evt_server_client_conn_req_cb_func();
+
+	/* Set our packet length if needed. */
+	if (packet->params[2].value.uint16 < m_conn->packet_len)
+		m_conn->packet_len = packet->params[2].value.uint16;
 
 	/* Initialize reply packet. */
 	if (*accepted) {

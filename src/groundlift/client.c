@@ -193,6 +193,10 @@ gl_err_t *gl_client_send_conn_req(bool *accepted) {
 	/* Check if our request was accepted. */
 	*accepted = packet->opcode == OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
 
+	/* Set our packet length if needed. */
+	if (packet->params[2].value.uint16 < m_client->packet_len)
+		m_client->packet_len = packet->params[2].value.uint16;
+
 cleanup:
 	/* Free up any resources. */
 	obex_packet_free(packet);
@@ -204,11 +208,10 @@ cleanup:
  * Handles the send operation of a file.
  *
  * @param fname Path to a file to be sent.
- * @param psize Maximum size of each packet to be sent.
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
+gl_err_t *gl_client_send_put_file(const char *fname) {
 	gl_err_t *err;
 	FILE *fh;
 	int64_t fsize;
@@ -228,8 +231,8 @@ gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
 
 	/* Calculate the size of each file chunk. */
 	csize = OBEX_MAX_FILE_CHUNK;
-	if (psize < OBEX_MAX_FILE_CHUNK)
-		csize = psize;  /* TODO: Properly take into account the negotiated packet size. */
+	if (m_client->packet_len < OBEX_MAX_FILE_CHUNK)
+		csize = m_client->packet_len; /* TODO: Properly take into account the negotiated packet size. */
 	chunks = (uint8_t)(fsize / csize);
 	if ((csize * chunks) < fsize)
 		chunks++;
@@ -427,7 +430,7 @@ void *client_thread_func(void *fname) {
 		evt_conn_req_accepted_cb_func();
 
 	/* Send the file to the server. */
-	gl_err = gl_client_send_put_file((const char *)fname, 10);
+	gl_err = gl_client_send_put_file((const char *)fname);
 	if (!running || (gl_err != NULL))
 		goto disconnect;
 
