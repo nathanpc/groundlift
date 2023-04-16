@@ -33,6 +33,9 @@ char *dir_defaults_downloads(void);
 
 /* Path Manipulations */
 size_t path_concat(char **buf, ...);
+char *path_basename(const char *path);
+char *path_extname(const char *path);
+char *path_remove_ext(char *path);
 char *path_build_download(const char *dir, const char *fname);
 
 #ifdef __cplusplus

@@ -266,8 +266,11 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 
 		/* Create the OBEX packet object. */
 		if (cc == 0) {
-			/* TODO: Get only the basename+ext of the file for PUT. */
-			packet = obex_packet_new_put(fname, (uint32_t *)&fsize, last_chunk);
+			char *bname;
+
+			bname = path_basename(fname);
+			packet = obex_packet_new_put(bname, (uint32_t *)&fsize, last_chunk);
+			free(bname);
 		} else {
 			packet = obex_packet_new_put(NULL, NULL, last_chunk);
 		}

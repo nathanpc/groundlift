@@ -7,11 +7,14 @@
 
 #include "fileutils.h"
 
+#include <libgen.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
 #include "defaults.h"
 
 /**
@@ -219,8 +222,31 @@ bool dir_exists(const char *path) {
  *         downloads folder.
  */
 char *dir_defaults_downloads(void) {
-	/* TODO: Properly handle this. */
-	return strdup("./downloads");
+	char *home_path;
+	char *path;
+
+	/* Get the path to the home directory. */
+#ifdef _WIN32
+	#error Not yet implemented.
+#else
+	const char *tmp_path;
+
+	/* Try to get the home directory path in any way possible. */
+	tmp_path = getenv("HOME");
+	if (tmp_path == NULL)
+		tmp_path = getpwuid(getuid())->pw_dir;
+
+	/* Store the path to our home directory. */
+	home_path = strdup(tmp_path);
+#endif /* _WIN32 */
+
+	/* Check if a canonical path exists otherwise switch to using the home. */
+	path_concat(&path, home_path, "Downloads", NULL);
+	if (!dir_exists(path))
+		path = strdup(home_path);
+	free(home_path);
+
+	return path;
 }
 
 /**
@@ -284,33 +310,160 @@ size_t path_concat(char **buf, ...) {
 }
 
 /**
+ * Gets the basename of the of a path. This is an implementation-agnostic
+ * wrapper around the basename() function.
+ *
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param path Path to have its basename extracted.
+ *
+ * @return Newly allocated basename of the path or NULL if an error occurred.
+ *
+ * @see basename
+ */
+char *path_basename(const char *path) {
+	char *bname;
+	char *tmp;
+
+	/* Duplicate the path just to comply with the POSIX implementation. */
+	tmp = strdup(path);
+
+	/* Get the basename and free the temporary resources. */
+	bname = strdup(basename(tmp));
+	free(tmp);
+
+	return bname;
+}
+
+/**
+ * Gets the extension from a path.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param path Path to have its extension extracted from.
+ *
+ * @return Newly allocated extension of the path or NULL if an error occurred or
+ *         if the file has no extension.
+ */
+char *path_extname(const char *path) {
+	const char *ext;
+
+	/* Go through the file path backwards trying to find a dot. */
+	ext = path + (strlen(path) - 1);
+	while ((*ext != '.') && (ext != path)) {
+		ext--;
+	}
+
+	/* Check if we found an extension. */
+	if ((ext == path) || (*(ext - 1) == PATH_SEPARATOR))
+		return NULL;
+
+	/* Return a duplicated extension string. */
+	return strdup(ext + 1);
+}
+
+/**
+ * Places a NULL terminator character in the position of the file extension dot
+ * and returns the same pointer. Effectively it hides the extension from string
+ * operation functions and doesn't mess around with memory.
+ *
+ * @param path Path to have the extension hidden.
+ *
+ * @return Pointer to the original path string with the extension hidden or the
+ *         exact same string as before if an extension wasn't found.
+ */
+char *path_remove_ext(char *path) {
+	char *buf;
+
+	/* Go through the file path backwards trying to find a dot. */
+	buf = path + (strlen(path) - 1);
+	while ((*buf != '.') && (*buf != PATH_SEPARATOR) && (buf != path)) {
+		buf--;
+	}
+
+	/* Check if we found an extension. */
+	if ((buf != path) && (*buf == '.') && (*(buf - 1) != PATH_SEPARATOR))
+		*buf = '\0';
+
+	return path;
+}
+
+/**
  * Builds up a valid and unique file download path taking care of any conflicts
  * and avoiding overrides.
+ *
+ * @warning This function allocates memory that must be free'd by you!
  *
  * @param dir   Path to the desired download directory.
  * @param fname Desired downloaded file name.
  *
- * @return Valid and unique download file path or NULL if an error occurred.
+ * @return Newly allocated valid and unique download file path or NULL if an
+ *         error occurred.
  */
 char *path_build_download(const char *dir, const char *fname) {
 	char *path;
+	char *bname;
+	char *ext;
 	size_t len;
+	uint16_t i;
 
 	/* Concatenate the download directory and the file name. */
 	len = path_concat(&path, dir, fname, NULL);
 	if (len == 0)
 		return NULL;
 
-#if 0
+	/* Return the file path if it doesn't exist already. */
+	if (!file_exists(path))
+		return path;
+
 	/* Ensure we get a unique path. */
-	while (file_exists(path)) {
+	i = 1;
+	bname = path_remove_ext(path_basename(fname));
+	ext = path_extname(fname);
+	do {
+		char *new_name;
+		size_t nlen;
+
 		/* Destroy the previously generated path. */
 		free(path);
 		path = NULL;
 
-		/* TODO: Build a new path. */
-	}
-#endif
+		/* Append a number to the filename. */
+		if (ext == NULL) {
+			nlen = snprintf(NULL, 0, "%s (%u)", bname, i) + 1;
+			new_name = (char *)malloc(nlen * sizeof(char));
+			if (new_name == NULL) {
+				path = NULL;
+				goto cleanup;
+			}
+			sprintf(new_name, "%s (%u)", bname, i);
+		} else {
+			nlen = snprintf(NULL, 0, "%s (%u).%s", bname, i, ext) + 1;
+			new_name = (char *)malloc(nlen * sizeof(char));
+			if (new_name == NULL) {
+				path = NULL;
+				goto cleanup;
+			}
+			sprintf(new_name, "%s (%u).%s", bname, i, ext);
+		}
+
+		/* Build a new path. */
+		len = path_concat(&path, dir, new_name, NULL);
+		if (len == 0) {
+			path = NULL;
+			free(new_name);
+
+			goto cleanup;
+		}
+
+		/* Increase the index and free up any local resources. */
+		free(new_name);
+		i++;
+	} while (file_exists(path));
+
+cleanup:
+	/* Free any temporary resources. */
+	free(bname);
+	free(ext);
 
 	return path;
 }
