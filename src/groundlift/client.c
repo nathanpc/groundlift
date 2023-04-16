@@ -25,6 +25,7 @@ static gl_client_evt_conn_func evt_conn_cb_func;
 static gl_client_evt_close_func evt_close_cb_func;
 static gl_client_evt_disconn_func evt_disconn_cb_func;
 static gl_client_evt_conn_req_accepted_func evt_conn_req_accepted_cb_func;
+static gl_client_evt_put_succeed_func evt_put_succeed_cb_func;
 
 /* Private methods. */
 void *client_thread_func(void *fname);
@@ -46,6 +47,7 @@ bool gl_client_init(const char *addr, uint16_t port) {
 	evt_close_cb_func = NULL;
 	evt_disconn_cb_func = NULL;
 	evt_conn_req_accepted_cb_func = NULL;
+	evt_put_succeed_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -326,6 +328,10 @@ gl_err_t *gl_client_send_put_file(const char *fname, uint16_t psize) {
 			"the file that was uploaded"));
 	}
 
+	/* Trigger the put succeeded event. */
+	if (evt_put_succeed_cb_func != NULL)
+		evt_put_succeed_cb_func(fname);
+
 	return err;
 }
 
@@ -476,4 +482,13 @@ void gl_client_evt_disconn_set(gl_client_evt_disconn_func func) {
  */
 void gl_client_evt_conn_req_accepted_set(gl_client_evt_conn_req_accepted_func func) {
 	evt_conn_req_accepted_cb_func = func;
+}
+
+/**
+ * Sets the Send File Operation Succeeded event callback function.
+ *
+ * @param func Send File Operation Succeeded event callback function.
+ */
+void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func) {
+	evt_put_succeed_cb_func = func;
 }

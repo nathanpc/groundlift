@@ -49,6 +49,14 @@ typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client);
  */
 typedef void (*gl_client_evt_conn_req_accepted_func)(void);
 
+/**
+ * Client file upload succeeded event callback function pointer type
+ * definition.
+ *
+ * @param fname Name of the file that was uploaded.
+ */
+typedef void (*gl_client_evt_put_succeed_func)(const char *fname);
+
 /* Initialization and destruction. */
 bool gl_client_init(const char *addr, uint16_t port);
 void gl_client_free(void);
@@ -71,6 +79,7 @@ void gl_client_evt_conn_set(gl_client_evt_conn_func func);
 void gl_client_evt_close_set(gl_client_evt_close_func func);
 void gl_client_evt_disconn_set(gl_client_evt_disconn_func func);
 void gl_client_evt_conn_req_accepted_set(gl_client_evt_conn_req_accepted_func func);
+void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func);
 
 #ifdef __cplusplus
 }
