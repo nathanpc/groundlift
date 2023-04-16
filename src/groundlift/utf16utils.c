@@ -133,3 +133,36 @@ wchar_t *utf16_mbstowcs(const char *str) {
 
 	return wstr;
 }
+
+/**
+ * Converts a UTF-16 wide-character string into a UTF-8 multibyte string.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param wstr UTF-16 string to be converted.
+ *
+ * @return UTF-8 multibyte converted string or NULL if an error occurred.
+ */
+char *utf16_wcstombs(const wchar_t *wstr) {
+	char *str;
+
+#ifdef _WIN32
+	#error Not yet implemented.
+#else
+	size_t len;
+
+	/* Allocate some memory for our converted string. */
+	len = wcstombs(NULL, wstr, 0) + 1;
+	str = (char *)malloc(len * sizeof(char));
+	if (str == NULL)
+		return NULL;
+
+	/* Perform the string conversion. */
+	len = wcstombs(str, wstr, len);
+	if (len == (size_t)-1) {
+		free(str);
+		return NULL;
+	}
+#endif /* _WIN32 */
+
+	return str;
+}

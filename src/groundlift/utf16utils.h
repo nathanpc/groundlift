@@ -25,6 +25,7 @@ size_t utf16_wchar32_len(const wchar_t *str);
 /* Conversions */
 uint16_t utf16_conv_ltos(wchar_t wc);
 wchar_t *utf16_mbstowcs(const char *str);
+char *utf16_wcstombs(const wchar_t *wstr);
 
 #ifdef __cplusplus
 }
