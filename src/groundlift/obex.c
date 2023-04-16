@@ -876,9 +876,11 @@ cleanup:
  */
 obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	size_t len;
+	size_t plen;
 	tcp_err_t tcp_err;
 	obex_packet_t *packet;
 	uint16_t psize;
+	uint8_t *tmp;
 	uint8_t *buf;
 	uint8_t peek_buf[3];
 
@@ -903,13 +905,21 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	buf = malloc(psize);
 
 	/* Read the full packet that was sent. */
-	tcp_err = tcp_socket_recv(sockfd, buf, psize, &len, false);
-	if ((tcp_err != TCP_OK) || (len != psize)) {
-		fprintf(stderr, "obex_net_packet_recv: Failed to receive full OBEX "
-				"packet. (tcp_err %d psize %u len %lu)\n", tcp_err, psize, len);
-		free(buf);
+	tmp = buf;
+	len = 0;
+	while (len < psize) {
+		tcp_err = tcp_socket_recv(sockfd, tmp, psize, &plen, false);
+		if (tcp_err != TCP_OK) {
+			fprintf(stderr, "obex_net_packet_recv: Failed to receive full OBEX "
+					"packet. (tcp_err %d psize %u plen %lu len %lu)\n",
+					tcp_err, psize, plen, len);
+			free(buf);
 
-		return NULL;
+			return NULL;
+		}
+
+		tmp += plen;
+		len += plen;
 	}
 
 	/* Decode the packet and free up any temporary resources. */
