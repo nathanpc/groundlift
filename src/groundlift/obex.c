@@ -1066,7 +1066,6 @@ obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, boo
 		if (!obex_packet_header_add(packet, header)) {
 			fprintf(stderr, "obex_packet_new_put: Failed to append file name "
 				"header to the packet.\n");
-			free(wfname);
 			obex_header_free(header);
 			obex_packet_free(packet);
 
