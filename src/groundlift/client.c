@@ -216,8 +216,8 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 	FILE *fh;
 	int64_t fsize;
 	uint16_t csize;
-	uint8_t chunks;
-	uint8_t cc;
+	uint32_t chunks;
+	uint32_t cc;
 
 	/* Set some defaults. */
 	err = NULL;
@@ -233,7 +233,7 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 	csize = OBEX_MAX_FILE_CHUNK;
 	if (m_client->packet_len < OBEX_MAX_FILE_CHUNK)
 		csize = m_client->packet_len; /* TODO: Properly take into account the negotiated packet size. */
-	chunks = (uint8_t)(fsize / csize);
+	chunks = (uint32_t)(fsize / csize);
 	if ((csize * chunks) < fsize)
 		chunks++;
 
