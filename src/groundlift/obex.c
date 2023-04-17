@@ -653,9 +653,6 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 	const uint8_t *cur;
 	uint16_t rlen;
 
-	tcp_print_net_buffer(buf, len);
-	printf("\n");
-
 	/* Set some starting values. */
 	rlen = 0;
 	cur = (const uint8_t *)buf;

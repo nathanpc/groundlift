@@ -26,7 +26,9 @@ void server_conn_event_accepted(const server_conn_t *conn);
 void server_conn_event_closed(void);
 void server_event_stopped(void);
 void client_event_connected(const tcp_client_t *client);
-void client_event_conn_closed(const tcp_client_t *client);
+void client_event_conn_req_resp(const char *fname, bool accepted);
+void client_event_send_progress(const char *fname, uint32_t chunks, uint32_t progress);
+void client_event_send_success(const char *fname);
 void client_event_disconnected(const tcp_client_t *client);
 
 /**
@@ -180,7 +182,9 @@ gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 
 	/* Setup callbacks. */
 	gl_client_evt_conn_set(client_event_connected);
-	gl_client_evt_close_set(client_event_conn_closed);
+	gl_client_evt_conn_req_resp_set(client_event_conn_req_resp);
+	gl_client_evt_put_progress_set(client_event_send_progress);
+	gl_client_evt_put_succeed_set(client_event_send_success);
 	gl_client_evt_disconn_set(client_event_disconnected);
 
 	/* Connect to the server. */
@@ -282,19 +286,38 @@ void client_event_connected(const tcp_client_t *client) {
 }
 
 /**
- * Handles the client connection closed event.
+ * Handles the client's connection request response event.
  *
- * @param client Client connection handle object.
+ * @param fname    Name of the file that was uploaded.
+ * @param accepted Has the connection been accepted by the server?
  */
-void client_event_conn_closed(const tcp_client_t *client) {
-	char *ipstr;
+void client_event_conn_req_resp(const char *fname, bool accepted) {
+	if (accepted) {
+		printf("Server accepted receiving %s\n", fname);
+	} else {
+		printf("Server refused receiving %s\n", fname);
+	}
+}
 
-	/* Print some information about the connection closing. */
-	ipstr = tcp_client_get_ipstr(client);
-	printf("Connection closed by the server at %s:%u\n", ipstr,
-		   ntohs(client->addr_in.sin_port));
+/**
+ * Handles the client's file upload progress event.
+ *
+ * @param fname    Name of the file that was uploaded.
+ * @param chunks   Number of chunks to complete the transfer of the file.
+ * @param progress Last chunk index sent to server.
+ */
+void client_event_send_progress(const char *fname, uint32_t chunks, uint32_t progress) {
+	(void)fname;
+	printf("Sending file... (%u/%u)\n", progress, chunks);
+}
 
-	free(ipstr);
+/**
+ * Handles the client's file upload succeeded event.
+ *
+ * @param fname Name of the file that was uploaded.
+ */
+void client_event_send_success(const char *fname) {
+	printf("Finished sending %s\n", fname);
 }
 
 /**

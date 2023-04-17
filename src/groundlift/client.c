@@ -22,9 +22,9 @@ static pthread_t *m_client_thread;
 
 /* Function callbacks. */
 static gl_client_evt_conn_func evt_conn_cb_func;
-static gl_client_evt_close_func evt_close_cb_func;
 static gl_client_evt_disconn_func evt_disconn_cb_func;
-static gl_client_evt_conn_req_accepted_func evt_conn_req_accepted_cb_func;
+static gl_client_evt_conn_req_resp_func evt_conn_req_resp_cb_func;
+static gl_client_evt_put_progress_func evt_put_progress_cb_func;
 static gl_client_evt_put_succeed_func evt_put_succeed_cb_func;
 
 /* Private methods. */
@@ -44,9 +44,9 @@ bool gl_client_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_client_thread = (pthread_t *)malloc(sizeof(pthread_t));
 	evt_conn_cb_func = NULL;
-	evt_close_cb_func = NULL;
 	evt_disconn_cb_func = NULL;
-	evt_conn_req_accepted_cb_func = NULL;
+	evt_conn_req_resp_cb_func = NULL;
+	evt_put_progress_cb_func = NULL;
 	evt_put_succeed_cb_func = NULL;
 
 	/* Initialize our mutexes. */
@@ -186,10 +186,6 @@ gl_err_t *gl_client_send_conn_req(bool *accepted) {
 		goto cleanup;
 	}
 
-	printf("== Packet received ====================\n");
-	obex_print_packet(packet);
-	printf("\n=======================================\n");
-
 	/* Check if our request was accepted. */
 	*accepted = packet->opcode == OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
 
@@ -237,6 +233,7 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 	if ((csize * chunks) < fsize)
 		chunks++;
 
+	/* TODO: Maybe create a callback for this? */
 	printf("file size %ld csize %u chunks %u\n", fsize, csize, chunks);
 
 	/* Open the file. */
@@ -292,6 +289,10 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		obex_packet_free(packet);
 		if (err)
 			break;
+
+		/* Update the progress of the transfer via an event. */
+		if (evt_put_progress_cb_func != NULL)
+			evt_put_progress_cb_func(fname, chunks, cc + 1);
 
 		/* Read the response packet. */
 		pthread_mutex_lock(m_client_mutex);
@@ -423,14 +424,12 @@ void *client_thread_func(void *fname) {
 	if (evt_conn_cb_func != NULL)
 		evt_conn_cb_func(m_client);
 
-	/* Send the OBEX connection request. */
+	/* Send the OBEX connection request and trigger an event upon reply. */
 	gl_err = gl_client_send_conn_req(&running);
+	if (evt_conn_req_resp_cb_func != NULL)
+		evt_conn_req_resp_cb_func(fname, running);
 	if (!running || (gl_err != NULL))
 		goto disconnect;
-
-	/* Trigger the connection accepted event callback. */
-	if (evt_conn_req_accepted_cb_func != NULL)
-		evt_conn_req_accepted_cb_func();
 
 	/* Send the file to the server. */
 	gl_err = gl_client_send_put_file((const char *)fname);
@@ -465,15 +464,6 @@ void gl_client_evt_conn_set(gl_client_evt_conn_func func) {
 }
 
 /**
- * Sets the Connection Closed event callback function.
- *
- * @param func Connection Closed event callback function.
- */
-void gl_client_evt_close_set(gl_client_evt_close_func func) {
-	evt_close_cb_func = func;
-}
-
-/**
  * Sets the Disconnected event callback function.
  *
  * @param func Disconnected event callback function.
@@ -483,12 +473,21 @@ void gl_client_evt_disconn_set(gl_client_evt_disconn_func func) {
 }
 
 /**
- * Sets the Connection Request Accepted event callback function.
+ * Sets the Connection Request Reply event callback function.
  *
- * @param func Connection Request Accepted event callback function.
+ * @param func Connection Request Reply event callback function.
  */
-void gl_client_evt_conn_req_accepted_set(gl_client_evt_conn_req_accepted_func func) {
-	evt_conn_req_accepted_cb_func = func;
+void gl_client_evt_conn_req_resp_set(gl_client_evt_conn_req_resp_func func) {
+	evt_conn_req_resp_cb_func = func;
+}
+
+/**
+ * Sets the Send File Operation Progress event callback function.
+ *
+ * @param func Send File Operation Succeeded event callback function.
+ */
+void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func) {
+	evt_put_progress_cb_func = func;
 }
 
 /**
