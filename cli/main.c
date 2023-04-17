@@ -98,65 +98,6 @@ int main(int argc, char **argv) {
 	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
 		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
-	} else if (argv[1][0] == 'o') {
-		obex_header_t *header;
-		wchar_t *wbuf;
-
-		/* Byte */
-		header = obex_header_new(OBEX_HEADER_ACTION_ID);
-		header->value.byte = 0x23;
-		obex_print_header(header, true);
-		obex_header_free(header);
-
-		/* Word 64-bit */
-		header = obex_header_new(OBEX_HEADER_COUNT);
-		header->value.word32 = 1234567890;
-		obex_print_header(header, false);
-		obex_header_free(header);
-
-		/* String */
-		header = obex_header_new(OBEX_HEADER_TYPE);
-		obex_header_string_copy(header, "text/plain");
-		obex_print_header(header, false);
-		obex_header_free(header);
-
-		/* UTF-16 String */
-		header = obex_header_new(OBEX_HEADER_NAME);
-		wbuf = (wchar_t *)malloc((strlen("jumar.txt") + 1) * sizeof(wchar_t));
-		/* Simulating a UTF-16 string being put into a 32-bit wchar_t. */
-		wbuf[0] = ('j' << 16) | 'u';
-		wbuf[1] = ('m' << 16) | 'a';
-		wbuf[2] = ('r' << 16) | '.';
-		wbuf[3] = ('t' << 16) | 'x';
-		wbuf[4] = ('t' << 16) | 0;
-		utf16_wchar32_fix(wbuf);
-		obex_header_wstring_copy(header, wbuf);
-		obex_print_header(header, false);
-		obex_header_free(header);
-
-		printf("\n");
-	} else if (argv[1][0] == 'p') {
-		obex_packet_t *packet;
-		void *buf;
-
-		/* Create a new packet. */
-		packet = obex_packet_new_connect();
-
-		/* Convert the packet into a network buffer. */
-		if (!obex_packet_encode(packet, &buf)) {
-			fprintf(stderr, "Failed to encode the packet for transferring.\n");
-			obex_packet_free(packet);
-
-			return 1;
-		}
-
-		/* Print all the information we can get. */
-		obex_print_packet(packet);
-		printf("Network buffer:\n");
-		tcp_print_net_buffer(buf, packet->size);
-		printf("\n");
-
-		obex_packet_free(packet);
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		return 1;
