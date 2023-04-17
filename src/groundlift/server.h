@@ -46,13 +46,32 @@ typedef void (*gl_server_evt_stop_func)(void);
 
 /**
  * Client connection request event callback function pointer type definition.
+ *
+ * @param fname Name of the file to be downloaded.
+ * @param fsize Size in bytes of the entire file being downloaded. Will be 0 if
+ *              the client didn't send a file length.
+ *
+ * @return Return 0 to refuse the connection request. Anything else will be
+ *         treated as accepting.
  */
-typedef int (*gl_server_evt_client_conn_req_func)(void);
+typedef int (*gl_server_evt_client_conn_req_func)(const char *fname, uint32_t fsize);
+
+/**
+ * File download progress event callback function pointer type definition.
+ *
+ * @param fname    Name of the file to be downloaded.
+ * @param fsize    Size in bytes of the entire file being downloaded. Will be 0
+ *                 if the client didn't send a file length.
+ * @param progress Number of bytes downloaded so far.
+ */
+typedef void (*gl_server_conn_evt_download_progress_func)(const char *fname, uint32_t fsize, uint32_t progress);
 
 /**
  * File downloaded successfully event callback function pointer type definition.
+ *
+ * @param fpath Path of the downloaded file.
  */
-typedef int (*gl_server_conn_evt_download_success_func)(const char *fpath);
+typedef void (*gl_server_conn_evt_download_success_func)(const char *fpath);
 
 /**
  * Client connection states.
@@ -87,6 +106,7 @@ void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func);
 void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func);
 void gl_server_evt_stop_set(gl_server_evt_stop_func func);
 void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func);
+void gl_server_conn_evt_download_progress_set(gl_server_conn_evt_download_progress_func func);
 void gl_server_conn_evt_download_success_set(gl_server_conn_evt_download_success_func func);
 
 #ifdef __cplusplus

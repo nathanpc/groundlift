@@ -21,10 +21,19 @@
 /* Private methods. */
 gl_err_t *client_send(const char *ip, uint16_t port, char *fname);
 void sigint_handler(int sig);
+
+/* Server event handlers. */
 void server_event_started(const server_t *server);
-void server_conn_event_accepted(const server_conn_t *conn);
-void server_conn_event_closed(void);
+int server_event_conn_req(const char *fname, uint32_t fsize);
 void server_event_stopped(void);
+
+/* Server client's connection event handlers. */
+void server_conn_event_accepted(const server_conn_t *conn);
+void server_conn_event_download_progress(const char *fname, uint32_t fsize, uint32_t progress);
+void server_conn_event_download_success(const char *fpath);
+void server_conn_event_closed(void);
+
+/* Client event handlers. */
 void client_event_connected(const tcp_client_t *client);
 void client_event_conn_req_resp(const char *fname, bool accepted);
 void client_event_send_progress(const char *fname, uint32_t chunks, uint32_t progress);
@@ -62,9 +71,14 @@ int main(int argc, char **argv) {
 
 		/* Setup callbacks. */
 		gl_server_evt_start_set(server_event_started);
-		gl_server_conn_evt_accept_set(server_conn_event_accepted);
-		gl_server_conn_evt_close_set(server_conn_event_closed);
+		gl_server_evt_client_conn_req_set(server_event_conn_req);
 		gl_server_evt_stop_set(server_event_stopped);
+		gl_server_conn_evt_accept_set(server_conn_event_accepted);
+		gl_server_conn_evt_download_progress_set(
+			server_conn_event_download_progress);
+		gl_server_conn_evt_download_success_set(
+			server_conn_event_download_success);
+		gl_server_conn_evt_close_set(server_conn_event_closed);
 
 		/* Start it up. */
 		if (!gl_server_start()) {
@@ -241,6 +255,32 @@ void server_event_started(const server_t *server) {
 }
 
 /**
+ * Handles the server client connection requested event.
+ *
+ * @return 0 to refuses the request. Anything else will be treated as accepting.
+ */
+int server_event_conn_req(const char *fname, uint32_t fsize) {
+	int c;
+
+	/* Ask the user for permission to accept the transfer of the file. */
+	printf("Client wants to send a file '%s' with %u bytes. Accept? [Y/n]? ",
+		   fname, fsize);
+	do {
+		c = getc(stdin);
+	} while ((c != '\n') && (c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
+	/* TODO: This isn't working as it's supposed to. */
+
+	return (c != 'n') || (c != 'N');
+}
+
+/**
+ * Handles the server stopped event.
+ */
+void server_event_stopped(void) {
+	printf("Server stopped\n");
+}
+
+/**
  * Handles the server connection accepted event.
  *
  * @param conn Client connection handle object.
@@ -256,17 +296,32 @@ void server_conn_event_accepted(const server_conn_t *conn) {
 }
 
 /**
+ * Handles the server connection download progress event.
+ *
+ * @param fname    Name of the file to be downloaded.
+ * @param fsize    Size in bytes of the entire file being downloaded. Will be 0
+ *                 if the client didn't send a file length.
+ * @param progress Number of bytes downloaded so far.
+ */
+void server_conn_event_download_progress(const char *fname, uint32_t fsize, uint32_t progress) {
+	(void)fname;
+	printf("Receiving file... (%u/%u)\n", progress, fsize);
+}
+
+/**
+ * Handles the server connection download finished event.
+ *
+ * @param fpath Path of the downloaded file.
+ */
+void server_conn_event_download_success(const char *fpath) {
+	printf("Finished receiving %s\n", fpath);
+}
+
+/**
  * Handles the server connection closed event.
  */
 void server_conn_event_closed(void) {
 	printf("Client connection closed\n");
-}
-
-/**
- * Handles the server stopped event.
- */
-void server_event_stopped(void) {
-	printf("Server stopped\n");
 }
 
 /**

@@ -29,9 +29,11 @@ static gl_server_conn_evt_accept_func evt_server_conn_accept_cb_func;
 static gl_server_conn_evt_close_func evt_server_conn_close_cb_func;
 static gl_server_evt_stop_func evt_server_stop_cb_func;
 static gl_server_evt_client_conn_req_func evt_server_client_conn_req_cb_func;
+static gl_server_conn_evt_download_progress_func evt_server_conn_download_progress_cb_func;
 static gl_server_conn_evt_download_success_func evt_server_conn_download_success_cb_func;
 
 /* Private methods. */
+uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname);
 void *server_thread_func(void *args);
 
 /**
@@ -53,6 +55,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	evt_server_conn_close_cb_func = NULL;
 	evt_server_stop_cb_func = NULL;
 	evt_server_client_conn_req_cb_func = NULL;
+	evt_server_conn_download_progress_cb_func = NULL;
 	evt_server_conn_download_success_cb_func = NULL;
 
 	/* Initialize our mutexes. */
@@ -205,11 +208,16 @@ gl_err_t *gl_server_send_packet(obex_packet_t *packet) {
 gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *resp;
+	char *fname;
+	uint32_t fsize;
 
-	/* Trigger the connection requested event. */
+	/* Get the file name and size and trigger the connection requested event. */
+	fsize = gl_server_packet_file_info(packet, &fname);
 	*accepted = true;
 	if (evt_server_client_conn_req_cb_func != NULL)
-		*accepted = evt_server_client_conn_req_cb_func();
+		*accepted = evt_server_client_conn_req_cb_func(fname, fsize);
+	free(fname);
+	fname = NULL;
 
 	/* Set our packet length if needed. */
 	if (packet->params[2].value.uint16 < m_conn->packet_len)
@@ -244,24 +252,22 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 	gl_err_t *err;
 	obex_packet_t *packet;
 	obex_packet_t *resp;
-	const obex_header_t *header;
 	FILE *fh;
 	char *fname;
 	char *fpath;
+	uint32_t fsize;
+	uint32_t len;
 
-	/* Get the file name. */
-	header = obex_packet_header_find(init_packet, OBEX_HEADER_NAME);
-	if ((header == NULL) || (header->value.wstring.text == NULL)) {
+	/* Get the file name and size. */
+	len = 0;
+	fsize = gl_server_packet_file_info(init_packet, &fname);
+	if (fname == NULL)
 		fname = strdup("Unnamed");
-	} else {
-		fname = utf16_wcstombs(header->value.wstring.text);
-	}
+	if (fsize == 0)
+		fprintf(stderr, "WARNING: PUT request doesn't include a file length\n");
 
-	printf("Receiving a file: %s\n", fname);
+	/* Get the path to save the downloaded file to. */
 	fpath = path_build_download(m_server->download_dir, fname);
-	free(fname);
-	fname = NULL;
-	printf("Saving the file to: %s\n", fpath);
 
 	/* Open the file for download. */
 	fh = file_open(fpath, "wb");
@@ -274,6 +280,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 	}
 
 	/* Write the chunk of data to the file. */
+	len += init_packet->body_length;
 	if (file_write(fh, init_packet->body, init_packet->body_length) < 0) {
 		*running = false;
 		*state = CONN_STATE_ERROR;
@@ -281,6 +288,10 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to write "
 			"initial data to the downloaded file"));
 	}
+
+	/* Update the progress of the current transfer via an event. */
+	if (evt_server_conn_download_progress_cb_func != NULL)
+		evt_server_conn_download_progress_cb_func(fname, fsize, len);
 
 	/* Initialize reply packet. */
 	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
@@ -301,6 +312,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 		/* Trigger the downloaded success event and free the path string. */
 		if (evt_server_conn_download_success_cb_func != NULL)
 			evt_server_conn_download_success_cb_func(fpath);
+		free(fname);
 		free(fpath);
 
 		return err;
@@ -309,14 +321,19 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 	/* Receive the rest of the file. */
 	while ((packet = obex_net_packet_recv(m_conn->sockfd, false)) != NULL) {
 		/* Write the chunk of data to the file. */
+		len += packet->body_length;
 		if (file_write(fh, packet->body, packet->body_length) < 0) {
 			*running = false;
 			*state = CONN_STATE_ERROR;
 			obex_packet_free(packet);
 
-			return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to write "
-				"chunked data to the downloaded file"));
+			return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+				EMSG("Failed to write chunked data to the downloaded file"));
 		}
+
+		/* Update the progress of the current transfer via an event. */
+		if (evt_server_conn_download_progress_cb_func != NULL)
+			evt_server_conn_download_progress_cb_func(fname, fsize, len);
 
 		/* Initialize reply packet. */
 		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
@@ -339,6 +356,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 			if (evt_server_conn_download_success_cb_func != NULL)
 				evt_server_conn_download_success_cb_func(fpath);
 			free(fpath);
+			free(fname);
 
 			return err;
 		}
@@ -349,7 +367,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 
 	return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 		EMSG("An invalid packet was received during a chunked file transfer"));
-	}
+}
 
 /**
  * Waits for the server thread to return.
@@ -444,10 +462,6 @@ void *server_thread_func(void *args) {
 		running = true;
 		has_params = true;
 		while (((packet = obex_net_packet_recv(m_conn->sockfd, has_params)) != NULL) && running) {
-			printf("== Packet received ====================\n");
-			obex_print_packet(packet);
-			printf("\n=======================================\n");
-
 			/* Handle operations for the different states. */
 			switch (state) {
 				case CONN_STATE_CREATED:
@@ -517,6 +531,38 @@ void *server_thread_func(void *args) {
 }
 
 /**
+ * Gets information about a file being transferred from an OBEX packet using the
+ * standard NAME and LENGTH fields.
+ *
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param packet OBEX packet object to extract the information from.
+ * @param fname  Pointer to a string that will store the file name or NULL if
+ *               that information isn't available. (Allocated by this function)
+ *
+ * @return Size of the entire file being transferred or 0 if the information
+ *         isn't available.
+ */
+uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname) {
+	const obex_header_t *header;
+
+	/* Get the file name. */
+	header = obex_packet_header_find(packet, OBEX_HEADER_NAME);
+	if ((header == NULL) || (header->value.wstring.text == NULL)) {
+		*fname = NULL;
+	} else {
+		*fname = utf16_wcstombs(header->value.wstring.text);
+	}
+
+	/* Get the file size. */
+	header = obex_packet_header_find(packet, OBEX_HEADER_LENGTH);
+	if (header == NULL)
+		return 0;
+
+	return header->value.word32;
+}
+
+/**
  * Gets the server object handle.
  *
  * @return Server object handle.
@@ -568,6 +614,15 @@ void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
  */
 void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func) {
 	evt_server_client_conn_req_cb_func = func;
+}
+
+/**
+ * Sets the File Download Progress event callback function.
+ *
+ * @param func File Download Progress event callback function.
+ */
+void gl_server_conn_evt_download_progress_set(gl_server_conn_evt_download_progress_func func) {
+	evt_server_conn_download_progress_cb_func = func;
 }
 
 /**
