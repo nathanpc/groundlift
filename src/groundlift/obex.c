@@ -562,6 +562,7 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 			p = memcpy_n(p, packet->body, packet->body_length);
 	}
 
+	(void)p;
 	return true;
 }
 
