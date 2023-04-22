@@ -21,6 +21,20 @@ extern "C" {
 #endif
 
 /**
+ * Structure holding all of the information about a transfer's current progress.
+ */
+typedef struct {
+	const char *fname;
+	const char *bname;
+
+	uint32_t chunks;
+	uint32_t sent_chunk;
+
+	uint64_t fsize;
+	uint16_t csize;
+} gl_client_progress_t;
+
+/**
  * Client connected to server event callback function pointer type definition.
  *
  * @param client Client connection handle object.
@@ -47,11 +61,9 @@ typedef void (*gl_client_evt_conn_req_resp_func)(const char *fname, bool accepte
 /**
  * Client file upload progress event callback function pointer type definition.
  *
- * @param fname    Name of the file that was uploaded.
- * @param chunks   Number of chunks to complete the transfer of the file.
- * @param progress Last chunk index sent to server.
+ * @param progress Structure containing all the information about the progress.
  */
-typedef void (*gl_client_evt_put_progress_func)(const char *fname, uint32_t chunks, uint32_t progress);
+typedef void (*gl_client_evt_put_progress_func)(const gl_client_progress_t *progress);
 
 /**
  * Client file upload succeeded event callback function pointer type

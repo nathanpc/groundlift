@@ -250,16 +250,15 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted)
  */
 gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *running, conn_state_t *state) {
 	gl_err_t *err;
+	gl_server_conn_progress_t progress;
 	obex_packet_t *packet;
 	obex_packet_t *resp;
 	FILE *fh;
 	char *fname;
 	char *fpath;
 	uint32_t fsize;
-	uint32_t len;
 
 	/* Get the file name and size. */
-	len = 0;
 	fsize = gl_server_packet_file_info(init_packet, &fname);
 	if (fname == NULL)
 		fname = strdup("Unnamed");
@@ -268,6 +267,12 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 
 	/* Get the path to save the downloaded file to. */
 	fpath = path_build_download(m_server->download_dir, fname);
+
+	/* Get the basename of the file and populate the information structure. */
+	progress.fpath = fpath;
+	progress.bname = fname;
+	progress.fsize = fsize;
+	progress.recv_bytes = 0;
 
 	/* Open the file for download. */
 	fh = file_open(fpath, "wb");
@@ -280,7 +285,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 	}
 
 	/* Write the chunk of data to the file. */
-	len += init_packet->body_length;
+	progress.recv_bytes += init_packet->body_length;
 	if (file_write(fh, init_packet->body, init_packet->body_length) < 0) {
 		*running = false;
 		*state = CONN_STATE_ERROR;
@@ -291,7 +296,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 
 	/* Update the progress of the current transfer via an event. */
 	if (evt_server_conn_download_progress_cb_func != NULL)
-		evt_server_conn_download_progress_cb_func(fname, fsize, len);
+		evt_server_conn_download_progress_cb_func(&progress);
 
 	/* Initialize reply packet. */
 	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
@@ -321,7 +326,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 	/* Receive the rest of the file. */
 	while ((packet = obex_net_packet_recv(m_conn->sockfd, false)) != NULL) {
 		/* Write the chunk of data to the file. */
-		len += packet->body_length;
+		progress.recv_bytes += packet->body_length;
 		if (file_write(fh, packet->body, packet->body_length) < 0) {
 			*running = false;
 			*state = CONN_STATE_ERROR;
@@ -333,7 +338,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 
 		/* Update the progress of the current transfer via an event. */
 		if (evt_server_conn_download_progress_cb_func != NULL)
-			evt_server_conn_download_progress_cb_func(fname, fsize, len);
+			evt_server_conn_download_progress_cb_func(&progress);
 
 		/* Initialize reply packet. */
 		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {

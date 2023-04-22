@@ -209,6 +209,8 @@ cleanup:
  */
 gl_err_t *gl_client_send_put_file(const char *fname) {
 	gl_err_t *err;
+	gl_client_progress_t progress;
+	char *bname;
 	FILE *fh;
 	int64_t fsize;
 	uint16_t csize;
@@ -217,6 +219,7 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 
 	/* Set some defaults. */
 	err = NULL;
+	bname = NULL;
 
 	/* Get the size of the full file for transferring. */
 	fsize = file_size(fname);
@@ -233,8 +236,9 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 	if ((csize * chunks) < fsize)
 		chunks++;
 
-	/* TODO: Maybe create a callback for this? */
+#ifdef DEBUG
 	printf("file size %ld csize %u chunks %u\n", fsize, csize, chunks);
+#endif
 
 	/* Open the file. */
 	fh = file_open(fname, "rb");
@@ -242,6 +246,15 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
 			"the file for upload"));
 	}
+
+	/* Get the basename of the file and populate the information structure. */
+	bname = path_basename(fname);
+	progress.fname = fname;
+	progress.bname = bname;
+	progress.fsize = (uint64_t)fsize;
+	progress.csize = csize;
+	progress.chunks = chunks;
+	progress.sent_chunk = 0;
 
 	/* Read the file in chunks for sending over OBEX packets. */
 	for (cc = 0; cc < chunks; cc++) {
@@ -263,13 +276,9 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 
 		/* Create the OBEX packet object. */
 		if (cc == 0) {
-			char *bname;
-
-			bname = path_basename(fname);
 			packet = obex_packet_new_put(bname, (uint32_t *)&fsize, last_chunk);
-			free(bname);
 		} else {
-			packet = obex_packet_new_put(NULL, NULL, last_chunk);
+			packet = obex_packet_new_put(bname, NULL, last_chunk);
 		}
 
 		/* Check if the packet object was created. */
@@ -291,8 +300,10 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 			break;
 
 		/* Update the progress of the transfer via an event. */
-		if (evt_put_progress_cb_func != NULL)
-			evt_put_progress_cb_func(fname, chunks, cc + 1);
+		if (evt_put_progress_cb_func != NULL) {
+			progress.sent_chunk = cc + 1;
+			evt_put_progress_cb_func(&progress);
+		}
 
 		/* Read the response packet. */
 		pthread_mutex_lock(m_client_mutex);
@@ -329,6 +340,10 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		if (err)
 			break;
 	}
+
+	/* Free our resources. */
+	if (bname)
+		free(bname);
 
 	/* Close the file. */
 	if (!file_close(fh)) {

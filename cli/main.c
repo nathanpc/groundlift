@@ -29,14 +29,14 @@ void server_event_stopped(void);
 
 /* Server client's connection event handlers. */
 void server_conn_event_accepted(const server_conn_t *conn);
-void server_conn_event_download_progress(const char *fname, uint32_t fsize, uint32_t progress);
+void server_conn_event_download_progress(const gl_server_conn_progress_t *progress);
 void server_conn_event_download_success(const char *fpath);
 void server_conn_event_closed(void);
 
 /* Client event handlers. */
 void client_event_connected(const tcp_client_t *client);
 void client_event_conn_req_resp(const char *fname, bool accepted);
-void client_event_send_progress(const char *fname, uint32_t chunks, uint32_t progress);
+void client_event_send_progress(const gl_client_progress_t *progress);
 void client_event_send_success(const char *fname);
 void client_event_disconnected(const tcp_client_t *client);
 
@@ -204,14 +204,13 @@ int server_event_conn_req(const char *fname, uint32_t fsize) {
 	int c;
 
 	/* Ask the user for permission to accept the transfer of the file. */
-	printf("Client wants to send a file '%s' with %u bytes. Accept? [Y/n]? ",
+	printf("Client wants to send a file '%s' with %u bytes. Accept? [y/n]? ",
 		   fname, fsize);
 	do {
 		c = getc(stdin);
-	} while ((c != '\n') && (c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
-	/* TODO: This isn't working as it's supposed to. */
+	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
 
-	return (c != 'n') || (c != 'N');
+	return (c != 'n') && (c != 'N');
 }
 
 /**
@@ -239,14 +238,11 @@ void server_conn_event_accepted(const server_conn_t *conn) {
 /**
  * Handles the server connection download progress event.
  *
- * @param fname    Name of the file to be downloaded.
- * @param fsize    Size in bytes of the entire file being downloaded. Will be 0
- *                 if the client didn't send a file length.
- * @param progress Number of bytes downloaded so far.
+ * @param progress Structure containing all the information about the progress.
  */
-void server_conn_event_download_progress(const char *fname, uint32_t fsize, uint32_t progress) {
-	(void)fname;
-	printf("Receiving file... (%u/%u)\n", progress, fsize);
+void server_conn_event_download_progress(const gl_server_conn_progress_t *progress) {
+	printf("Receiving file... (%u/%u)\n", progress->recv_bytes,
+		   progress->fsize);
 }
 
 /**
@@ -277,6 +273,7 @@ void client_event_connected(const tcp_client_t *client) {
 	ipstr = tcp_client_get_ipstr(client);
 	printf("Client connected to server on %s port %u\n", ipstr,
 		   ntohs(client->addr_in.sin_port));
+	printf("Waiting for the server to accept the file...\n");
 
 	free(ipstr);
 }
@@ -298,13 +295,11 @@ void client_event_conn_req_resp(const char *fname, bool accepted) {
 /**
  * Handles the client's file upload progress event.
  *
- * @param fname    Name of the file that was uploaded.
- * @param chunks   Number of chunks to complete the transfer of the file.
- * @param progress Last chunk index sent to server.
+ * @param progress Structure containing all the information about the progress.
  */
-void client_event_send_progress(const char *fname, uint32_t chunks, uint32_t progress) {
-	(void)fname;
-	printf("Sending file... (%u/%u)\n", progress, chunks);
+void client_event_send_progress(const gl_client_progress_t *progress) {
+	printf("Sending %s (%u/%lu)\n", progress->bname,
+		   progress->sent_chunk * progress->csize, progress->fsize);
 }
 
 /**

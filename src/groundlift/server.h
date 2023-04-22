@@ -21,6 +21,17 @@ extern "C" {
 #endif
 
 /**
+ * Structure holding all of the information about a transfer's current progress.
+ */
+typedef struct {
+	const char *fpath;
+	const char *bname;
+
+	uint32_t fsize;
+	uint32_t recv_bytes;
+} gl_server_conn_progress_t;
+
+/**
  * Server started event callback function pointer type definition.
  *
  * @param server Server handle object.
@@ -59,12 +70,9 @@ typedef int (*gl_server_evt_client_conn_req_func)(const char *fname, uint32_t fs
 /**
  * File download progress event callback function pointer type definition.
  *
- * @param fname    Name of the file to be downloaded.
- * @param fsize    Size in bytes of the entire file being downloaded. Will be 0
- *                 if the client didn't send a file length.
- * @param progress Number of bytes downloaded so far.
+ * @param progress Structure containing all the information about the progress.
  */
-typedef void (*gl_server_conn_evt_download_progress_func)(const char *fname, uint32_t fsize, uint32_t progress);
+typedef void (*gl_server_conn_evt_download_progress_func)(const gl_server_conn_progress_t *progress);
 
 /**
  * File downloaded successfully event callback function pointer type definition.
