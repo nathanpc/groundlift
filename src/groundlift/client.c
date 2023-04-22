@@ -431,7 +431,7 @@ void *client_thread_func(void *fname) {
 	}
 
 	/* Connect our client to a server. */
-	tcp_err = tcp_client_connect(m_client, NULL);
+	tcp_err = tcp_client_connect(m_client);
 	switch (tcp_err) {
 		case SOCK_OK:
 			break;

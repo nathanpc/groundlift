@@ -444,7 +444,7 @@ void *server_thread_func(void *args) {
 		evt_server_start_cb_func(m_server);
 
 	/* Accept incoming connections. */
-	while ((m_conn = tcp_server_conn_accept(m_server, NULL)) != NULL) {
+	while ((m_conn = tcp_server_conn_accept(m_server)) != NULL) {
 		obex_packet_t *packet;
 		conn_state_t state;
 		bool running;
