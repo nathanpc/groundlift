@@ -13,8 +13,6 @@
 #include <string.h>
 
 #include "defaults.h"
-#include "error.h"
-#include "tcp.h"
 #include "utf16utils.h"
 #include "bitutils.h"
 
@@ -850,7 +848,7 @@ gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet) {
 
 	/* Get the network buffer for the packet and send it out. */
 	tcp_err = tcp_socket_send(sockfd, buf, packet->size, NULL);
-	if (tcp_err != TCP_OK) {
+	if (tcp_err != SOCK_OK) {
 		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 						   EMSG("Failed to send OBEX packet"));
 		goto cleanup;
@@ -885,7 +883,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 
 	/* Receive the packet's opcode and length. */
 	tcp_err = tcp_socket_recv(sockfd, peek_buf, 3, &len, true);
-	if ((tcp_err >= TCP_OK) && (len != 3)) {
+	if ((tcp_err >= SOCK_OK) && (len != 3)) {
 		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
 				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return NULL;
@@ -908,7 +906,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	len = 0;
 	while (len < psize) {
 		tcp_err = tcp_socket_recv(sockfd, tmp, psize, &plen, false);
-		if (tcp_err != TCP_OK) {
+		if (tcp_err != SOCK_OK) {
 			fprintf(stderr, "obex_net_packet_recv: Failed to receive full OBEX "
 					"packet. (tcp_err %d psize %u plen %lu len %lu)\n",
 					tcp_err, psize, plen, len);

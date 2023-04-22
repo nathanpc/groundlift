@@ -1,12 +1,12 @@
 /**
- * tcp.h
- * TCP server/client that forms the basis of the communication between nodes.
+ * sockets.h
+ * Socket server/client that forms the basis of the communication between nodes.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _TCPSERVERCLIENT_H
-#define _TCPSERVERCLIENT_H
+#ifndef _SOCKSERVERCLIENT_H
+#define _SOCKSERVERCLIENT_H
 
 #include <arpa/inet.h>
 #include <stdbool.h>
@@ -30,13 +30,13 @@ typedef void (*socket_recvd_func)(void *buf, size_t len);
 typedef enum {
 	TCP_EVT_CONN_SHUTDOWN = -2,
 	TCP_EVT_CONN_CLOSED,
-	TCP_OK,
-	TCP_ERR_ESOCKET,
-	TCP_ERR_EBIND,
+	SOCK_OK,
+	SOCK_ERR_ESOCKET,
+	SOCK_ERR_EBIND,
 	TCP_ERR_ELISTEN,
-	TCP_ERR_ECLOSE,
-	TCP_ERR_ESEND,
-	TCP_ERR_ERECV,
+	SOCK_ERR_ECLOSE,
+	SOCK_ERR_ESEND,
+	SOCK_ERR_ERECV,
 	TCP_ERR_ECONNECT,
 	TCP_ERR_ESHUTDOWN,
 	TCP_ERR_UNKNOWN
@@ -74,16 +74,16 @@ typedef struct {
 } tcp_client_t;
 
 /* Initialization and destruction. */
-server_t *tcp_server_new(const char *addr, uint16_t port);
+server_t *sockets_server_new(const char *addr, uint16_t port);
 tcp_client_t *tcp_client_new(const char *addr, uint16_t port);
-void tcp_server_free(server_t *server);
+void sockets_server_free(server_t *server);
 void tcp_server_conn_free(server_conn_t *conn);
 void tcp_client_free(tcp_client_t *client);
 
 /* Server lifecycle. */
-tcp_err_t tcp_server_start(server_t *server);
-tcp_err_t tcp_server_stop(server_t *server);
-tcp_err_t tcp_server_shutdown(server_t *server);
+tcp_err_t sockets_server_start(server_t *server);
+tcp_err_t sockets_server_stop(server_t *server);
+tcp_err_t sockets_server_shutdown(server_t *server);
 
 /* Connection handling. */
 server_conn_t *tcp_server_conn_accept(const server_t *server, socket_recvd_func recv_cb);
@@ -100,20 +100,20 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client);
 socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
-tcp_err_t tcp_socket_close(int sockfd);
+tcp_err_t socket_close(int sockfd);
 tcp_err_t tcp_socket_shutdown(int sockfd);
-bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr);
+bool socket_itos(char **buf, const struct sockaddr *sock_addr);
 
 /* Misc. utilities. */
-char *tcp_server_get_ipstr(const server_t *server);
+char *sockets_server_get_ipstr(const server_t *server);
 char *tcp_server_conn_get_ipstr(const server_conn_t *conn);
 char *tcp_client_get_ipstr(const tcp_client_t *client);
 
 /* Debugging */
-void tcp_print_net_buffer(const void *buf, size_t len);
+void socket_print_net_buffer(const void *buf, size_t len);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TCPSERVERCLIENT_H */
+#endif /* _SOCKSERVERCLIENT_H */

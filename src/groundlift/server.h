@@ -14,7 +14,7 @@
 
 #include "error.h"
 #include "obex.h"
-#include "tcp.h"
+#include "sockets.h"
 
 #ifdef __cplusplus
 extern "C" {

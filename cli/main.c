@@ -10,7 +10,6 @@
 #include <groundlift/error.h>
 #include <groundlift/obex.h>
 #include <groundlift/server.h>
-#include <groundlift/tcp.h>
 #include <groundlift/utf16utils.h>
 #include <pthread.h>
 #include <signal.h>
@@ -188,7 +187,7 @@ void server_event_started(const server_t *server) {
 	char *ipstr;
 
 	/* Print some information about the current state of the server. */
-	ipstr = tcp_server_get_ipstr(server);
+	ipstr = sockets_server_get_ipstr(server);
 	printf("Server listening on %s port %u\n", ipstr,
 		   ntohs(server->addr_in.sin_port));
 

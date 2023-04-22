@@ -10,8 +10,6 @@
 #include <pthread.h>
 
 #include "defaults.h"
-#include "error.h"
-#include "obex.h"
 #include "fileutils.h"
 
 /* Private variables. */
@@ -130,7 +128,7 @@ bool gl_client_disconnect(void) {
 	err = tcp_client_shutdown(m_client);
 	pthread_mutex_unlock(m_client_mutex);
 
-	return err == TCP_OK;
+	return err == SOCK_OK;
 }
 
 /**
@@ -435,10 +433,10 @@ void *client_thread_func(void *fname) {
 	/* Connect our client to a server. */
 	tcp_err = tcp_client_connect(m_client, NULL);
 	switch (tcp_err) {
-		case TCP_OK:
+		case SOCK_OK:
 			break;
-		case TCP_ERR_ESOCKET:
-			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ESOCKET,
+		case SOCK_ERR_ESOCKET:
+			return gl_error_new(ERR_TYPE_TCP, SOCK_ERR_ESOCKET,
 				EMSG("Client failed to create a socket"));
 		case TCP_ERR_ECONNECT:
 			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,

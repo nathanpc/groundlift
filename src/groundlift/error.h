@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "tcp.h"
+#include "sockets.h"
 
 #ifdef __cplusplus
 extern "C" {

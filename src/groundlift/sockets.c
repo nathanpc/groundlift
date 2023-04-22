@@ -1,11 +1,11 @@
 /**
- * tcp.c
- * TCP server/client that forms the basis of the communication between nodes.
+ * sockets.c
+ * Socket server/client that forms the basis of the communication between nodes.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include "tcp.h"
+#include "sockets.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,9 +25,9 @@
  * @return Newly allocated server handle object or NULL if we couldn't allocate
  *         the object.
  *
- * @see tcp_server_free
+ * @see sockets_server_free
  */
-server_t *tcp_server_new(const char *addr, uint16_t port) {
+server_t *sockets_server_new(const char *addr, uint16_t port) {
 	server_t *server;
 
 	/* Allocate some memory for our handle object. */
@@ -80,9 +80,9 @@ tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
  *
  * @param server Server handle object to be free'd.
  *
- * @see tcp_server_stop
+ * @see sockets_server_stop
  */
-void tcp_server_free(server_t *server) {
+void sockets_server_free(server_t *server) {
 	/* Do we even need to do something? */
 	if (server == NULL)
 		return;
@@ -135,21 +135,21 @@ void tcp_client_free(tcp_client_t *client) {
  *
  * @param server Server handle object.
  *
- * @return TCP_OK if the initialization was successful.
- *         TCP_ERR_ESOCKET if the socket function failed.
- *         TCP_ERR_EBIND if the bind function failed.
+ * @return SOCK_OK if the initialization was successful.
+ *         SOCK_ERR_ESOCKET if the socket function failed.
+ *         SOCK_ERR_EBIND if the bind function failed.
  *         TCP_ERR_ELISTEN if the listen function failed.
  *
- * @see tcp_server_stop
+ * @see sockets_server_stop
  */
-tcp_err_t tcp_server_start(server_t *server) {
+tcp_err_t sockets_server_start(server_t *server) {
 	int reuse;
 
 	/* Create a new socket file descriptor. */
 	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->sockfd == -1) {
 		perror("tcp_server_start@socket");
-		return TCP_ERR_ESOCKET;
+		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Ensure we can reuse the address and port in case of panic. */
@@ -169,7 +169,7 @@ tcp_err_t tcp_server_start(server_t *server) {
 	if (bind(server->sockfd, (struct sockaddr *)&server->addr_in,
 			 server->addr_in_size) == -1) {
 		perror("tcp_server_start@bind");
-		return TCP_ERR_EBIND;
+		return SOCK_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
@@ -178,7 +178,7 @@ tcp_err_t tcp_server_start(server_t *server) {
 		return TCP_ERR_ELISTEN;
 	}
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -186,21 +186,21 @@ tcp_err_t tcp_server_start(server_t *server) {
  *
  * @param server Server handle object.
  *
- * @return TCP_OK if the socket was properly closed.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ * @return SOCK_OK if the socket was properly closed.
+ *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  *
- * @see tcp_server_shutdown
- * @see tcp_server_free
+ * @see sockets_server_shutdown
+ * @see sockets_server_free
  */
-tcp_err_t tcp_server_stop(server_t *server) {
+tcp_err_t sockets_server_stop(server_t *server) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
 	if (server == NULL)
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = tcp_socket_close(server->sockfd);
+	err = socket_close(server->sockfd);
 	server->sockfd = -1;
 
 	return err;
@@ -212,19 +212,19 @@ tcp_err_t tcp_server_stop(server_t *server) {
  *
  * @param server Server handle object.
  *
- * @return TCP_OK if the socket was properly closed.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ * @return SOCK_OK if the socket was properly closed.
+ *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *
- * @see tcp_server_stop
- * @see tcp_server_free
+ * @see sockets_server_stop
+ * @see sockets_server_free
  */
-tcp_err_t tcp_server_shutdown(server_t *server) {
+tcp_err_t sockets_server_shutdown(server_t *server) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
 	if (server == NULL)
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = tcp_socket_shutdown(server->sockfd);
@@ -286,8 +286,8 @@ server_conn_t *tcp_server_conn_accept(const server_t *server, socket_recvd_func 
  * @param client  Client handle object.
  * @param recv_cb Received data callback function. NULL if it isn't needed.
  *
- * @return TCP_OK if the operation was successful.
- *         TCP_ERR_ESOCKET if the socket function failed.
+ * @return SOCK_OK if the operation was successful.
+ *         SOCK_ERR_ESOCKET if the socket function failed.
  *         TCP_ERR_ECONNECT if the connect function failed.
  */
 tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb) {
@@ -295,7 +295,7 @@ tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb) {
 	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (client->sockfd == -1) {
 		perror("tcp_client_connect@socket");
-		return TCP_ERR_ESOCKET;
+		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Connect ourselves to the address. */
@@ -308,7 +308,7 @@ tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb) {
 	/* Set the received data callback function. */
 	client->recv_cb_func = recv_cb;
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -318,7 +318,7 @@ tcp_err_t tcp_client_connect(tcp_client_t *client, socket_recvd_func recv_cb) {
  * @param buf  Data to be sent.
  * @param len  Length of the data to be sent.
  *
- * @return TCP_OK if the operation was successful.
+ * @return SOCK_OK if the operation was successful.
  *         TCP_ERR_ESEND if the send function failed.
  *
  * @see tcp_socket_send
@@ -334,7 +334,7 @@ tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_
  * @param buf    Data to be sent.
  * @param len    Length of the data to be sent.
  *
- * @return TCP_OK if the operation was successful.
+ * @return SOCK_OK if the operation was successful.
  *         TCP_ERR_ESEND if the send function failed.
  *
  * @see tcp_socket_send
@@ -353,7 +353,7 @@ tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t le
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
  *
- * @return TCP_OK if the operation was successful.
+ * @return SOCK_OK if the operation was successful.
  *         TCP_ERR_ERECV if the recv function failed.
  *
  * @see tcp_socket_recv
@@ -365,7 +365,7 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
 	err = tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
 
 	/* Call the callback function. */
-	if ((conn->recv_cb_func != NULL) && !peek && (err == TCP_OK)) {
+	if ((conn->recv_cb_func != NULL) && !peek && (err == SOCK_OK)) {
 		conn->recv_cb_func(buf, *recv_len);
 	}
 
@@ -382,7 +382,7 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
  *
- * @return TCP_OK if the operation was successful.
+ * @return SOCK_OK if the operation was successful.
  *         TCP_ERR_ERECV if the recv function failed.
  *
  * @see tcp_socket_recv
@@ -394,7 +394,7 @@ tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
 	err = tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
 
 	/* Call the callback function. */
-	if ((client->recv_cb_func != NULL) && !peek && (err == TCP_OK)) {
+	if ((client->recv_cb_func != NULL) && !peek && (err == SOCK_OK)) {
 		client->recv_cb_func(buf, *recv_len);
 	}
 
@@ -406,7 +406,7 @@ tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
  *
  * @param conn Server client connection handle object.
  *
- * @return TCP_OK if everything went fine.
+ * @return SOCK_OK if everything went fine.
  *         TCP_ERR_ECLOSE if the socket failed to shutdown properly.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
@@ -417,7 +417,7 @@ tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
 
 	/* Ensure we actually have something do to. */
 	if ((conn == NULL) || (conn->sockfd == -1))
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = tcp_socket_shutdown(conn->sockfd);
@@ -431,7 +431,7 @@ tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
  *
  * @param client Client connection handle object.
  *
- * @return TCP_OK if everything went fine.
+ * @return SOCK_OK if everything went fine.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *
  * @see tcp_client_free
@@ -441,10 +441,10 @@ tcp_err_t tcp_client_close(tcp_client_t *client) {
 
 	/* Ensure we actually have something do to. */
 	if ((client == NULL) || (client->sockfd == -1))
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = tcp_socket_close(client->sockfd);
+	err = socket_close(client->sockfd);
 	client->sockfd = -1;
 
 	return err;
@@ -456,7 +456,7 @@ tcp_err_t tcp_client_close(tcp_client_t *client) {
  *
  * @param client Client connection handle object.
  *
- * @return TCP_OK if the socket was properly closed.
+ * @return SOCK_OK if the socket was properly closed.
  *         TCP_ERR_ECLOSE if the socket failed to close properly.
  *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *
@@ -468,7 +468,7 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 
 	/* Ensure we actually have something do to. */
 	if ((client == NULL) || (client->sockfd == -1))
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = tcp_socket_shutdown(client->sockfd);
@@ -511,8 +511,8 @@ socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_
  * @param sent_len Pointer to store the number of bytes actually sent. Ignored
  *                 if NULL is passed.
  *
- * @return TCP_OK if the operation was successful.
- *         TCP_ERR_ESEND if the send function failed.
+ * @return SOCK_OK if the operation was successful.
+ *         SOCK_ERR_ESEND if the send function failed.
  *
  * @see send
  */
@@ -523,14 +523,14 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
 	bytes_sent = send(sockfd, buf, len, 0);
 	if (bytes_sent == -1) {
 		perror("tcp_socket_send@send");
-		return TCP_ERR_ESEND;
+		return SOCK_ERR_ESEND;
 	}
 
 	/* Return the number of bytes sent. */
 	if (sent_len != NULL)
 		*sent_len = bytes_sent;
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -543,9 +543,9 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
  *
- * @return TCP_OK if we received some data.
+ * @return SOCK_OK if we received some data.
  *         TCP_EVT_CONN_CLOSED if the connection was closed by the client.
- *         TCP_ERR_ERECV if the recv function failed.
+ *         SOCK_ERR_ERECV if the recv function failed.
  *
  * @see recv
  */
@@ -564,7 +564,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 			return TCP_EVT_CONN_SHUTDOWN;
 
 		perror("tcp_socket_recv@recv");
-		return TCP_ERR_ERECV;
+		return SOCK_ERR_ERECV;
 	}
 
 	/* Return the number of bytes sent. */
@@ -575,7 +575,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 	if (bytes_recv == 0)
 		return TCP_EVT_CONN_CLOSED;
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -583,15 +583,15 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
  *
  * @param sockfd Socket file descriptor to be closed.
  *
- * @return TCP_OK if the socket was properly closed.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ * @return SOCK_OK if the socket was properly closed.
+ *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-tcp_err_t tcp_socket_close(int sockfd) {
+tcp_err_t socket_close(int sockfd) {
 	int ret;
 
 	/* Check if we are even needed. */
 	if (sockfd == -1)
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Close the socket file descriptor. */
 #ifdef _WIN32
@@ -602,11 +602,11 @@ tcp_err_t tcp_socket_close(int sockfd) {
 
 	/* Check for errors. */
 	if (ret == -1) {
-		perror("tcp_socket_close@close");
-		return TCP_ERR_ECLOSE;
+		perror("socket_close@close");
+		return SOCK_ERR_ECLOSE;
 	}
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -614,16 +614,16 @@ tcp_err_t tcp_socket_close(int sockfd) {
  *
  * @param sockfd Socket file descriptor to be closed.
  *
- * @return TCP_OK if the socket was properly closed.
+ * @return SOCK_OK if the socket was properly closed.
  *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
+ *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
 tcp_err_t tcp_socket_shutdown(int sockfd) {
 	int ret;
 
 	/* Check if we are even needed. */
 	if (sockfd == -1)
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
@@ -648,11 +648,11 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 	ret = close(sockfd);
 	if (ret == -1) {
 		perror("tcp_socket_shutdown@close");
-		return TCP_ERR_ECLOSE;
+		return SOCK_ERR_ECLOSE;
 	}
 #endif /* _WIN32 */
 
-	return TCP_OK;
+	return SOCK_OK;
 }
 
 /**
@@ -668,7 +668,7 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
  * @return TRUE if the conversion was successful.
  *         FALSE if an error occurred and we couldn't convert the IP address.
  */
-bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr) {
+bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 	char tmp[INET6_ADDRSTRLEN];
 
 	/* Determine which type of IP address we are dealing with. */
@@ -707,13 +707,13 @@ bool tcp_socket_itos(char **buf, const struct sockaddr *sock_addr) {
  *
  * @return Server's IP address as a string or NULL if an error occurred.
  *
- * @see tcp_socket_itos
+ * @see socket_itos
  */
-char *tcp_server_get_ipstr(const server_t *server) {
+char *sockets_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&server->addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&server->addr_in))
 		return NULL;
 
 	return buf;
@@ -727,13 +727,13 @@ char *tcp_server_get_ipstr(const server_t *server) {
  *
  * @return Client's IP address as a string or NULL if an error occurred.
  *
- * @see tcp_socket_itos
+ * @see socket_itos
  */
 char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&conn->addr))
+	if (!socket_itos(&buf, (const struct sockaddr *)&conn->addr))
 		return NULL;
 
 	return buf;
@@ -747,13 +747,13 @@ char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
  *
  * @return Client's server IP address as a string or NULL if an error occurred.
  *
- * @see tcp_socket_itos
+ * @see socket_itos
  */
 char *tcp_client_get_ipstr(const tcp_client_t *client) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!tcp_socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
 		return NULL;
 
 	return buf;
@@ -766,7 +766,7 @@ char *tcp_client_get_ipstr(const tcp_client_t *client) {
  * @param buf Network byte ordered buffer to be inspected.
  * @param len Length of the buffer.
  */
-void tcp_print_net_buffer(const void *buf, size_t len) {
+void socket_net_buffer(const void *buf, size_t len) {
 	size_t i;
 	const uint8_t *p;
 

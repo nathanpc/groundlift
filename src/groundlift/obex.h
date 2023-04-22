@@ -14,7 +14,7 @@
 #include <wchar.h>
 
 #include "error.h"
-#include "tcp.h"
+#include "sockets.h"
 
 #ifdef __cplusplus
 extern "C" {

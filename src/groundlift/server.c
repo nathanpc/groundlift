@@ -11,9 +11,7 @@
 #include <string.h>
 
 #include "defaults.h"
-#include "error.h"
 #include "fileutils.h"
-#include "obex.h"
 #include "utf16utils.h"
 
 /* Private variables. */
@@ -65,7 +63,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	pthread_mutex_init(m_conn_mutex, NULL);
 
 	/* Get a server handle. */
-	m_server = tcp_server_new(addr, port);
+	m_server = sockets_server_new(addr, port);
 	if (m_server == NULL)
 		return false;
 
@@ -84,7 +82,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 void gl_server_free(void) {
 	/* Stop the server and free up any allocated resources. */
 	gl_server_stop();
-	tcp_server_free(m_server);
+	sockets_server_free(m_server);
 	m_server = NULL;
 
 	/* Join the server thread. */
@@ -145,10 +143,10 @@ bool gl_server_stop(void) {
 
 	/* Shut the thing down. */
 	pthread_mutex_lock(m_server_mutex);
-	err = tcp_server_shutdown(m_server);
+	err = sockets_server_shutdown(m_server);
 	pthread_mutex_unlock(m_server_mutex);
 
-	return err == TCP_OK;
+	return err == SOCK_OK;
 }
 
 /**
@@ -165,7 +163,7 @@ tcp_err_t gl_server_conn_destroy(void) {
 
 	/* Do we even need to do stuff? */
 	if (m_conn == NULL)
-		return TCP_OK;
+		return SOCK_OK;
 
 	/* Tell the world that we are closing an active connection. */
 	if (m_conn->sockfd != -1)
@@ -423,18 +421,18 @@ void *server_thread_func(void *args) {
 	gl_err = NULL;
 
 	/* Start the server and listen for incoming connections. */
-	tcp_err = tcp_server_start(m_server);
+	tcp_err = sockets_server_start(m_server);
 	switch (tcp_err) {
-		case TCP_OK:
+		case SOCK_OK:
 			break;
-		case TCP_ERR_ESOCKET:
-			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ESOCKET,
+		case SOCK_ERR_ESOCKET:
+			return gl_error_new(ERR_TYPE_TCP, SOCK_ERR_ESOCKET,
 				EMSG("Server failed to create a socket"));
-		case TCP_ERR_EBIND:
-			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,
+		case SOCK_ERR_EBIND:
+			return gl_error_new(ERR_TYPE_TCP, SOCK_ERR_EBIND,
 				EMSG("Server failed to bind to a socket"));
 		case TCP_ERR_ELISTEN:
-			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ECONNECT,
+			return gl_error_new(ERR_TYPE_TCP, TCP_ERR_ELISTEN,
 				EMSG("Server failed to listen on a socket"));
 		default:
 			return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
