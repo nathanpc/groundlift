@@ -24,6 +24,7 @@ typedef enum {
 	SOCK_EVT_CONN_CLOSED,
 	SOCK_OK,
 	SOCK_ERR_ESOCKET,
+	SOCK_ERR_ESETSOCKOPT,
 	SOCK_ERR_EBIND,
 	TCP_ERR_ELISTEN,
 	SOCK_ERR_ECLOSE,
@@ -34,19 +35,17 @@ typedef enum {
 	TCP_ERR_UNKNOWN
 } tcp_err_t;
 
+/* Socket bundle handle. */
+typedef struct {
+	int sockfd;
+	struct sockaddr_in addr_in;
+	socklen_t addr_in_size;
+} sock_bundle_t;
+
 /* Server handle. */
 typedef struct {
-	struct {
-		int sockfd;
-		struct sockaddr_in addr_in;
-		socklen_t addr_in_size;
-	} tcp;
-
-	struct {
-		int sockfd;
-		struct sockaddr_in addr_in;
-		socklen_t addr_in_size;
-	} udp;
+	sock_bundle_t tcp;
+	sock_bundle_t udp;
 
 	char *download_dir;
 } server_t;
@@ -70,7 +69,7 @@ typedef struct {
 } tcp_client_t;
 
 /* Initialization and destruction. */
-server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_port);
+server_t *sockets_server_new(const char *addr, uint16_t port);
 tcp_client_t *tcp_client_new(const char *addr, uint16_t port);
 void sockets_server_free(server_t *server);
 void tcp_server_conn_free(server_conn_t *conn);
@@ -80,6 +79,9 @@ void tcp_client_free(tcp_client_t *client);
 tcp_err_t sockets_server_start(server_t *server);
 tcp_err_t sockets_server_stop(server_t *server);
 tcp_err_t sockets_server_shutdown(server_t *server);
+
+/* Discovery service. */
+tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port);
 
 /* Connection handling. */
 server_conn_t *tcp_server_conn_accept(const server_t *server);
@@ -93,8 +95,8 @@ tcp_err_t tcp_client_close(tcp_client_t *client);
 tcp_err_t tcp_client_shutdown(tcp_client_t *client);
 
 /* Direct socket interactions. */
+socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr, uint16_t port);
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
-socklen_t socket_setup_bcaddr(struct sockaddr_in *addr, uint16_t port);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr_storage *sock_addr, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);

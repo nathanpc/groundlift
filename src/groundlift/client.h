@@ -87,6 +87,9 @@ gl_err_t *gl_client_send_packet(obex_packet_t *packet);
 gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted);
 gl_err_t *gl_client_send_put_file(const char *fname);
 
+/* Discovery service. */
+gl_err_t *gl_client_discover_peers(uint16_t port);
+
 /* Getters and setters. */
 tcp_client_t *gl_client_get(void);
 

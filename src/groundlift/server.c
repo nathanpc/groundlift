@@ -11,14 +11,18 @@
 #include <string.h>
 
 #include "defaults.h"
+#include "error.h"
 #include "fileutils.h"
+#include "sockets.h"
 #include "utf16utils.h"
 
 /* Private variables. */
 static server_t *m_server;
 static server_conn_t *m_conn;
 static pthread_t *m_server_thread;
+static pthread_t *m_discovery_thread;
 static pthread_mutex_t *m_server_mutex;
+static pthread_mutex_t *m_discovery_mutex;
 static pthread_mutex_t *m_conn_mutex;
 
 /* Function callbacks. */
@@ -33,22 +37,23 @@ static gl_server_conn_evt_download_success_func evt_server_conn_download_success
 /* Private methods. */
 uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname);
 void *server_thread_func(void *args);
+void *server_discovery_thread_func(void *args);
 
 /**
  * Initializes everything related to the server to a known clean state.
  *
- * @param addr     Address to listen on.
- * @param tcp_port TCP port to listen on for file transfers.
- * @param udp_port UDP port to listen on for discovery.
+ * @param addr Address to listen on.
+ * @param port TCP port to listen on for file transfers.
  *
  * @return TRUE if the operation was successful.
  *
  * @see gl_server_start
  */
-bool gl_server_init(const char *addr, uint16_t tcp_port, uint16_t udp_port) {
+bool gl_server_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
 	evt_server_start_cb_func = NULL;
 	evt_server_conn_accept_cb_func = NULL;
 	evt_server_conn_close_cb_func = NULL;
@@ -60,11 +65,13 @@ bool gl_server_init(const char *addr, uint16_t tcp_port, uint16_t udp_port) {
 	/* Initialize our mutexes. */
 	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_server_mutex, NULL);
+	m_discovery_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(m_discovery_mutex, NULL);
 	m_conn_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(m_conn_mutex, NULL);
 
 	/* Get a server handle. */
-	m_server = sockets_server_new(addr, tcp_port, udp_port);
+	m_server = sockets_server_new(addr, port);
 	if (m_server == NULL)
 		return false;
 
@@ -85,6 +92,13 @@ void gl_server_free(void) {
 	gl_server_stop();
 	sockets_server_free(m_server);
 	m_server = NULL;
+
+	/* Join the discovery service's thread and free its mutex. */
+	gl_server_discovery_thread_join();
+	if (m_discovery_mutex) {
+		free(m_discovery_mutex);
+		m_discovery_mutex = NULL;
+	}
 
 	/* Join the server thread. */
 	gl_server_thread_join();
@@ -122,6 +136,26 @@ bool gl_server_start(void) {
 }
 
 /**
+ * Starts the server's discovery service up.
+ *
+ * @return TRUE if the operation was successful.
+ *
+ * @see gl_server_discovery_thread_join
+ * @see gl_server_stop
+ */
+bool gl_server_discovery_start(void) {
+	int ret;
+
+	/* Create the server thread. */
+	ret = pthread_create(m_discovery_thread, NULL, server_discovery_thread_func,
+		NULL);
+	if (ret)
+		m_discovery_thread = NULL;
+
+	return ret == 0;
+}
+
+/**
  * Stops the running server if needed.
  *
  * @return TRUE if the operation was successful.
@@ -144,7 +178,9 @@ bool gl_server_stop(void) {
 
 	/* Shut the thing down. */
 	pthread_mutex_lock(m_server_mutex);
+	pthread_mutex_lock(m_discovery_mutex);
 	err = sockets_server_shutdown(m_server);
+	pthread_mutex_unlock(m_discovery_mutex);
 	pthread_mutex_unlock(m_server_mutex);
 
 	return err == SOCK_OK;
@@ -405,6 +441,37 @@ bool gl_server_thread_join(void) {
 }
 
 /**
+ * Waits for the server thread to return.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool gl_server_discovery_thread_join(void) {
+	gl_err_t *err;
+	bool success;
+
+	/* Do we even need to do something? */
+	if (m_discovery_thread == NULL)
+		return true;
+
+	/* Join the thread back into us. */
+	pthread_join(*m_discovery_thread, (void **)&err);
+	free(m_discovery_thread);
+	m_discovery_thread = NULL;
+
+	/* Check if we got any returned errors. */
+	if (err == NULL)
+		return true;
+
+	/* Check for success and free our returned value. */
+	success = err->error.generic <= 0;
+	gl_error_print(err);
+	gl_error_free(err);
+
+	/* Check if the thread join was successful. */
+	return success;
+}
+
+/**
  * Server thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
@@ -438,6 +505,12 @@ void *server_thread_func(void *args) {
 		default:
 			return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 				EMSG("tcp_server_start returned a weird error code"));
+	}
+
+	/* Start another thread for the discovery service. */
+	if (!gl_server_discovery_start()) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_DISCV_START,
+			EMSG("Failed to start the server's discovery service"));
 	}
 
 	/* Trigger the server started event. */
@@ -532,6 +605,41 @@ void *server_thread_func(void *args) {
 		evt_server_stop_cb_func();
 
 	return (void *)gl_err;
+}
+
+/**
+ * Server discovery service thread function.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param args No arguments should be passed.
+ *
+ * @return Pointer to a gl_err_t with the last error code. This pointer must be
+ *         free'd by you.
+ */
+void *server_discovery_thread_func(void *args) {
+	char buf[100];
+	size_t len;
+	struct sockaddr_storage addr;
+
+	/* Unused parameter. */
+	(void)args;
+
+	while (udp_socket_recv(m_server->udp.sockfd, buf, 99, &addr, &len, false)) {
+		char *ip;
+		const struct sockaddr_in *addr_in;
+
+		addr_in = (struct sockaddr_in *)&addr;
+		ip = strdup(inet_ntoa(addr_in->sin_addr));
+
+		buf[len] = '\0';
+		printf("Received broadcast from %s: %s\n", ip, buf);
+
+		free(ip);
+	}
+
+	/* TODO: Send reply. */
+
+	return NULL;
 }
 
 /**

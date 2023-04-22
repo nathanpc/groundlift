@@ -19,6 +19,7 @@
 
 /* Private methods. */
 gl_err_t *client_send(const char *ip, uint16_t port, char *fname);
+gl_err_t *client_list_peers(void);
 void sigint_handler(int sig);
 
 /* Server event handlers. */
@@ -61,7 +62,7 @@ int main(int argc, char **argv) {
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
 		/* Initialize the server. */
-		if (!gl_server_init(NULL, TCPSERVER_PORT, UDPSERVER_PORT)) {
+		if (!gl_server_init(NULL, TCPSERVER_PORT)) {
 			fprintf(stderr, "Failed to initialize the server.\n");
 
 			ret = 1;
@@ -97,6 +98,9 @@ int main(int argc, char **argv) {
 	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
 		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
+	} else if ((argc < 2) || (argv[1][0] == 'l')) {
+		/* List peers on the network. */
+		err = client_list_peers();
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		return 1;
@@ -158,6 +162,28 @@ cleanup:
 	gl_client_free();
 
 	return err;
+}
+
+/**
+ * Lists the peers on the network.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
+gl_err_t *client_list_peers(void) {
+	gl_err_t *err;
+
+	/* Send discovery broadcast and listen to replies. */
+	printf("Sending discovery broadcast...\n");
+	err = gl_client_discover_peers(UDPSERVER_PORT);
+	if (err)
+		return err;
+
+	/* TODO: Thread join and clean up resources. */
+
+	printf("Stopped trying to discover peers.\n");
+
+	return NULL;
 }
 
 /**

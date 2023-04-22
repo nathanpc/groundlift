@@ -10,7 +10,9 @@
 #include <pthread.h>
 
 #include "defaults.h"
+#include "error.h"
 #include "fileutils.h"
+#include "sockets.h"
 
 /* Private variables. */
 static tcp_client_t *m_client;
@@ -469,6 +471,42 @@ disconnect:
 		evt_disconn_cb_func(m_client);
 
 	return (void *)gl_err;
+}
+
+/**
+ * Sends a peer discovery broadcast.
+ *
+ * @param port UDP port to listen on for discovery packets.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_client_discover_peers(uint16_t port) {
+	sock_bundle_t send_sock;
+	sock_bundle_t recv_sock;
+	tcp_err_t err;
+	size_t len;
+
+	/* Initialize the discovery packet receiver. */
+	err = udp_discovery_init(&recv_sock, true, INADDR_ANY, port);
+	if (err) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+			EMSG("Failed to initialize the client's discovery receiver"));
+	}
+
+	/* Initialize the discovery packet broadcaster. */
+	err = udp_discovery_init(&send_sock, false, INADDR_BROADCAST, port);
+	if (err) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+			EMSG("Failed to initialize the client's discovery transmitter"));
+	}
+
+	/* TODO: Send discovery broadcast. */
+	udp_socket_send(send_sock.sockfd, "Hello", 6, &send_sock.addr_in, &len);
+
+	/* TODO: Receive discovery broadcast replies. */
+
+	return NULL;
 }
 
 /**

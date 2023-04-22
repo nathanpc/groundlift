@@ -47,6 +47,7 @@ typedef enum {
  */
 typedef enum {
 	GL_OK = 0,
+	GL_ERR_DISCV_START,
 	GL_ERR_UNHANDLED_STATE,
 	GL_ERR_INVALID_STATE_OPCODE,
 	GL_ERR_FSIZE,

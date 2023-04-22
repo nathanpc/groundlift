@@ -21,16 +21,15 @@
  * Creates a brand new server handle object.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param addr     Address to bind ourselves to or NULL to use INADDR_ANY.
- * @param tcp_port TCP port to listen on for file transfers.
- * @param udp_port UDP port to listen on for discovery.
+ * @param addr Address to bind ourselves to or NULL to use INADDR_ANY.
+ * @param port TCP port to listen on for file transfers.
  *
  * @return Newly allocated server handle object or NULL if we couldn't allocate
  *         the object.
  *
  * @see sockets_server_free
  */
-server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_port) {
+server_t *sockets_server_new(const char *addr, uint16_t port) {
 	server_t *server;
 
 	/* Allocate some memory for our handle object. */
@@ -43,8 +42,7 @@ server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_p
 	server->udp.sockfd = -1;
 
 	/* Setup the socket address structure for binding. */
-	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, tcp_port);
-	server->udp.addr_in_size = socket_setup_bcaddr(&server->udp.addr_in, udp_port);
+	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, port);
 
 	return server;
 }
@@ -141,27 +139,19 @@ void tcp_client_free(tcp_client_t *client) {
  *
  * @return SOCK_OK if the initialization was successful.
  *         SOCK_ERR_ESOCKET if the socket function failed.
+ *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  *         TCP_ERR_ELISTEN if the listen function failed.
  *
  * @see sockets_server_stop
  */
 tcp_err_t sockets_server_start(server_t *server) {
-	unsigned char loop;
 	int reuse;
-	int perm;
 
 	/* Create a new TCP socket file descriptor. */
 	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->tcp.sockfd == -1) {
-		perror("sockets_server_start@socket(tcp)");
-		return SOCK_ERR_ESOCKET;
-	}
-
-	/* Create a new UDP socket file descriptor. */
-	server->udp.sockfd = socket(PF_INET, SOCK_DGRAM, 0);
-	if (server->udp.sockfd == -1) {
-		perror("sockets_server_start@socket(udp)");
+		perror("sockets_server_start@socket");
 		return SOCK_ERR_ESOCKET;
 	}
 
@@ -169,48 +159,21 @@ tcp_err_t sockets_server_start(server_t *server) {
 	reuse = 1;
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEADDR)[tcp]");
-	}
-	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEADDR)[udp]");
+		perror("sockets_server_start@setsockopt(SO_REUSEADDR)");
+		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEPORT)[tcp]");
-	}
-	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEPORT)[udp]");
+		perror("sockets_server_start@setsockopt(SO_REUSEPORT)");
+		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
-
-	/* Ensure we can do UDP broadcasts. */
-	perm = 1;
-	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
-				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_BROADCAST)");
-	}
-
-	/* Ensure that we don't receive broadcasts from ourselves. */
-	loop = 0;
-	if (setsockopt(server->udp.sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
-				   sizeof(unsigned char)) == -1) {
-		perror("sockets_server_start@setsockopt(IP_MULTICAST_LOOP)");
-	}
 
 	/* Bind ourselves to the TCP address. */
 	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
 			 server->tcp.addr_in_size) == -1) {
-		perror("sockets_server_start@bind(tcp)");
-		return SOCK_ERR_EBIND;
-	}
-
-	/* Bind ourselves to the UDP address. */
-	if (bind(server->udp.sockfd, (struct sockaddr *)&server->udp.addr_in,
-			 server->udp.addr_in_size) == -1) {
-		perror("sockets_server_start@bind(udp)");
+		perror("sockets_server_start@bind");
 		return SOCK_ERR_EBIND;
 	}
 
@@ -220,7 +183,9 @@ tcp_err_t sockets_server_start(server_t *server) {
 		return TCP_ERR_ELISTEN;
 	}
 
-	return SOCK_OK;
+	/* Initialize discovery service. */
+	return udp_discovery_init(&server->udp, true, INADDR_BROADCAST,
+		ntohs(server->tcp.addr_in.sin_port) + 1);
 }
 
 /**
@@ -281,6 +246,79 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
 	server->tcp.sockfd = -1;
 
 	return err;
+}
+
+/**
+ * Initializes a discovery service UDP socket bundle structure and sets up the
+ * socket.
+ *
+ * @param sock    Socket bundle structure.
+ * @param server  Is the service being
+ * @param in_addr IP address to connect/bind to already in the internal
+ *                structure's format.
+ * @param port    Port to connect/bind on.
+ *
+ * @return SOCK_OK if the operation was successful.
+ *         SOCK_ERR_ESOCKET if the socket function failed.
+ *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
+ *         SOCK_ERR_EBIND if the bind function failed.
+ */
+tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port) {
+	unsigned char loop;
+	int reuse;
+	int perm;
+
+	/* Setup the socket bundle. */
+	sock->sockfd = -1;
+	sock->addr_in_size = socket_setup_inaddr(&sock->addr_in, in_addr, port);
+
+	/* Create a new UDP socket file descriptor. */
+	sock->sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+	if (sock->sockfd == -1) {
+		perror("udp_discovery_init@socket");
+		return SOCK_ERR_ESOCKET;
+	}
+
+	/* Ensure we can reuse the address and port in case of panic. */
+	reuse = 1;
+	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+				   sizeof(int)) == -1) {
+		perror("udp_discovery_init@setsockopt(SO_REUSEADDR)");
+		return SOCK_ERR_ESETSOCKOPT;
+	}
+#ifdef SO_REUSEPORT
+	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+				   sizeof(int)) == -1) {
+		perror("udp_discovery_init@setsockopt(SO_REUSEPORT)");
+		return SOCK_ERR_ESETSOCKOPT;
+	}
+#endif
+
+	/* Ensure we can do UDP broadcasts. */
+	perm = 1;
+	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
+				   sizeof(int)) == -1) {
+		perror("udp_discovery_init@setsockopt(SO_BROADCAST)");
+		return SOCK_ERR_ESETSOCKOPT;
+	}
+
+
+	/* Ensure that we don't receive broadcasts from ourselves. */
+	loop = 0;
+	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
+				   sizeof(unsigned char)) == -1) {
+		perror("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)");
+		return SOCK_ERR_ESETSOCKOPT;
+	}
+
+	/* Bind ourselves to the UDP address. */
+	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,
+			 sock->addr_in_size) == -1)) {
+		perror("udp_discovery_init@bind");
+		return SOCK_ERR_EBIND;
+	}
+
+	return SOCK_OK;
 }
 
 /**
@@ -504,8 +542,33 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 /**
  * Sets up a socket address structure.
  *
+ * @param addr    Pointer to a socket address structure to be populated.
+ * @param in_addr IP address to connect/bind to already in the internal
+ *                structure's format.
+ * @param port    Port to bind/connect to.
+ *
+ * @return Size of the socket address structure.
+ *
+ * @see sockets_server_new
+ */
+socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr, uint16_t port) {
+	socklen_t addr_size;
+
+	/* Setup the structure. */
+	addr_size = sizeof(struct sockaddr_in);
+	memset(addr, 0, addr_size);
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
+	addr->sin_addr.s_addr = in_addr;
+
+	return addr_size;
+}
+
+/**
+ * Sets up a socket address structure using a string IP representation.
+ *
  * @param addr   Pointer to a socket address structure to be populated.
- * @param ipaddr IP address to bind/connect to.
+ * @param ipaddr IP address to bind/connect to as a string.
  * @param port   Port to bind/connect to.
  *
  * @return Size of the socket address structure.
@@ -514,36 +577,10 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
  * @see tcp_client_new
  */
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port) {
-	socklen_t addr_size;
+	if (ipaddr == NULL)
+		return socket_setup_inaddr(addr, INADDR_ANY, port);
 
-	/* Setup the structure. */
-	addr_size = sizeof(struct sockaddr_in);
-	memset(addr, 0, addr_size);
-	addr->sin_family = AF_INET;
-	addr->sin_port = htons(port);
-	addr->sin_addr.s_addr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
-
-	return addr_size;
-}
-
-/**
- * Sets up a UDP broadcast listener socket address structure.
- *
- * @param addr Pointer to a socket address structure to be populated.
- * @param port Port to bind/connect to.
- *
- * @return Size of the socket address structure.
- *
- * @see sockets_server_new
- */
-socklen_t socket_setup_bcaddr(struct sockaddr_in *addr, uint16_t port) {
-	socklen_t addr_size;
-
-	/* Setup the structure. */
-	addr_size = socket_setup(addr, NULL, port);
-	addr->sin_addr.s_addr = INADDR_BROADCAST;
-
-	return addr_size;
+	return socket_setup_inaddr(addr, inet_addr(ipaddr), port);
 }
 
 /**
@@ -658,13 +695,14 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 /**
  * Receive some data from a UDP socket file descriptor.
  *
- * @param sockfd   UDP Socket file descriptor.
- * @param buf      Buffer to store the received data.
- * @param buf_len  Length of the buffer to store the data.
- * @param sock_addr IPv4 or IPv6 address structure.
- * @param recv_len Pointer to store the number of bytes actually received. Will
- *                 be ignored if NULL is passed.
- * @param peek     Should we just peek at the data to be received?
+ * @param sockfd    UDP Socket file descriptor.
+ * @param buf       Buffer to store the received data.
+ * @param buf_len   Length of the buffer to store the data.
+ * @param sock_addr Pointer to an IPv4 or IPv6 address structure to store the
+ *                  client's address information.
+ * @param recv_len  Pointer to store the number of bytes actually received. Will
+ *                  be ignored if NULL is passed.
+ * @param peek      Should we just peek at the data to be received?
  *
  * @return SOCK_OK if we received some data.
  *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
