@@ -7,6 +7,8 @@
 
 #include "sockets.h"
 
+#include <asm-generic/socket.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,7 +44,7 @@ server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_p
 
 	/* Setup the socket address structure for binding. */
 	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, tcp_port);
-	server->udp.addr_in_size = socket_setup(&server->udp.addr_in, addr, udp_port);
+	server->udp.addr_in_size = socket_setup_bcaddr(&server->udp.addr_in, udp_port);
 
 	return server;
 }
@@ -145,7 +147,9 @@ void tcp_client_free(tcp_client_t *client) {
  * @see sockets_server_stop
  */
 tcp_err_t sockets_server_start(server_t *server) {
+	unsigned char loop;
 	int reuse;
+	int perm;
 
 	/* Create a new TCP socket file descriptor. */
 	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
@@ -181,6 +185,20 @@ tcp_err_t sockets_server_start(server_t *server) {
 		perror("sockets_server_start@setsockopt(SO_REUSEPORT)[udp]");
 	}
 #endif
+
+	/* Ensure we can do UDP broadcasts. */
+	perm = 1;
+	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
+				   sizeof(int)) == -1) {
+		perror("sockets_server_start@setsockopt(SO_BROADCAST)");
+	}
+
+	/* Ensure that we don't receive broadcasts from ourselves. */
+	loop = 0;
+	if (setsockopt(server->udp.sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
+				   sizeof(unsigned char)) == -1) {
+		perror("sockets_server_start@setsockopt(IP_MULTICAST_LOOP)");
+	}
 
 	/* Bind ourselves to the TCP address. */
 	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
@@ -509,9 +527,29 @@ socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t po
 }
 
 /**
- * Sends some data to a socket file descriptor.
+ * Sets up a UDP broadcast listener socket address structure.
  *
- * @param sockfd   Socket file descriptor.
+ * @param addr Pointer to a socket address structure to be populated.
+ * @param port Port to bind/connect to.
+ *
+ * @return Size of the socket address structure.
+ *
+ * @see sockets_server_new
+ */
+socklen_t socket_setup_bcaddr(struct sockaddr_in *addr, uint16_t port) {
+	socklen_t addr_size;
+
+	/* Setup the structure. */
+	addr_size = socket_setup(addr, NULL, port);
+	addr->sin_addr.s_addr = INADDR_BROADCAST;
+
+	return addr_size;
+}
+
+/**
+ * Sends some data to a TCP socket file descriptor.
+ *
+ * @param sockfd   TCP Socket file descriptor.
  * @param buf      Data to be sent.
  * @param len      Length of the data to be sent.
  * @param sent_len Pointer to store the number of bytes actually sent. Ignored
@@ -540,9 +578,42 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
 }
 
 /**
- * Receive some data from a socket file descriptor.
+ * Sends some data to a UDP socket file descriptor.
  *
- * @param sockfd   Socket file descriptor.
+ * @param sockfd    UDP Socket file descriptor.
+ * @param buf       Data to be sent.
+ * @param len       Length of the data to be sent.
+ * @param sock_addr IPv4 or IPv6 address structure.
+ * @param sent_len  Pointer to store the number of bytes actually sent. Ignored
+ *                  if NULL is passed.
+ *
+ * @return SOCK_OK if the operation was successful.
+ *         SOCK_ERR_ESEND if the send function failed.
+ *
+ * @see send
+ */
+tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr_storage *sock_addr, size_t *sent_len) {
+	ssize_t bytes_sent;
+
+	/* Try to send some information through a socket. */
+	bytes_sent = sendto(sockfd, buf, len, 0, (const struct sockaddr *)sock_addr,
+						sizeof(*sock_addr));
+	if (bytes_sent == -1) {
+		perror("udp_socket_send@sendto");
+		return SOCK_ERR_ESEND;
+	}
+
+	/* Return the number of bytes sent. */
+	if (sent_len != NULL)
+		*sent_len = bytes_sent;
+
+	return SOCK_OK;
+}
+
+/**
+ * Receive some data from a TCP socket file descriptor.
+ *
+ * @param sockfd   TCP Socket file descriptor.
  * @param buf      Buffer to store the received data.
  * @param buf_len  Length of the buffer to store the data.
  * @param recv_len Pointer to store the number of bytes actually received. Will
@@ -550,7 +621,7 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  * @param peek     Should we just peek at the data to be received?
  *
  * @return SOCK_OK if we received some data.
- *         TCP_EVT_CONN_CLOSED if the connection was closed by the client.
+ *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
  *         SOCK_ERR_ERECV if the recv function failed.
  *
  * @see recv
@@ -560,7 +631,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 
 	/* Check if we have a valid file descriptor. */
 	if (sockfd == -1)
-		return TCP_EVT_CONN_CLOSED;
+		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
 	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
@@ -579,7 +650,48 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 
 	/* Check if the connection was closed gracefully by the client. */
 	if (bytes_recv == 0)
-		return TCP_EVT_CONN_CLOSED;
+		return SOCK_EVT_CONN_CLOSED;
+
+	return SOCK_OK;
+}
+
+/**
+ * Receive some data from a UDP socket file descriptor.
+ *
+ * @param sockfd   UDP Socket file descriptor.
+ * @param buf      Buffer to store the received data.
+ * @param buf_len  Length of the buffer to store the data.
+ * @param sock_addr IPv4 or IPv6 address structure.
+ * @param recv_len Pointer to store the number of bytes actually received. Will
+ *                 be ignored if NULL is passed.
+ * @param peek     Should we just peek at the data to be received?
+ *
+ * @return SOCK_OK if we received some data.
+ *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
+ *         SOCK_ERR_ERECV if the recv function failed.
+ *
+ * @see recv
+ */
+tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr_storage *sock_addr, size_t *recv_len, bool peek) {
+	ssize_t bytes_recv;
+	socklen_t fromlen;
+
+	/* Check if we have a valid file descriptor. */
+	if (sockfd == -1)
+		return SOCK_EVT_CONN_CLOSED;
+
+	/* Try to read some information from a socket. */
+	fromlen = sizeof(*sock_addr);
+	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
+		(struct sockaddr *)sock_addr, &fromlen);
+	if (bytes_recv == -1) {
+		perror("udp_socket_recv@recvfrom");
+		return SOCK_ERR_ERECV;
+	}
+
+	/* Return the number of bytes sent. */
+	if (recv_len != NULL)
+		*recv_len = bytes_recv;
 
 	return SOCK_OK;
 }

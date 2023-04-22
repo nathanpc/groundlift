@@ -21,7 +21,7 @@ extern "C" {
 /* TCP error codes. */
 typedef enum {
 	TCP_EVT_CONN_SHUTDOWN = -2,
-	TCP_EVT_CONN_CLOSED,
+	SOCK_EVT_CONN_CLOSED,
 	SOCK_OK,
 	SOCK_ERR_ESOCKET,
 	SOCK_ERR_EBIND,
@@ -94,8 +94,11 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client);
 
 /* Direct socket interactions. */
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
+socklen_t socket_setup_bcaddr(struct sockaddr_in *addr, uint16_t port);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
+tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr_storage *sock_addr, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
+tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr_storage *sock_addr, size_t *recv_len, bool peek);
 tcp_err_t socket_close(int sockfd);
 tcp_err_t tcp_socket_shutdown(int sockfd);
 bool socket_itos(char **buf, const struct sockaddr *sock_addr);

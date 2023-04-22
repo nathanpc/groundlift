@@ -887,7 +887,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
 				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return NULL;
-	} else if ((tcp_err == TCP_EVT_CONN_CLOSED) ||
+	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
 			   (tcp_err == TCP_EVT_CONN_SHUTDOWN)) {
 		return NULL;
 	}
