@@ -25,6 +25,7 @@
 		"tcpserver",
 		"TCPSERVERCLIENT",
 		"tjoin",
+		"UDPSERVER",
 		"wfname",
 		"wname",
 		"WSAENOTCONN"

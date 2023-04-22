@@ -37,14 +37,15 @@ void *server_thread_func(void *args);
 /**
  * Initializes everything related to the server to a known clean state.
  *
- * @param addr Address to listen on.
- * @param port Port to listen on.
+ * @param addr     Address to listen on.
+ * @param tcp_port TCP port to listen on for file transfers.
+ * @param udp_port UDP port to listen on for discovery.
  *
  * @return TRUE if the operation was successful.
  *
  * @see gl_server_start
  */
-bool gl_server_init(const char *addr, uint16_t port) {
+bool gl_server_init(const char *addr, uint16_t tcp_port, uint16_t udp_port) {
 	/* Ensure we have everything in a known clean state. */
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
@@ -63,7 +64,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	pthread_mutex_init(m_conn_mutex, NULL);
 
 	/* Get a server handle. */
-	m_server = sockets_server_new(addr, port);
+	m_server = sockets_server_new(addr, tcp_port, udp_port);
 	if (m_server == NULL)
 		return false;
 

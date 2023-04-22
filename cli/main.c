@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
 		/* Initialize the server. */
-		if (!gl_server_init(NULL, TCPSERVER_PORT)) {
+		if (!gl_server_init(NULL, TCPSERVER_PORT, UDPSERVER_PORT)) {
 			fprintf(stderr, "Failed to initialize the server.\n");
 
 			ret = 1;
@@ -187,9 +187,10 @@ void server_event_started(const server_t *server) {
 	char *ipstr;
 
 	/* Print some information about the current state of the server. */
-	ipstr = sockets_server_get_ipstr(server);
-	printf("Server listening on %s port %u\n", ipstr,
-		   ntohs(server->addr_in.sin_port));
+	ipstr = tcp_server_get_ipstr(server);
+	printf("Server listening on %s port %u (discovery %u)\n", ipstr,
+		   ntohs(server->tcp.addr_in.sin_port),
+		   ntohs(server->udp.addr_in.sin_port));
 
 	free(ipstr);
 }

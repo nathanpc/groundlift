@@ -19,15 +19,16 @@
  * Creates a brand new server handle object.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param addr Address to bind ourselves to or NULL to use INADDR_ANY.
- * @param port Port to listen on.
+ * @param addr     Address to bind ourselves to or NULL to use INADDR_ANY.
+ * @param tcp_port TCP port to listen on for file transfers.
+ * @param udp_port UDP port to listen on for discovery.
  *
  * @return Newly allocated server handle object or NULL if we couldn't allocate
  *         the object.
  *
  * @see sockets_server_free
  */
-server_t *sockets_server_new(const char *addr, uint16_t port) {
+server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_port) {
 	server_t *server;
 
 	/* Allocate some memory for our handle object. */
@@ -35,11 +36,13 @@ server_t *sockets_server_new(const char *addr, uint16_t port) {
 	if (server == NULL)
 		return NULL;
 
-	/* Ensure we have a known invalid state for our socket file descriptor. */
-	server->sockfd = -1;
+	/* Ensure we have a known invalid state for our socket file descriptors. */
+	server->tcp.sockfd = -1;
+	server->udp.sockfd = -1;
 
 	/* Setup the socket address structure for binding. */
-	server->addr_in_size = tcp_socket_setup(&server->addr_in, addr, port);
+	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, tcp_port);
+	server->udp.addr_in_size = socket_setup(&server->udp.addr_in, addr, udp_port);
 
 	return server;
 }
@@ -69,7 +72,7 @@ tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
 	client->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Setup the socket address structure for connecting. */
-	client->addr_in_size = tcp_socket_setup(&client->addr_in, addr, port);
+	client->addr_in_size = socket_setup(&client->addr_in, addr, port);
 
 	return client;
 }
@@ -144,36 +147,58 @@ void tcp_client_free(tcp_client_t *client) {
 tcp_err_t sockets_server_start(server_t *server) {
 	int reuse;
 
-	/* Create a new socket file descriptor. */
-	server->sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (server->sockfd == -1) {
-		perror("tcp_server_start@socket");
+	/* Create a new TCP socket file descriptor. */
+	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	if (server->tcp.sockfd == -1) {
+		perror("sockets_server_start@socket(tcp)");
+		return SOCK_ERR_ESOCKET;
+	}
+
+	/* Create a new UDP socket file descriptor. */
+	server->udp.sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+	if (server->udp.sockfd == -1) {
+		perror("sockets_server_start@socket(udp)");
 		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
-	if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(int)) == -1) {
-		perror("tcp_server_start@setsockopt(SO_REUSEADDR)");
+		perror("sockets_server_start@setsockopt(SO_REUSEADDR)[tcp]");
+	}
+	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+				   sizeof(int)) == -1) {
+		perror("sockets_server_start@setsockopt(SO_REUSEADDR)[udp]");
 	}
 #ifdef SO_REUSEPORT
-	if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(int)) == -1) {
-		perror("tcp_server_start@setsockopt(SO_REUSEPORT)");
+		perror("sockets_server_start@setsockopt(SO_REUSEPORT)[tcp]");
+	}
+	if (setsockopt(server->udp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+				   sizeof(int)) == -1) {
+		perror("sockets_server_start@setsockopt(SO_REUSEPORT)[udp]");
 	}
 #endif
 
-	/* Bind ourselves to the address. */
-	if (bind(server->sockfd, (struct sockaddr *)&server->addr_in,
-			 server->addr_in_size) == -1) {
-		perror("tcp_server_start@bind");
+	/* Bind ourselves to the TCP address. */
+	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
+			 server->tcp.addr_in_size) == -1) {
+		perror("sockets_server_start@bind(tcp)");
+		return SOCK_ERR_EBIND;
+	}
+
+	/* Bind ourselves to the UDP address. */
+	if (bind(server->udp.sockfd, (struct sockaddr *)&server->udp.addr_in,
+			 server->udp.addr_in_size) == -1) {
+		perror("sockets_server_start@bind(udp)");
 		return SOCK_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
-	if (listen(server->sockfd, TCPSERVER_BACKLOG) == -1) {
-		perror("tcp_server_start@listen");
+	if (listen(server->tcp.sockfd, TCPSERVER_BACKLOG) == -1) {
+		perror("sockets_server_start@listen");
 		return TCP_ERR_ELISTEN;
 	}
 
@@ -199,8 +224,12 @@ tcp_err_t sockets_server_stop(server_t *server) {
 		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = socket_close(server->sockfd);
-	server->sockfd = -1;
+	err = socket_close(server->udp.sockfd);
+	server->udp.sockfd = -1;
+	if (err > SOCK_OK)
+		fprintf(stderr, "sockets_server_stop: Failed to close UDP socket.\n");
+	err = socket_close(server->tcp.sockfd);
+	server->tcp.sockfd = -1;
 
 	return err;
 }
@@ -226,8 +255,12 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
 		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
-	err = tcp_socket_shutdown(server->sockfd);
-	server->sockfd = -1;
+	err = socket_close(server->udp.sockfd);
+	server->udp.sockfd = -1;
+	if (err > SOCK_OK)
+		fprintf(stderr, "sockets_server_shutdown: UDP socket close failed.\n");
+	err = tcp_socket_shutdown(server->tcp.sockfd);
+	server->tcp.sockfd = -1;
 
 	return err;
 }
@@ -247,7 +280,7 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
 
 	/* Check if we even have a socket to accept things from. */
-	if (server->sockfd == -1)
+	if (server->tcp.sockfd == -1)
 		return NULL;
 
 	/* Allocate some memory for our handle object. */
@@ -257,14 +290,14 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 
 	/* Accept the new connection. */
 	conn->addr_size = sizeof(struct sockaddr_storage);
-	conn->sockfd = accept(server->sockfd, (struct sockaddr *)&conn->addr,
+	conn->sockfd = accept(server->tcp.sockfd, (struct sockaddr *)&conn->addr,
 						  &conn->addr_size);
 	conn->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Handle errors. */
 	if (conn->sockfd == -1) {
 		/* Make sure we can handle a shutdown cleanly. */
-		if (server->sockfd == -1) {
+		if (server->tcp.sockfd == -1) {
 			free(conn);
 			return NULL;
 		}
@@ -459,10 +492,10 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
  *
  * @return Size of the socket address structure.
  *
- * @see tcp_server_new
+ * @see sockets_server_new
  * @see tcp_client_new
  */
-socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port) {
+socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port) {
 	socklen_t addr_size;
 
 	/* Setup the structure. */
@@ -672,8 +705,9 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 }
 
 /**
- * Gets the IP address that the server is currently bound to in a string
+ * Gets the IP address that the TCP server is currently bound to in a string
  * representation.
+ *
  * @warning This function will allocate memory that must be free'd by you.
  *
  * @param server Server handle object.
@@ -682,11 +716,33 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
  *
  * @see socket_itos
  */
-char *sockets_server_get_ipstr(const server_t *server) {
+char *tcp_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&server->addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&server->tcp.addr_in))
+		return NULL;
+
+	return buf;
+}
+
+/**
+ * Gets the IP address that the UDP server is currently bound to in a string
+ * representation.
+ *
+ * @warning This function will allocate memory that must be free'd by you.
+ *
+ * @param server Server handle object.
+ *
+ * @return Server's IP address as a string or NULL if an error occurred.
+ *
+ * @see socket_itos
+ */
+char *udp_server_get_ipstr(const server_t *server) {
+	char *buf;
+
+	/* Perform the conversion. */
+	if (!socket_itos(&buf, (const struct sockaddr *)&server->udp.addr_in))
 		return NULL;
 
 	return buf;

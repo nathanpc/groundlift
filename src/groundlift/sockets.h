@@ -36,9 +36,17 @@ typedef enum {
 
 /* Server handle. */
 typedef struct {
-	int sockfd;
-	struct sockaddr_in addr_in;
-	socklen_t addr_in_size;
+	struct {
+		int sockfd;
+		struct sockaddr_in addr_in;
+		socklen_t addr_in_size;
+	} tcp;
+
+	struct {
+		int sockfd;
+		struct sockaddr_in addr_in;
+		socklen_t addr_in_size;
+	} udp;
 
 	char *download_dir;
 } server_t;
@@ -62,7 +70,7 @@ typedef struct {
 } tcp_client_t;
 
 /* Initialization and destruction. */
-server_t *sockets_server_new(const char *addr, uint16_t port);
+server_t *sockets_server_new(const char *addr, uint16_t tcp_port, uint16_t udp_port);
 tcp_client_t *tcp_client_new(const char *addr, uint16_t port);
 void sockets_server_free(server_t *server);
 void tcp_server_conn_free(server_conn_t *conn);
@@ -85,7 +93,7 @@ tcp_err_t tcp_client_close(tcp_client_t *client);
 tcp_err_t tcp_client_shutdown(tcp_client_t *client);
 
 /* Direct socket interactions. */
-socklen_t tcp_socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
+socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port);
 tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len);
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek);
 tcp_err_t socket_close(int sockfd);
@@ -93,7 +101,8 @@ tcp_err_t tcp_socket_shutdown(int sockfd);
 bool socket_itos(char **buf, const struct sockaddr *sock_addr);
 
 /* Misc. utilities. */
-char *sockets_server_get_ipstr(const server_t *server);
+char *tcp_server_get_ipstr(const server_t *server);
+char *udp_server_get_ipstr(const server_t *server);
 char *tcp_server_conn_get_ipstr(const server_conn_t *conn);
 char *tcp_client_get_ipstr(const tcp_client_t *client);
 

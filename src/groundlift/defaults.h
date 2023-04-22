@@ -18,6 +18,11 @@ extern "C" {
 #define TCPSERVER_PORT 1650
 #endif /* TCPSERVER_PORT */
 
+/* Discovery port to listen on. */
+#ifndef UDPSERVER_PORT
+#define UDPSERVER_PORT 1651
+#endif /* UDPSERVER_PORT */
+
 /* Number of connections in the TCP server queue. */
 #ifndef TCPSERVER_BACKLOG
 #define TCPSERVER_BACKLOG 10
