@@ -155,20 +155,33 @@ gl_err_t *gl_client_send_packet(obex_packet_t *packet) {
 /**
  * Handles a connection request.
  *
+ * @param fname    Path to the file to be sent.
  * @param accepted Pointer to a boolean that will store a flag of whether the
  *                 connection request was accepted.
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_client_send_conn_req(bool *accepted) {
+gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *packet;
+	char *bname;
+	int64_t fsize;
 
 	/* Initialize variables. */
 	err = NULL;
 
+	/* Get the size of the full file for transferring. */
+	fsize = file_size(fname);
+	if (fsize < 0L) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE, EMSG("Failed to get the "
+			"length of the file for upload"));
+	}
+
 	/* Create the OBEX packet. */
-	packet = obex_packet_new_connect();
+	bname = path_basename(fname);
+	packet = obex_packet_new_connect(bname, (uint32_t *)&fsize);
+	if (bname)
+		free(bname);
 
 	/* Send the packet. */
 	err = gl_client_send_packet(packet);
@@ -440,7 +453,7 @@ void *client_thread_func(void *fname) {
 		evt_conn_cb_func(m_client);
 
 	/* Send the OBEX connection request and trigger an event upon reply. */
-	gl_err = gl_client_send_conn_req(&running);
+	gl_err = gl_client_send_conn_req((const char *)fname, &running);
 	if (evt_conn_req_resp_cb_func != NULL)
 		evt_conn_req_resp_cb_func(fname, running);
 	if (!running || (gl_err != NULL))

@@ -206,7 +206,7 @@ gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
 obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
 
 /* Common packet constructors. */
-obex_packet_t *obex_packet_new_connect(void);
+obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize);
 obex_packet_t *obex_packet_new_disconnect(void);
 obex_packet_t *obex_packet_new_success(bool final, bool conn);
 obex_packet_t *obex_packet_new_continue(bool final);

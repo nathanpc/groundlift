@@ -19,6 +19,7 @@
 #include "bitutils.h"
 
 /* Private methods. */
+bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len);
 void *memcpy_n(void *dest, const void *src, size_t len);
 
 /**
@@ -931,9 +932,12 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
  * Creates a brand new CONNECT packet.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @return Brand new CONNECT packet or NULL if we were unable to create it.
+ * @param fname Name of the file to be transferred.
+ * @param fsize Size of the file to be transferred in bytes.
+ *
+ * @return New populated CONNECT packet or NULL if we were unable to create it.
  */
-obex_packet_t *obex_packet_new_connect(void) {
+obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize) {
 	obex_packet_t *packet;
 
 	/* Create the packet and populate it with default parameters and headers. */
@@ -941,6 +945,12 @@ obex_packet_t *obex_packet_new_connect(void) {
 	obex_packet_param_add(packet, OBEX_PROTO_VERSION, 1);
 	obex_packet_param_add(packet, 0x00, 1);
 	obex_packet_param_add(packet, OBEX_MAX_PACKET_SIZE, 2);
+
+	/* Add file name and size headers to the packet. */
+	if (!obex_populate_name_length_headers(packet, fname, fsize)) {
+		obex_packet_free(packet);
+		return NULL;
+	}
 
 	return packet;
 }
@@ -1035,76 +1045,16 @@ obex_packet_t *obex_packet_new_unauthorized(bool final) {
  */
 obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final) {
 	obex_packet_t *packet;
-	obex_header_t *header;
 
 	/* Create the packet and populate it with default parameters. */
 	packet = obex_packet_new(OBEX_OPCODE_PUT, final);
 	if (packet == NULL)
 		return NULL;
 
-	/* Add the file name if required. */
-	if (fname != NULL) {
-		wchar_t *wfname;
-
-		/* Convert the file name to UTF-16. */
-		wfname = utf16_mbstowcs(fname);
-		if (wfname == NULL) {
-			fprintf(stderr, "obex_packet_new_put: Failed to convert file name "
-				"'%s' to UTF-16.\n", fname);
-			obex_packet_free(packet);
-
-			return NULL;
-		}
-
-		/* Create a new packet. */
-		header = obex_header_new(OBEX_HEADER_NAME);
-		if (header == NULL) {
-			fprintf(stderr, "obex_packet_new_put: Failed to create the file "
-				"name packet header.\n");
-			free(wfname);
-			obex_packet_free(packet);
-
-			return NULL;
-		}
-
-		/* Set the file name value. */
-		obex_header_wstring_set(header, wfname);
-
-		/* Add the header to the packet. */
-		if (!obex_packet_header_add(packet, header)) {
-			fprintf(stderr, "obex_packet_new_put: Failed to append file name "
-				"header to the packet.\n");
-			obex_header_free(header);
-			obex_packet_free(packet);
-
-			return NULL;
-		}
-	}
-
-	/* Add the file size if required. */
-	if (fsize != NULL) {
-		/* Create a new packet. */
-		header = obex_header_new(OBEX_HEADER_LENGTH);
-		if (header == NULL) {
-			fprintf(stderr, "obex_packet_new_put: Failed to create the file "
-				"size packet header.\n");
-			obex_packet_free(packet);
-
-			return NULL;
-		}
-
-		/* Set the file size value. */
-		header->value.word32 = *fsize;
-
-		/* Add the header to the packet. */
-		if (!obex_packet_header_add(packet, header)) {
-			fprintf(stderr, "obex_packet_new_put: Failed to append file size "
-				"header to the packet.\n");
-			obex_header_free(header);
-			obex_packet_free(packet);
-
-			return NULL;
-		}
+	/* Add file name and size headers to the packet. */
+	if (!obex_populate_name_length_headers(packet, fname, fsize)) {
+		obex_packet_free(packet);
+		return NULL;
 	}
 
 	return packet;
@@ -1112,7 +1062,7 @@ obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, boo
 
 /**
  * Prints the contents of a packet in a human-readable, debug-friendly, way.
- * This function will also recalculate and update the packet network size.
+ * @warning This function will also recalculate and update the packet network size.
  *
  * @param packet OBEX packet to have its contents inspected and its size
  *               updated.
@@ -1292,6 +1242,83 @@ void obex_print_header_value(const obex_header_t *header) {
 				   header->identifier.fields.encoding);
 			break;
 	}
+}
+
+/**
+ * Populates the Name and Length headers of a packet.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param packet OBEX packet object to be populated.
+ * @param name   Value of the Name header or NULL if it's not supposed to be
+ *               populated.
+ * @param len    Value of the Length header or NULL if it's not supposed to be
+ *               populated.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len) {
+	obex_header_t *header;
+
+	/* Add the name if required. */
+	if (name != NULL) {
+		wchar_t *wname;
+
+		/* Convert the name to UTF-16. */
+		wname = utf16_mbstowcs(name);
+		if (wname == NULL) {
+			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
+					"convert name '%s' to UTF-16.\n", name);
+
+			return false;
+		}
+
+		/* Create a new packet. */
+		header = obex_header_new(OBEX_HEADER_NAME);
+		if (header == NULL) {
+			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
+					"create the name packet header.\n");
+			free(wname);
+
+			return false;
+		}
+
+		/* Set the file name value. */
+		obex_header_wstring_set(header, wname);
+
+		/* Add the header to the packet. */
+		if (!obex_packet_header_add(packet, header)) {
+			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
+					"append name header to the packet.\n");
+			obex_header_free(header);
+
+			return false;
+		}
+	}
+
+	/* Add the length if required. */
+	if (len != NULL) {
+		/* Create a new packet. */
+		header = obex_header_new(OBEX_HEADER_LENGTH);
+		if (header == NULL) {
+			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
+					"create the length packet header.\n");
+			return false;
+		}
+
+		/* Set the length value. */
+		header->value.word32 = *len;
+
+		/* Add the header to the packet. */
+		if (!obex_packet_header_add(packet, header)) {
+			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
+					"append length header to the packet.\n");
+			obex_header_free(header);
+
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /**

@@ -25,6 +25,7 @@
 		"TCPSERVERCLIENT",
 		"tjoin",
 		"wfname",
+		"wname",
 		"WSAENOTCONN"
 	]
 }
