@@ -184,7 +184,7 @@ tcp_err_t sockets_server_start(server_t *server) {
 	}
 
 	/* Initialize discovery service. */
-	return udp_discovery_init(&server->udp, true, INADDR_BROADCAST,
+	return udp_discovery_init(&server->udp, true, INADDR_ANY,
 		ntohs(server->tcp.addr_in.sin_port) + 1);
 }
 
@@ -238,11 +238,11 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
 		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
-	err = socket_close(server->udp.sockfd);
+	err = socket_shutdown(server->udp.sockfd);
 	server->udp.sockfd = -1;
 	if (err > SOCK_OK)
 		fprintf(stderr, "sockets_server_shutdown: UDP socket close failed.\n");
-	err = tcp_socket_shutdown(server->tcp.sockfd);
+	err = socket_shutdown(server->tcp.sockfd);
 	server->tcp.sockfd = -1;
 
 	return err;
@@ -302,14 +302,15 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 
-
 	/* Ensure that we don't receive broadcasts from ourselves. */
 	loop = 0;
+#ifdef IP_MULTICAST_LOOP
 	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
 				   sizeof(unsigned char)) == -1) {
 		perror("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)");
 		return SOCK_ERR_ESETSOCKOPT;
 	}
+#endif
 
 	/* Bind ourselves to the UDP address. */
 	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,
@@ -482,7 +483,7 @@ tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
 		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = tcp_socket_shutdown(conn->sockfd);
+	err = socket_shutdown(conn->sockfd);
 	conn->sockfd = -1;
 
 	return err;
@@ -533,7 +534,7 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
-	err = tcp_socket_shutdown(client->sockfd);
+	err = socket_shutdown(client->sockfd);
 	client->sockfd = -1;
 
 	return err;
@@ -675,7 +676,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
 	if (bytes_recv == -1) {
 		/* Check if it's just the connection being abruptly shut down. */
 		if (errno == EBADF)
-			return TCP_EVT_CONN_SHUTDOWN;
+			return SOCK_EVT_CONN_SHUTDOWN;
 
 		perror("tcp_socket_recv@recv");
 		return SOCK_ERR_ERECV;
@@ -731,6 +732,10 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr
 	if (recv_len != NULL)
 		*recv_len = bytes_recv;
 
+	/* Check if it's just the connection being abruptly shut down. */
+	if (bytes_recv == 0)
+		return SOCK_EVT_CONN_CLOSED;
+
 	return SOCK_OK;
 }
 
@@ -771,10 +776,10 @@ tcp_err_t socket_close(int sockfd) {
  * @param sockfd Socket file descriptor to be closed.
  *
  * @return SOCK_OK if the socket was properly closed.
- *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
+ *         SOCK_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-tcp_err_t tcp_socket_shutdown(int sockfd) {
+tcp_err_t socket_shutdown(int sockfd) {
 	int ret;
 
 	/* Check if we are even needed. */
@@ -785,25 +790,25 @@ tcp_err_t tcp_socket_shutdown(int sockfd) {
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
 	if ((ret == -1) && (errno != WSAENOTCONN)) {
-		perror("tcp_socket_shutdown@shutdown");
+		perror("socket_shutdown@shutdown");
 		return TCP_ERR_ESHUTDOWN;
 	}
 
 	ret = closesocket(sockfd);
 	if (ret == -1) {
-		perror("tcp_socket_shutdown@closesocket");
+		perror("socket_shutdown@closesocket");
 		return TCP_ERR_ECLOSE;
 	}
 #else
 	ret = shutdown(sockfd, SHUT_RDWR);
 	if ((ret == -1) && (errno != ENOTCONN) && (errno != EINVAL)) {
-		perror("tcp_socket_shutdown@shutdown");
-		return TCP_ERR_ESHUTDOWN;
+		perror("socket_shutdown@shutdown");
+		return SOCK_ERR_ESHUTDOWN;
 	}
 
 	ret = close(sockfd);
 	if (ret == -1) {
-		perror("tcp_socket_shutdown@close");
+		perror("socket_shutdown@close");
 		return SOCK_ERR_ECLOSE;
 	}
 #endif /* _WIN32 */

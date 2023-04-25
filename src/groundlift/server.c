@@ -53,7 +53,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
-	m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	m_discovery_thread = NULL;
 	evt_server_start_cb_func = NULL;
 	evt_server_conn_accept_cb_func = NULL;
 	evt_server_conn_close_cb_func = NULL;
@@ -88,7 +88,7 @@ bool gl_server_init(const char *addr, uint16_t port) {
  * @see gl_server_stop
  */
 void gl_server_free(void) {
-	/* Stop the server and free up any allocated resources. */
+	/* Stop the servers and free up any allocated resources. */
 	gl_server_stop();
 	sockets_server_free(m_server);
 	m_server = NULL;
@@ -145,6 +145,10 @@ bool gl_server_start(void) {
  */
 bool gl_server_discovery_start(void) {
 	int ret;
+
+	/* Allocate our thread object. */
+	if (m_discovery_thread == NULL)
+		m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
 
 	/* Create the server thread. */
 	ret = pthread_create(m_discovery_thread, NULL, server_discovery_thread_func,
@@ -507,12 +511,6 @@ void *server_thread_func(void *args) {
 				EMSG("tcp_server_start returned a weird error code"));
 	}
 
-	/* Start another thread for the discovery service. */
-	if (!gl_server_discovery_start()) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_DISCV_START,
-			EMSG("Failed to start the server's discovery service"));
-	}
-
 	/* Trigger the server started event. */
 	if (evt_server_start_cb_func != NULL)
 		evt_server_start_cb_func(m_server);
@@ -618,13 +616,17 @@ void *server_thread_func(void *args) {
  */
 void *server_discovery_thread_func(void *args) {
 	char buf[100];
-	size_t len;
+	tcp_err_t tcp_err;
+	gl_err_t *gl_err;
 	struct sockaddr_storage addr;
+	size_t len;
 
-	/* Unused parameter. */
+	/* Ignore the argument passed and initialize things. */
 	(void)args;
+	gl_err = NULL;
 
-	while (udp_socket_recv(m_server->udp.sockfd, buf, 99, &addr, &len, false)) {
+	/* Listen for discovery packets. */
+	while ((tcp_err = udp_socket_recv(m_server->udp.sockfd, buf, 99, &addr, &len, false)) == SOCK_OK) {
 		char *ip;
 		const struct sockaddr_in *addr_in;
 
@@ -634,12 +636,18 @@ void *server_discovery_thread_func(void *args) {
 		buf[len] = '\0';
 		printf("Received broadcast from %s: %s\n", ip, buf);
 
+		/* TODO: Send reply. */
+
 		free(ip);
 	}
 
-	/* TODO: Send reply. */
+	/* Check if a proper error occurred. */
+	if (tcp_err > SOCK_OK) {
+		gl_err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Discovery server UDP listener failed"));
+	}
 
-	return NULL;
+	return (void *)gl_err;
 }
 
 /**

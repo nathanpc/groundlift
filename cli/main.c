@@ -80,9 +80,25 @@ int main(int argc, char **argv) {
 			server_conn_event_download_success);
 		gl_server_conn_evt_close_set(server_conn_event_closed);
 
-		/* Start it up. */
+		/* Start the main server up. */
 		if (!gl_server_start()) {
 			fprintf(stderr, "Failed to start the server.\n");
+
+			ret = 1;
+			goto cleanup;
+		}
+
+		/* Start the discovery server. */
+		if (!gl_server_discovery_start()) {
+			fprintf(stderr, "Failed to start the discovery server.\n");
+
+			ret = 1;
+			goto cleanup;
+		}
+
+		/* Wait for it to return. */
+		if (!gl_server_discovery_thread_join()) {
+			fprintf(stderr, "Discovery server thread returned with errors.\n");
 
 			ret = 1;
 			goto cleanup;

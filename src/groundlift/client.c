@@ -494,6 +494,13 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 			EMSG("Failed to initialize the client's discovery receiver"));
 	}
 
+	/* TODO: Move everything below this line into a thread. */
+
+	/*
+	 * TODO: Use INADDR_BROADCAST as fallback, but in modern platforms go
+	 *       through network interfaces and broadcast using the subnet mask.
+	 */
+
 	/* Initialize the discovery packet broadcaster. */
 	err = udp_discovery_init(&send_sock, false, INADDR_BROADCAST, port);
 	if (err) {
