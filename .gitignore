@@ -1,3 +1,6 @@
+# Private testing directory.
+/private/
+
 # Object and executable files.
 build/
 *.obj
