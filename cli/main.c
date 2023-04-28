@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 		}
 
 		/* Start the discovery server. */
-		if (!gl_server_discovery_start()) {
+		if (!gl_server_discovery_start(UDPSERVER_PORT)) {
 			fprintf(stderr, "Failed to start the discovery server.\n");
 
 			ret = 1;

@@ -101,7 +101,7 @@ bool gl_server_stop(void);
 bool gl_server_thread_join(void);
 
 /* Discovery server lifecycle. */
-bool gl_server_discovery_start(void);
+bool gl_server_discovery_start(uint16_t port);
 bool gl_server_discovery_thread_join(void);
 
 /* Server interactions. */

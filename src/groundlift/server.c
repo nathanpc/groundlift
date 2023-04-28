@@ -138,17 +138,28 @@ bool gl_server_start(void) {
 /**
  * Starts the server's discovery service up.
  *
+ * @param port TCP port to listen on for file transfers.
+ *
  * @return TRUE if the operation was successful.
  *
  * @see gl_server_discovery_thread_join
  * @see gl_server_stop
  */
-bool gl_server_discovery_start(void) {
+bool gl_server_discovery_start(uint16_t port) {
+	tcp_err_t err;
 	int ret;
 
 	/* Allocate our thread object. */
 	if (m_discovery_thread == NULL)
 		m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
+
+	/* Initialize discovery service. */
+	err = udp_discovery_init(&m_server->udp, true, INADDR_ANY, port);
+	if (err) {
+		fprintf(stderr, "Failed to initialize the UDP discovery server. "
+				"(err code 0%d)\n", err);
+		return false;
+	}
 
 	/* Create the server thread. */
 	ret = pthread_create(m_discovery_thread, NULL, server_discovery_thread_func,

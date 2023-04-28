@@ -7,7 +7,6 @@
 
 #include "sockets.h"
 
-#include <asm-generic/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -183,9 +182,7 @@ tcp_err_t sockets_server_start(server_t *server) {
 		return TCP_ERR_ELISTEN;
 	}
 
-	/* Initialize discovery service. */
-	return udp_discovery_init(&server->udp, true, INADDR_ANY,
-		ntohs(server->tcp.addr_in.sin_port) + 1);
+	return SOCK_OK;
 }
 
 /**
