@@ -91,6 +91,15 @@ int main(int argc, char **argv) {
 	return ret;
 }
 
+/**
+ * Starts up the server and wait for it to be shutdown.
+ *
+ * @param ip   Server's IP to send the data to.
+ * @param port Server port to talk to.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
 gl_err_t *server_run(const char *ip, uint16_t port) {
 	gl_err_t *err = NULL;
 	/* TODO: Start using err instead of printing errors. */

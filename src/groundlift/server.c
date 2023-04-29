@@ -642,6 +642,8 @@ void *server_discovery_thread_func(void *args) {
 		obex_packet_t *reply;
 		const obex_header_t *header;
 
+		/* TODO: Use gl_err instead of fprintf(). */
+
 		/* Check if the packet is meant for discovery. */
 		header = obex_packet_header_find(packet, OBEX_HEADER_NAME);
 		if ((header == NULL) ||
@@ -674,8 +676,6 @@ void *server_discovery_thread_func(void *args) {
 		}
 
 		/* Send reply and free our resources. */
-		printf("Replying to %s:\n", inet_ntoa(m_server->udp.addr_in.sin_addr));
-		obex_print_packet(reply);
 		gl_err = obex_net_packet_sendto(m_server->udp, reply);
 		obex_packet_free(reply);
 		obex_packet_free(packet);
