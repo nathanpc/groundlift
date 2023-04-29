@@ -17,6 +17,7 @@
 #include <string.h>
 
 /* Private methods. */
+gl_err_t *server_run(const char *ip, uint16_t port);
 gl_err_t *client_send(const char *ip, uint16_t port, char *fname);
 gl_err_t *client_list_peers(void);
 void sigint_handler(int sig);
@@ -64,56 +65,7 @@ int main(int argc, char **argv) {
 
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
-		/* Initialize the server. */
-		if (!gl_server_init(NULL, TCPSERVER_PORT)) {
-			fprintf(stderr, "Failed to initialize the server.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Setup event handlers. */
-		gl_server_evt_start_set(server_event_started);
-		gl_server_evt_client_conn_req_set(server_event_conn_req);
-		gl_server_evt_stop_set(server_event_stopped);
-		gl_server_conn_evt_accept_set(server_conn_event_accepted);
-		gl_server_conn_evt_download_progress_set(
-			server_conn_event_download_progress);
-		gl_server_conn_evt_download_success_set(
-			server_conn_event_download_success);
-		gl_server_conn_evt_close_set(server_conn_event_closed);
-
-		/* Start the main server up. */
-		if (!gl_server_start()) {
-			fprintf(stderr, "Failed to start the server.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Start the discovery server. */
-		if (!gl_server_discovery_start(UDPSERVER_PORT)) {
-			fprintf(stderr, "Failed to start the discovery server.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Wait for it to return. */
-		if (!gl_server_discovery_thread_join()) {
-			fprintf(stderr, "Discovery server thread returned with errors.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
-
-		/* Wait for it to return. */
-		if (!gl_server_thread_join()) {
-			fprintf(stderr, "Server thread returned with errors.\n");
-
-			ret = 1;
-			goto cleanup;
-		}
+		err = server_run(NULL, TCPSERVER_PORT);
 	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
 		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
@@ -125,7 +77,6 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-cleanup:
 	/* Check if we had any errors to report. */
 	gl_error_print(err);
 	if (err != NULL)
@@ -140,6 +91,58 @@ cleanup:
 	return ret;
 }
 
+gl_err_t *server_run(const char *ip, uint16_t port) {
+	gl_err_t *err = NULL;
+	/* TODO: Start using err instead of printing errors. */
+
+	/* Initialize the server. */
+	if (!gl_server_init(ip, port)) {
+		fprintf(stderr, "Failed to initialize the server.\n");
+		goto cleanup;
+	}
+
+	/* Setup event handlers. */
+	gl_server_evt_start_set(server_event_started);
+	gl_server_evt_client_conn_req_set(server_event_conn_req);
+	gl_server_evt_stop_set(server_event_stopped);
+	gl_server_conn_evt_accept_set(server_conn_event_accepted);
+	gl_server_conn_evt_download_progress_set(
+		server_conn_event_download_progress);
+	gl_server_conn_evt_download_success_set(
+		server_conn_event_download_success);
+	gl_server_conn_evt_close_set(server_conn_event_closed);
+
+	/* Start the main server up. */
+	if (!gl_server_start()) {
+		fprintf(stderr, "Failed to start the server.\n");
+		goto cleanup;
+	}
+
+	/* Start the discovery server. */
+	if (!gl_server_discovery_start(UDPSERVER_PORT)) {
+		fprintf(stderr, "Failed to start the discovery server.\n");
+		goto cleanup;
+	}
+
+	/* Wait for it to return. */
+	if (!gl_server_discovery_thread_join()) {
+		fprintf(stderr, "Discovery server thread returned with errors.\n");
+		goto cleanup;
+	}
+
+	/* Wait for it to return. */
+	if (!gl_server_thread_join()) {
+		fprintf(stderr, "Server thread returned with errors.\n");
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free up any resources. */
+	gl_server_free();
+
+	return err;
+}
+
 /**
  * Perform an entire send exchange with the server.
  *
@@ -152,6 +155,7 @@ cleanup:
  */
 gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 	gl_err_t *err = NULL;
+	/* TODO: Start using err instead of printing errors. */
 
 	/* Initialize the client. */
 	if (!gl_client_init(ip, port)) {
