@@ -276,7 +276,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr
 	sock->addr_in_size = socket_setup_inaddr(&sock->addr_in, in_addr, port);
 
 	/* Create a new UDP socket file descriptor. */
-	sock->sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+	sock->sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock->sockfd == -1) {
 		perror("udp_discovery_init@socket");
 		return SOCK_ERR_ESOCKET;
@@ -645,6 +645,7 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  * @param buf       Data to be sent.
  * @param len       Length of the data to be sent.
  * @param sock_addr IPv4 or IPv6 address structure.
+ * @param sock_len  Length of the socket address structure in bytes.
  * @param sent_len  Pointer to store the number of bytes actually sent. Ignored
  *                  if NULL is passed.
  *
@@ -653,12 +654,12 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  *
  * @see send
  */
-tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr_storage *sock_addr, size_t *sent_len) {
+tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr *sock_addr, socklen_t sock_len, size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
 	bytes_sent = sendto(sockfd, buf, len, 0, (const struct sockaddr *)sock_addr,
-						sizeof(*sock_addr));
+						sock_len);
 	if (bytes_sent == -1) {
 		perror("udp_socket_send@sendto");
 		return SOCK_ERR_ESEND;
@@ -724,6 +725,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
  * @param buf_len   Length of the buffer to store the data.
  * @param sock_addr Pointer to an IPv4 or IPv6 address structure to store the
  *                  client's address information.
+ * @param sock_len  Pointer to length of the socket address structure in bytes.
  * @param recv_len  Pointer to store the number of bytes actually received. Will
  *                  be ignored if NULL is passed.
  * @param peek      Should we just peek at the data to be received?
@@ -734,7 +736,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
  *
  * @see recv
  */
-tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr_storage *sock_addr, size_t *recv_len, bool peek) {
+tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr *sock_addr, socklen_t *sock_len, size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 	socklen_t fromlen;
 
@@ -745,7 +747,7 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr
 	/* Try to read some information from a socket. */
 	fromlen = sizeof(*sock_addr);
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
-		(struct sockaddr *)sock_addr, &fromlen);
+						  sock_addr, sock_len);
 	if (bytes_recv == -1) {
 		perror("udp_socket_recv@recvfrom");
 		return SOCK_ERR_ERECV;

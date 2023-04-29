@@ -919,8 +919,8 @@ gl_err_t *obex_net_packet_sendto(sock_bundle_t sock, obex_packet_t *packet) {
 	}
 
 	/* Get the network buffer for the packet and send it out. */
-	tcp_err = udp_socket_send(sock.sockfd, buf, packet->size, &sock.addr_in,
-		NULL);
+	tcp_err = udp_socket_send(sock.sockfd, buf, packet->size,
+		(const struct sockaddr *)&sock.addr_in, sock.addr_in_size, NULL);
 	if (tcp_err != SOCK_OK) {
 		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 						   EMSG("Failed to send OBEX packet"));
@@ -1021,8 +1021,8 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	uint8_t peek_buf[3];
 
 	/* Receive the packet's opcode and length. */
-	tcp_err = udp_socket_recv(sock->sockfd, peek_buf, 3, &sock->addr_in, &len,
-		true);
+	tcp_err = udp_socket_recv(sock->sockfd, peek_buf, 3,
+		(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &len, true);
 	if ((tcp_err == SOCK_OK) && (expected) && (peek_buf[0] != *expected)) {
 		fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not what "
 				"was expected (0x%02X).\n", peek_buf[0], *expected);
@@ -1049,7 +1049,8 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	tmp = buf;
 	len = 0;
 	while (len < psize) {
-		tcp_err = udp_socket_recv(sock->sockfd, tmp, psize, &sock->addr_in, &plen,
+		tcp_err = udp_socket_recv(sock->sockfd, tmp, psize,
+			(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &plen,
 			false);
 		if (tcp_err != SOCK_OK) {
 			fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive full "
