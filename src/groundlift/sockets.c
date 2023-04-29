@@ -738,14 +738,12 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
  */
 tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr *sock_addr, socklen_t *sock_len, size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
-	socklen_t fromlen;
 
 	/* Check if we have a valid file descriptor. */
 	if (sockfd == -1)
 		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
-	fromlen = sizeof(*sock_addr);
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 	if (bytes_recv == -1) {

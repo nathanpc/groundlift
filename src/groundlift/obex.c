@@ -1021,6 +1021,7 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	uint8_t peek_buf[3];
 
 	/* Receive the packet's opcode and length. */
+	len = 0;
 	tcp_err = udp_socket_recv(sock->sockfd, peek_buf, 3,
 		(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &len, true);
 	if ((tcp_err == SOCK_OK) && (expected) && (peek_buf[0] != *expected)) {
@@ -1048,6 +1049,7 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	/* Read the full packet that was sent. */
 	tmp = buf;
 	len = 0;
+	plen = 0;
 	while (len < psize) {
 		tcp_err = udp_socket_recv(sock->sockfd, tmp, psize,
 			(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &plen,
