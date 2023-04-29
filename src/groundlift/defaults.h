@@ -28,6 +28,11 @@ extern "C" {
 #define TCPSERVER_BACKLOG 10
 #endif /* TCPSERVER_BACKLOG */
 
+/* Timeout of UDP communications in milliseconds. */
+#ifndef UDP_TIMEOUT_MS
+#define UDP_TIMEOUT_MS 5000
+#endif /* UDP_TIMEOUT_MS */
+
 /* OBEX protocol version to be disclosed to clients. */
 #ifndef OBEX_PROTO_VERSION
 #define OBEX_PROTO_VERSION 0x10

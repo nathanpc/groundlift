@@ -13,6 +13,7 @@
 #include "defaults.h"
 #include "error.h"
 #include "fileutils.h"
+#include "obex.h"
 #include "sockets.h"
 #include "utf16utils.h"
 
@@ -154,7 +155,7 @@ bool gl_server_discovery_start(uint16_t port) {
 		m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
 
 	/* Initialize discovery service. */
-	err = udp_discovery_init(&m_server->udp, true, INADDR_ANY, port);
+	err = udp_discovery_init(&m_server->udp, true, INADDR_ANY, port, 0);
 	if (err) {
 		fprintf(stderr, "Failed to initialize the UDP discovery server. "
 				"(err code 0%d)\n", err);
@@ -626,37 +627,65 @@ void *server_thread_func(void *args) {
  *         free'd by you.
  */
 void *server_discovery_thread_func(void *args) {
-	char buf[100];
-	tcp_err_t tcp_err;
 	gl_err_t *gl_err;
-	struct sockaddr_storage addr;
-	size_t len;
+	obex_packet_t *packet;
+	obex_opcodes_t op;
 
 	/* Ignore the argument passed and initialize things. */
 	(void)args;
 	gl_err = NULL;
+	op = OBEX_SET_FINAL_BIT(OBEX_OPCODE_GET);
 
 	/* Listen for discovery packets. */
-	while ((tcp_err = udp_socket_recv(m_server->udp.sockfd, buf, 99, &addr, &len, false)) == SOCK_OK) {
-		char *ip;
-		const struct sockaddr_in *addr_in;
+	while ((packet = obex_net_packet_recvfrom(&m_server->udp, &op, false))
+			!= NULL) {
+		obex_packet_t *reply;
+		const obex_header_t *header;
 
-		addr_in = (struct sockaddr_in *)&addr;
-		ip = strdup(inet_ntoa(addr_in->sin_addr));
+		/* Check if the packet is meant for discovery. */
+		header = obex_packet_header_find(packet, OBEX_HEADER_NAME);
+		if ((header == NULL) ||
+				(wcscmp(L"DISCOVER", header->value.wstring.text) != 0)) {
+			fprintf(stderr, "server_discovery_thread_func: Discovery packet "
+				"name not \"DISCOVER\" or no name was supplied.\n");
+			obex_packet_free(packet);
 
-		buf[len] = '\0';
-		printf("Received broadcast from %s: %s\n", ip, buf);
+			continue;
+		}
 
-		/* TODO: Send reply. */
+		/* Create the response packet. */
+		reply = obex_packet_new_success(true, false);
+		if (reply == NULL) {
+			fprintf(stderr, "server_discovery_thread_func: Failed to create "
+					"response packet.\n");
+			obex_packet_free(packet);
 
-		free(ip);
+			continue;
+		}
+
+		/* Add the hostname header to the packet. */
+		if (!obex_packet_header_add_hostname(reply)) {
+			fprintf(stderr, "server_discovery_thread_func: Failed to append "
+					"hostname header to the packet.\n");
+			obex_packet_free(reply);
+			obex_packet_free(packet);
+
+			continue;
+		}
+
+		/* Send reply and free our resources. */
+		printf("Replying to %s:\n", inet_ntoa(m_server->udp.addr_in.sin_addr));
+		obex_print_packet(reply);
+		gl_err = obex_net_packet_sendto(m_server->udp, reply);
+		obex_packet_free(reply);
+		obex_packet_free(packet);
+
+		/* Check for sending errors. */
+		if (gl_err)
+			break;
 	}
 
-	/* Check if a proper error occurred. */
-	if (tcp_err > SOCK_OK) {
-		gl_err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-			EMSG("Discovery server UDP listener failed"));
-	}
+	printf("Discovery server thread returned.\n");
 
 	return (void *)gl_err;
 }

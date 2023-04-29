@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "defaults.h"
@@ -249,21 +250,26 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
  * Initializes a discovery service UDP socket bundle structure and sets up the
  * socket.
  *
- * @param sock    Socket bundle structure.
- * @param server  Is the service being
- * @param in_addr IP address to connect/bind to already in the internal
- *                structure's format.
- * @param port    Port to connect/bind on.
+ * @param sock       Socket bundle structure.
+ * @param server     Is the service being
+ * @param in_addr    IP address to connect/bind to already in the internal
+ *                   structure's format.
+ * @param port       Port to connect/bind on.
+ * @param timeout_ms Timeout of the socket in milliseconds or 0 if we shouldn't
+ *                   have a timeout.
  *
  * @return SOCK_OK if the operation was successful.
  *         SOCK_ERR_ESOCKET if the socket function failed.
  *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  */
-tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port) {
+tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port, uint32_t timeout_ms) {
 	unsigned char loop;
 	int reuse;
 	int perm;
+#ifndef _WIN32
+	struct timeval tv;
+#endif
 
 	/* Setup the socket bundle. */
 	sock->sockfd = -1;
@@ -308,6 +314,26 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
+
+	/* Set a timeout for our packets. */
+	if (timeout_ms > 0) {
+#ifdef _WIN32
+		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO,
+					(const char *)&timeout_ms, sizeof(DWORD)) == -1) {
+			perror("udp_discovery_init@setsockopt(SO_RCVTIMEO)");
+			return SOCK_ERR_ESETSOCKOPT;
+		}
+#else
+		tv.tv_sec = timeout_ms / 1000;
+		tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+					sizeof(struct timeval)) == -1) {
+			perror("udp_discovery_init@setsockopt(SO_RCVTIMEO)");
+			return SOCK_ERR_ESETSOCKOPT;
+		}
+#endif
+	}
 
 	/* Bind ourselves to the UDP address. */
 	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,

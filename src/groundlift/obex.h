@@ -28,6 +28,15 @@ extern "C" {
 #define OBEX_HEADER_ENCODING_MASK(flag) ((flag) << 6)
 
 /**
+ * Builds up a Header Identifier from an encoding and the bare identifier.
+ *
+ * @param encoding   Encoding flag.
+ * @param identifier Header identifier without an encoding.
+ */
+#define OBEX_HEADER_ID(encoding, identifier) \
+	(OBEX_HEADER_ENCODING_MASK((encoding)) | (identifier))
+
+/**
  * Sets the Final Bit Flag of an opcode to indicate the end of an operation.
  *
  * @param opcode Opcode to have its final bit set.
@@ -62,6 +71,7 @@ typedef enum {
  * Standard OBEX header identifiers including their standard encoding bits.
  */
 typedef enum {
+	/* Standard headers. */
 	OBEX_HEADER_COUNT = 0xC0,
 	OBEX_HEADER_NAME = 0x01,
 	OBEX_HEADER_TYPE = 0x42,
@@ -87,7 +97,10 @@ typedef enum {
 	OBEX_HEADER_DEST_NAME = 0x15,
 	OBEX_HEADER_PERMISSIONS = 0xD6,
 	OBEX_HEADER_SRM = 0x97,
-	OBEX_HEADER_SRM_PARAMS = 0x98
+	OBEX_HEADER_SRM_PARAMS = 0x98,
+
+	/* User defined headers. */
+	OBEX_HEADER_EXT_HOSTNAME = OBEX_HEADER_ID(OBEX_HEADER_ENCODING_STRING, 0x30)
 } obex_header_id_t;
 
 /**
@@ -181,6 +194,7 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final);
 void obex_packet_free(obex_packet_t *packet);
 bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size);
 bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
+bool obex_packet_header_add_hostname(obex_packet_t *packet);
 bool obex_packet_header_pop(obex_packet_t *packet);
 void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
 bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);
@@ -203,7 +217,9 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 
 /* Networking */
 gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
+gl_err_t *obex_net_packet_sendto(sock_bundle_t sock, obex_packet_t *packet);
 obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
+obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_t *expected, bool has_params);
 
 /* Common packet constructors. */
 obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize);
@@ -212,6 +228,7 @@ obex_packet_t *obex_packet_new_success(bool final, bool conn);
 obex_packet_t *obex_packet_new_continue(bool final);
 obex_packet_t *obex_packet_new_unauthorized(bool final);
 obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final);
+obex_packet_t *obex_packet_new_get(const char *name, bool final);
 
 /* Debugging */
 void obex_print_header(const obex_header_t *header, bool th);

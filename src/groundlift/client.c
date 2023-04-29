@@ -7,11 +7,13 @@
 
 #include "client.h"
 
+#include <arpa/inet.h>
 #include <pthread.h>
 
 #include "defaults.h"
 #include "error.h"
 #include "fileutils.h"
+#include "obex.h"
 #include "sockets.h"
 
 /* Private variables. */
@@ -484,13 +486,20 @@ disconnect:
 gl_err_t *gl_client_discover_peers(uint16_t port) {
 	sock_bundle_t send_sock;
 	sock_bundle_t recv_sock;
-	tcp_err_t err;
-	size_t len;
+	obex_packet_t *send_packet;
+	obex_packet_t *recv_packet;
+	obex_opcodes_t op;
+	tcp_err_t tcp_err;
+	gl_err_t *err;
+
+	/* Initialize some variables. */
+	err = NULL;
 
 	/* Initialize the discovery packet receiver. */
-	err = udp_discovery_init(&recv_sock, true, INADDR_ANY, port);
-	if (err) {
-		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+	tcp_err = udp_discovery_init(&recv_sock, true, INADDR_ANY, port,
+								 UDP_TIMEOUT_MS);
+	if (tcp_err) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 			EMSG("Failed to initialize the client's discovery receiver"));
 	}
 
@@ -502,18 +511,37 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	 */
 
 	/* Initialize the discovery packet broadcaster. */
-	err = udp_discovery_init(&send_sock, false, INADDR_BROADCAST, port);
-	if (err) {
-		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+	tcp_err = udp_discovery_init(&send_sock, false, INADDR_BROADCAST, port,
+								 UDP_TIMEOUT_MS);
+	if (tcp_err) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 			EMSG("Failed to initialize the client's discovery transmitter"));
 	}
 
-	/* TODO: Send discovery broadcast. */
-	udp_socket_send(send_sock.sockfd, "Hello", 6, &send_sock.addr_in, &len);
+	/* Build up the discovery packet. */
+	send_packet = obex_packet_new_get("DISCOVER", true);
+	if (send_packet == NULL) {
+		return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_NEW,
+			EMSG("Failed to create the discovery OBEX packet"));
+	}
 
-	/* TODO: Receive discovery broadcast replies. */
+	/* Send discovery broadcast. */
+	err = obex_net_packet_sendto(send_sock, send_packet);
+	if (err)
+		return err;
 
-	return NULL;
+	/* Listen for replies. */
+	op = OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
+	while ((recv_packet = obex_net_packet_recvfrom(&recv_sock, NULL, false))
+		   != NULL) {
+		printf("Got a reply from %s:\n", inet_ntoa(recv_sock.addr_in.sin_addr));
+		obex_print_packet(recv_packet);
+
+		/* Free up resources. */
+		obex_packet_free(recv_packet);
+	}
+
+	return err;
 }
 
 /**

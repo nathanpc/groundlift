@@ -12,9 +12,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "defaults.h"
-#include "utf16utils.h"
 #include "bitutils.h"
+#include "conf.h"
+#include "defaults.h"
+#include "sockets.h"
+#include "utf16utils.h"
 
 /* Private methods. */
 bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len);
@@ -163,6 +165,30 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
 	packet->header_count++;
 
 	return true;
+}
+
+/**
+ * Appends a hostname header to a packet.
+ *
+ * @param packet Packet to have the hostname header appended to.
+ *
+ * @return TRUE if the operation was successful.
+ */
+bool obex_packet_header_add_hostname(obex_packet_t *packet) {
+	obex_header_t *header;
+
+	/* Create the header object. */
+	header = obex_header_new(OBEX_HEADER_EXT_HOSTNAME);
+	if (header == NULL)
+		return false;
+
+	/* Copy the hostname from the configuration into the header. */
+	if (!obex_header_string_copy(header, conf_get_hostname())) {
+		obex_header_free(header);
+		return false;
+	}
+
+	return obex_packet_header_add(packet, header);
 }
 
 /**
@@ -817,7 +843,7 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 }
 
 /**
- * Sends an OBEX packet over the network.
+ * Sends an OBEX TCP packet over the network.
  *
  * @param sockfd Socket to send the packet over.
  * @param packet Packet object to be sent.
@@ -832,7 +858,7 @@ gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet) {
 	/* Do we have a packet to send? */
 	if (packet == NULL) {
 		return gl_error_new(ERR_TYPE_GL, OBEX_ERR_NO_PACKET,
-			EMSG("No packet supplied to be sent"));
+							EMSG("No packet supplied to be sent"));
 	}
 
 	/* Initialize variables. */
@@ -863,10 +889,57 @@ cleanup:
 }
 
 /**
- * Handles the reception of an OBEX packet via the network.
+ * Sends an OBEX UDP packet over the network.
+ *
+ * @param sock   UDP socket bundle to send the packet over.
+ * @param packet Packet object to be sent.
+ *
+ * @return An error object if an error occurred or NULL if it was successful.
+ */
+gl_err_t *obex_net_packet_sendto(sock_bundle_t sock, obex_packet_t *packet) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+	void *buf;
+
+	/* Do we have a packet to send? */
+	if (packet == NULL) {
+		return gl_error_new(ERR_TYPE_GL, OBEX_ERR_NO_PACKET,
+							EMSG("No packet supplied to be sent"));
+	}
+
+	/* Initialize variables. */
+	buf = NULL;
+	err = NULL;
+
+	/* Get the packet network buffer. */
+	if (!obex_packet_encode(packet, &buf)) {
+		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_ENCODE,
+						   EMSG("Failed to encode the OBEX connect packet"));
+		goto cleanup;
+	}
+
+	/* Get the network buffer for the packet and send it out. */
+	tcp_err = udp_socket_send(sock.sockfd, buf, packet->size, &sock.addr_in,
+		NULL);
+	if (tcp_err != SOCK_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+						   EMSG("Failed to send OBEX packet"));
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free up any resources. */
+	if (buf)
+		free(buf);
+
+	return err;
+}
+
+/**
+ * Handles the reception of an OBEX TCP packet via the network.
  * @warning This function allocates memory that must be free'd by you!
  *
- * @param sockfd Socket to read our packet from.
+ * @param sockfd     Socket to read our packet from.
  * @param has_params Does this packet contain parameters?
  *
  * @return Decoded packet object or NULL if the received packet was invalid.
@@ -927,6 +1000,78 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 }
 
 /**
+ * Handles the reception of an OBEX UDP packet via the network.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param sock       UDP socket bundle to read our packet from.
+ * @param expected   Opcode that we are expected to receive (fails if different)
+ *                   or NULL if we want to receive everything.
+ * @param has_params Does this packet contain parameters?
+ *
+ * @return Decoded packet object or NULL if the received packet was invalid.
+ */
+obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_t *expected, bool has_params) {
+	size_t len;
+	size_t plen;
+	tcp_err_t tcp_err;
+	obex_packet_t *packet;
+	uint16_t psize;
+	uint8_t *tmp;
+	uint8_t *buf;
+	uint8_t peek_buf[3];
+
+	/* Receive the packet's opcode and length. */
+	tcp_err = udp_socket_recv(sock->sockfd, peek_buf, 3, &sock->addr_in, &len,
+		true);
+	if ((tcp_err == SOCK_OK) && (expected) && (peek_buf[0] != *expected)) {
+		fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not what "
+				"was expected (0x%02X).\n", peek_buf[0], *expected);
+		return NULL;
+	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
+		fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive OBEX "
+				"packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
+		return NULL;
+	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
+			(tcp_err == SOCK_EVT_CONN_SHUTDOWN)) {
+		return NULL;
+	}
+
+	/* Allocate memory to receive the entire packet. */
+	psize = BYTES_TO_USHORT(peek_buf[1], peek_buf[2]);
+	if (psize > OBEX_MAX_PACKET_SIZE) {
+		fprintf(stderr, "obex_net_packet_recvfrom: Peek'd packet length %u is "
+				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
+		return NULL;
+	}
+	buf = malloc(psize);
+
+	/* Read the full packet that was sent. */
+	tmp = buf;
+	len = 0;
+	while (len < psize) {
+		tcp_err = udp_socket_recv(sock->sockfd, tmp, psize, &sock->addr_in, &plen,
+			false);
+		if (tcp_err != SOCK_OK) {
+			fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive full "
+					"OBEX packet. (tcp_err %d psize %u plen %lu len %lu)\n",
+					tcp_err, psize, plen, len);
+			free(buf);
+
+			return NULL;
+		}
+
+		tmp += plen;
+		len += plen;
+	}
+
+	/* Decode the packet and free up any temporary resources. */
+	packet = obex_packet_decode(buf, psize, has_params);
+	free(buf);
+
+	return packet;
+}
+
+/**
  * Creates a brand new CONNECT packet.
  * @warning This function allocates memory that must be free'd by you.
  *
@@ -947,6 +1092,15 @@ obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize)
 	/* Add file name and size headers to the packet. */
 	if (!obex_populate_name_length_headers(packet, fname, fsize)) {
 		obex_packet_free(packet);
+		return NULL;
+	}
+
+	/* Add the hostname header to the packet. */
+	if (!obex_packet_header_add_hostname(packet)) {
+		fprintf(stderr, "obex_packet_new_connect: Failed to append hostname "
+				"header to the packet.\n");
+		obex_packet_free(packet);
+
 		return NULL;
 	}
 
@@ -1055,6 +1209,80 @@ obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, boo
 		return NULL;
 	}
 
+	/* Add the hostname header to the packet. */
+	if (!obex_packet_header_add_hostname(packet)) {
+		fprintf(stderr, "obex_packet_new_put: Failed to append hostname header "
+				"to the packet.\n");
+		obex_packet_free(packet);
+
+		return NULL;
+	}
+
+	return packet;
+}
+
+/**
+ * Creates a brand new GET packet with the headers fully populated.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param fname Name of the object to get.
+ * @param final Set the final bit?
+ *
+ * @return New populated GET packet or NULL if we were unable to create it.
+ */
+obex_packet_t *obex_packet_new_get(const char *name, bool final) {
+	obex_packet_t *packet;
+	obex_header_t *header;
+	wchar_t *wname;
+
+	/* Create the packet and populate it with default parameters. */
+	packet = obex_packet_new(OBEX_OPCODE_GET, final);
+	if (packet == NULL)
+		return NULL;
+
+	/* Convert the name to UTF-16. */
+	wname = utf16_mbstowcs(name);
+	if (wname == NULL) {
+		fprintf(stderr, "obex_packet_new_get: Failed to convert name '%s' to "
+				"UTF-16.\n", name);
+		obex_packet_free(packet);
+
+		return NULL;
+	}
+
+	/* Create a new packet. */
+	header = obex_header_new(OBEX_HEADER_NAME);
+	if (header == NULL) {
+		fprintf(stderr, "obex_packet_new_get: Failed to create the name packet "
+				"header.\n");
+		free(wname);
+		obex_packet_free(packet);
+
+		return NULL;
+	}
+
+	/* Set the name value. */
+	obex_header_wstring_set(header, wname);
+
+	/* Add the header to the packet. */
+	if (!obex_packet_header_add(packet, header)) {
+		fprintf(stderr, "obex_packet_new_get: Failed to append name header to "
+				"the packet.\n");
+		obex_header_free(header);
+		obex_packet_free(packet);
+
+		return NULL;
+	}
+
+	/* Add the hostname header to the packet. */
+	if (!obex_packet_header_add_hostname(packet)) {
+		fprintf(stderr, "obex_packet_new_get: Failed to append hostname header "
+				"to the packet.\n");
+		obex_packet_free(packet);
+
+		return NULL;
+	}
+
 	return packet;
 }
 
@@ -1083,12 +1311,14 @@ void obex_print_packet(obex_packet_t *packet) {
 			printf("PUT");
 			break;
 		case OBEX_OPCODE_GET:
+		case OBEX_SET_FINAL_BIT(OBEX_OPCODE_GET):
 			printf("GET");
 			break;
 		case OBEX_OPCODE_SETPATH:
 			printf("SETPATH");
 			break;
 		case OBEX_OPCODE_ACTION:
+		case OBEX_SET_FINAL_BIT(OBEX_OPCODE_ACTION):
 			printf("ACTION");
 			break;
 		case OBEX_OPCODE_SESSION:

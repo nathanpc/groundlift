@@ -6,11 +6,9 @@
  */
 
 #include <groundlift/client.h>
+#include <groundlift/conf.h>
 #include <groundlift/defaults.h>
-#include <groundlift/error.h>
-#include <groundlift/obex.h>
 #include <groundlift/server.h>
-#include <groundlift/utf16utils.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -58,6 +56,9 @@ int main(int argc, char **argv) {
 
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
+
+	/* Initialize the configuration module. */
+	conf_init();
 
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
@@ -130,7 +131,9 @@ cleanup:
 
 	/* Free up any resources. */
 	gl_server_free();
+	gl_client_free();
 	gl_error_free(err);
+	conf_free();
 
 	return ret;
 }

@@ -81,7 +81,7 @@ tcp_err_t sockets_server_stop(server_t *server);
 tcp_err_t sockets_server_shutdown(server_t *server);
 
 /* Discovery service. */
-tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port);
+tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port, uint32_t timeout_ms);
 
 /* Connection handling. */
 server_conn_t *tcp_server_conn_accept(const server_t *server);
