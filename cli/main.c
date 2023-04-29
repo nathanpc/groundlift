@@ -9,6 +9,7 @@
 #include <groundlift/conf.h>
 #include <groundlift/defaults.h>
 #include <groundlift/server.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -37,6 +38,7 @@ void client_event_conn_req_resp(const char *fname, bool accepted);
 void client_event_send_progress(const gl_client_progress_t *progress);
 void client_event_send_success(const char *fname);
 void client_event_disconnected(const tcp_client_t *client);
+void client_event_peer_discovered(const char *name, const struct sockaddr *addr);
 
 /**
  * Program's main entry point.
@@ -70,7 +72,7 @@ int main(int argc, char **argv) {
 			goto cleanup;
 		}
 
-		/* Setup callbacks. */
+		/* Setup event handlers. */
 		gl_server_evt_start_set(server_event_started);
 		gl_server_evt_client_conn_req_set(server_event_conn_req);
 		gl_server_evt_stop_set(server_event_stopped);
@@ -157,7 +159,7 @@ gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 		goto cleanup;
 	}
 
-	/* Setup callbacks. */
+	/* Setup event handlers. */
 	gl_client_evt_conn_set(client_event_connected);
 	gl_client_evt_conn_req_resp_set(client_event_conn_req_resp);
 	gl_client_evt_put_progress_set(client_event_send_progress);
@@ -191,6 +193,9 @@ cleanup:
  */
 gl_err_t *client_list_peers(void) {
 	gl_err_t *err;
+
+	/* Setup event handlers. */
+	gl_client_evt_discovery_peer_set(client_event_peer_discovered);
 
 	/* Send discovery broadcast and listen to replies. */
 	printf("Sending discovery broadcast...\n");
@@ -369,4 +374,20 @@ void client_event_disconnected(const tcp_client_t *client) {
 	printf("Client disconnected from server at %s\n", ipstr);
 
 	free(ipstr);
+}
+
+/**
+ * Handles the peer discovered event.
+ *
+ * @param name Hostname of the peer.
+ * @param addr IP address information of the peer.
+ */
+void client_event_peer_discovered(const char *name, const struct sockaddr *addr) {
+	const struct sockaddr_in *addr_in;
+
+	/* Convert our address structure. */
+	addr_in = (const struct sockaddr_in *)addr;
+
+	/* Display the discovered peer. */
+	printf("Discovered peer '%s' (%s)\n", name, inet_ntoa(addr_in->sin_addr));
 }

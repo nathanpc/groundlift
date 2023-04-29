@@ -28,6 +28,7 @@ static gl_client_evt_disconn_func evt_disconn_cb_func;
 static gl_client_evt_conn_req_resp_func evt_conn_req_resp_cb_func;
 static gl_client_evt_put_progress_func evt_put_progress_cb_func;
 static gl_client_evt_put_succeed_func evt_put_succeed_cb_func;
+static gl_client_evt_discovery_peer_func evt_discovery_peer_cb_func;
 
 /* Private methods. */
 void *client_thread_func(void *fname);
@@ -50,6 +51,7 @@ bool gl_client_init(const char *addr, uint16_t port) {
 	evt_conn_req_resp_cb_func = NULL;
 	evt_put_progress_cb_func = NULL;
 	evt_put_succeed_cb_func = NULL;
+	evt_discovery_peer_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -484,8 +486,7 @@ disconnect:
  *         pointer must be free'd by you.
  */
 gl_err_t *gl_client_discover_peers(uint16_t port) {
-	sock_bundle_t send_sock;
-	sock_bundle_t recv_sock;
+	sock_bundle_t sock;
 	obex_packet_t *send_packet;
 	obex_packet_t *recv_packet;
 	obex_opcodes_t op;
@@ -495,14 +496,6 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	/* Initialize some variables. */
 	err = NULL;
 
-	/* Initialize the discovery packet receiver. */
-	tcp_err = udp_discovery_init(&recv_sock, true, INADDR_ANY, port,
-								 UDP_TIMEOUT_MS);
-	if (tcp_err) {
-		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-			EMSG("Failed to initialize the client's discovery receiver"));
-	}
-
 	/* TODO: Move everything below this line into a thread. */
 
 	/*
@@ -511,7 +504,7 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	 */
 
 	/* Initialize the discovery packet broadcaster. */
-	tcp_err = udp_discovery_init(&send_sock, false, INADDR_BROADCAST, port,
+	tcp_err = udp_discovery_init(&sock, false, INADDR_BROADCAST, port,
 								 UDP_TIMEOUT_MS);
 	if (tcp_err) {
 		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
@@ -526,20 +519,39 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	}
 
 	/* Send discovery broadcast. */
-	err = obex_net_packet_sendto(send_sock, send_packet);
+	err = obex_net_packet_sendto(sock, send_packet);
 	if (err)
 		return err;
 
 	/* Listen for replies. */
 	op = OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
-	while ((recv_packet = obex_net_packet_recvfrom(&recv_sock, NULL, false))
-		   != NULL) {
-		printf("Got a reply from %s:\n", inet_ntoa(recv_sock.addr_in.sin_addr));
-		obex_print_packet(recv_packet);
+	while ((recv_packet = obex_net_packet_recvfrom(&sock, &op, false))
+			!= NULL) {
+		const obex_header_t *header;
+
+		/* Get the peer's hostname. */
+		header = obex_packet_header_find(recv_packet, OBEX_HEADER_EXT_HOSTNAME);
+		if (header == NULL) {
+			/* Free up resources. */
+			obex_packet_free(recv_packet);
+			socket_close(sock.sockfd);
+
+			return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_HEADER_NOT_FOUND,
+				EMSG("Discovered peer replied without a hostname"));
+		}
+
+		/* Trigger the discovered peer event handler. */
+		if (evt_discovery_peer_cb_func) {
+			evt_discovery_peer_cb_func(header->value.string.text,
+									   (const struct sockaddr *)&sock.addr_in);
+		}
 
 		/* Free up resources. */
 		obex_packet_free(recv_packet);
 	}
+
+	/* Close our UDP socket. */
+	socket_close(sock.sockfd);
 
 	return err;
 }
@@ -596,4 +608,13 @@ void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func) {
  */
 void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func) {
 	evt_put_succeed_cb_func = func;
+}
+
+/**
+ * Sets the Discovered Peer event callback function.
+ *
+ * @param func Discovered Peer event callback function.
+ */
+void gl_client_evt_discovery_peer_set(gl_client_evt_discovery_peer_func func) {
+	evt_discovery_peer_cb_func = func;
 }

@@ -73,6 +73,14 @@ typedef void (*gl_client_evt_put_progress_func)(const gl_client_progress_t *prog
  */
 typedef void (*gl_client_evt_put_succeed_func)(const char *fname);
 
+/**
+ * Discovered peers event callback function pointer type definition.
+ *
+ * @param name Hostname of the peer.
+ * @param addr IP address information of the peer.
+ */
+typedef void (*gl_client_evt_discovery_peer_func)(const char *name, const struct sockaddr *addr);
+
 /* Initialization and destruction. */
 bool gl_client_init(const char *addr, uint16_t port);
 void gl_client_free(void);
@@ -99,6 +107,7 @@ void gl_client_evt_disconn_set(gl_client_evt_disconn_func func);
 void gl_client_evt_conn_req_resp_set(gl_client_evt_conn_req_resp_func func);
 void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func);
 void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func);
+void gl_client_evt_discovery_peer_set(gl_client_evt_discovery_peer_func func);
 
 #ifdef __cplusplus
 }
