@@ -61,6 +61,17 @@ extern "C" {
 	#endif
 #endif /* _SIZEOF_WCHAR */
 
+/* Ensure we know the maximum length that the machine's hostname can be. */
+#ifndef HOST_NAME_MAX
+	#ifdef _WIN32
+		#define HOST_NAME_MAX MAX_COMPUTERNAME_LENGTH
+	#elif defined(MAXHOSTNAMELEN)
+		#define HOST_NAME_MAX MAXHOSTNAMELEN
+	#else
+		#define HOST_NAME_MAX 64
+	#endif /* _WIN32 */
+#endif /* HOST_NAME_MAX */
+
 /* Character used for separating paths in the current environment. */
 #ifndef PATH_SEPARATOR
 	#ifdef _WIN32

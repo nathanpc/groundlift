@@ -11,6 +11,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "defaults.h"
+
 /* Private variables. */
 static gl_conf_t conf;
 
