@@ -4,6 +4,7 @@ set(GROUNDLIFT_LIB_SOURCES
 	groundlift/obex.c
 	groundlift/server.c
 	groundlift/client.c
+	groundlift/conf.c
 	groundlift/utf16utils.c
 	groundlift/fileutils.c
 	groundlift/error.c)
