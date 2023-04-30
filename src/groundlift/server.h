@@ -91,18 +91,18 @@ typedef enum {
 } conn_state_t;
 
 /* Initialization and destruction. */
-bool gl_server_init(const char *addr, uint16_t port);
+gl_err_t *gl_server_init(const char *addr, uint16_t port);
 void gl_server_free(void);
 
 /* Server lifecycle. */
-bool gl_server_start(void);
+gl_err_t *gl_server_start(void);
 tcp_err_t gl_server_conn_destroy(void);
 bool gl_server_stop(void);
-bool gl_server_thread_join(void);
+gl_err_t *gl_server_thread_join(void);
 
 /* Discovery server lifecycle. */
-bool gl_server_discovery_start(uint16_t port);
-bool gl_server_discovery_thread_join(void);
+gl_err_t *gl_server_discovery_start(uint16_t port);
+gl_err_t *gl_server_discovery_thread_join(void);
 
 /* Server interactions. */
 gl_err_t *gl_server_send_packet(obex_packet_t *packet);

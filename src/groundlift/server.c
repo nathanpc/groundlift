@@ -38,7 +38,7 @@ static gl_server_conn_evt_download_success_func evt_server_conn_download_success
 /* Private methods. */
 uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname);
 void *server_thread_func(void *args);
-void *server_discovery_thread_func(void *args);
+void *discovery_thread_func(void *args);
 
 /**
  * Initializes everything related to the server to a known clean state.
@@ -46,11 +46,11 @@ void *server_discovery_thread_func(void *args);
  * @param addr Address to listen on.
  * @param port TCP port to listen on for file transfers.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  *
  * @see gl_server_start
  */
-bool gl_server_init(const char *addr, uint16_t port) {
+gl_err_t *gl_server_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_conn = NULL;
 	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
@@ -73,13 +73,15 @@ bool gl_server_init(const char *addr, uint16_t port) {
 
 	/* Get a server handle. */
 	m_server = sockets_server_new(addr, port);
-	if (m_server == NULL)
-		return false;
+	if (m_server == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_SOCKET,
+			EMSG("Failed to allocate and setup the server sockets"));
+	}
 
 	/* Get the default download directory. */
 	m_server->download_dir = dir_defaults_downloads();
 
-	return true;
+	return NULL;
 }
 
 /**
@@ -120,20 +122,23 @@ void gl_server_free(void) {
 /**
  * Starts the server up.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  *
  * @see gl_server_thread_join
  * @see gl_server_stop
  */
-bool gl_server_start(void) {
+gl_err_t *gl_server_start(void) {
 	int ret;
 
 	/* Create the server thread. */
 	ret = pthread_create(m_server_thread, NULL, server_thread_func, NULL);
-	if (ret)
+	if (ret) {
 		m_server_thread = NULL;
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+								  EMSG("Failed to start the server thread"));
+	}
 
-	return ret == 0;
+	return NULL;
 }
 
 /**
@@ -141,12 +146,12 @@ bool gl_server_start(void) {
  *
  * @param port TCP port to listen on for file transfers.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  *
  * @see gl_server_discovery_thread_join
  * @see gl_server_stop
  */
-bool gl_server_discovery_start(uint16_t port) {
+gl_err_t *gl_server_discovery_start(uint16_t port) {
 	tcp_err_t err;
 	int ret;
 
@@ -157,18 +162,19 @@ bool gl_server_discovery_start(uint16_t port) {
 	/* Initialize discovery service. */
 	err = udp_discovery_init(&m_server->udp, true, INADDR_ANY, port, 0);
 	if (err) {
-		fprintf(stderr, "Failed to initialize the UDP discovery server. "
-				"(err code 0%d)\n", err);
-		return false;
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+			EMSG("Failed to initialize the discovery server socket"));
 	}
 
 	/* Create the server thread. */
-	ret = pthread_create(m_discovery_thread, NULL, server_discovery_thread_func,
-		NULL);
-	if (ret)
+	ret = pthread_create(m_discovery_thread, NULL, discovery_thread_func, NULL);
+	if (ret) {
 		m_discovery_thread = NULL;
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to start the discovery server thread"));
+	}
 
-	return ret == 0;
+	return NULL;
 }
 
 /**
@@ -428,63 +434,41 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *runni
 /**
  * Waits for the server thread to return.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  */
-bool gl_server_thread_join(void) {
+gl_err_t *gl_server_thread_join(void) {
 	gl_err_t *err;
-	bool success;
 
 	/* Do we even need to do something? */
 	if (m_server_thread == NULL)
-		return true;
+		return NULL;
 
 	/* Join the thread back into us. */
 	pthread_join(*m_server_thread, (void **)&err);
 	free(m_server_thread);
 	m_server_thread = NULL;
 
-	/* Check if we got any returned errors. */
-	if (err == NULL)
-		return true;
-
-	/* Check for success and free our returned value. */
-	success = err->error.generic <= 0;
-	gl_error_print(err);
-	gl_error_free(err);
-
-	/* Check if the thread join was successful. */
-	return success;
+	return err;
 }
 
 /**
  * Waits for the server thread to return.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  */
-bool gl_server_discovery_thread_join(void) {
+gl_err_t *gl_server_discovery_thread_join(void) {
 	gl_err_t *err;
-	bool success;
 
 	/* Do we even need to do something? */
 	if (m_discovery_thread == NULL)
-		return true;
+		return NULL;
 
 	/* Join the thread back into us. */
 	pthread_join(*m_discovery_thread, (void **)&err);
 	free(m_discovery_thread);
 	m_discovery_thread = NULL;
 
-	/* Check if we got any returned errors. */
-	if (err == NULL)
-		return true;
-
-	/* Check for success and free our returned value. */
-	success = err->error.generic <= 0;
-	gl_error_print(err);
-	gl_error_free(err);
-
-	/* Check if the thread join was successful. */
-	return success;
+	return err;
 }
 
 /**
@@ -626,7 +610,7 @@ void *server_thread_func(void *args) {
  * @return Pointer to a gl_err_t with the last error code. This pointer must be
  *         free'd by you.
  */
-void *server_discovery_thread_func(void *args) {
+void *discovery_thread_func(void *args) {
 	gl_err_t *gl_err;
 	obex_packet_t *packet;
 	obex_opcodes_t op;
@@ -684,8 +668,6 @@ void *server_discovery_thread_func(void *args) {
 		if (gl_err)
 			break;
 	}
-
-	printf("Discovery server thread returned.\n");
 
 	return (void *)gl_err;
 }
