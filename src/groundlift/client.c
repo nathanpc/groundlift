@@ -39,11 +39,11 @@ void *client_thread_func(void *fname);
  * @param addr Address to connect to.
  * @param port Port to connect to.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  *
  * @see gl_client_connect
  */
-bool gl_client_init(const char *addr, uint16_t port) {
+gl_err_t *gl_client_init(const char *addr, uint16_t port) {
 	/* Ensure we have everything in a known clean state. */
 	m_client_thread = (pthread_t *)malloc(sizeof(pthread_t));
 	evt_conn_cb_func = NULL;
@@ -61,7 +61,12 @@ bool gl_client_init(const char *addr, uint16_t port) {
 
 	/* Get a server handle. */
 	m_client = tcp_client_new(addr, port);
-	return m_client != NULL;
+	if (m_client == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_SOCKET,
+							EMSG("Failed to initialize the client socket"));
+	}
+
+	return NULL;
 }
 
 /**
@@ -97,21 +102,24 @@ void gl_client_free(void) {
  *
  * @param fname Path to a file to be sent to the server.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  *
  * @see gl_client_loop
  * @see gl_client_disconnect
  */
-bool gl_client_connect(char *fname) {
+gl_err_t *gl_client_connect(char *fname) {
 	int ret;
 
 	/* Create the client thread. */
 	ret = pthread_create(m_client_thread, NULL, client_thread_func,
 		(void *)fname);
-	if (ret)
+	if (ret) {
 		m_client_thread = NULL;
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to create the client connection thread"));
+	}
 
-	return ret == 0;
+	return NULL;
 }
 
 /**
@@ -378,32 +386,21 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 /**
  * Waits for the client thread to return.
  *
- * @return TRUE if the operation was successful.
+ * @return NULL if the operation was successful.
  */
-bool gl_client_thread_join(void) {
+gl_err_t *gl_client_thread_join(void) {
 	gl_err_t *err;
-	bool success;
 
 	/* Do we even need to do something? */
 	if (m_client_thread == NULL)
-		return true;
+		return NULL;
 
 	/* Join the thread back into us. */
 	pthread_join(*m_client_thread, (void **)&err);
 	free(m_client_thread);
 	m_client_thread = NULL;
 
-	/* Check if we got any returned errors. */
-	if (err == NULL)
-		return true;
-
-	/* Check for success and free our returned value. */
-	success = err->error.generic <= 0;
-	gl_error_print(err);
-	gl_error_free(err);
-
-	/* Check if the thread join was successful. */
-	return success;
+	return err;
 }
 
 /**

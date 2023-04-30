@@ -29,13 +29,11 @@ void event_peer_discovered(const char *name, const struct sockaddr *addr);
  */
 gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 	gl_err_t *err = NULL;
-	/* TODO: Start using err instead of printing errors. */
 
 	/* Initialize the client. */
-	if (!gl_client_init(ip, port)) {
-		fprintf(stderr, "Failed to initialize the client.\n");
+	err = gl_client_init(ip, port);
+	if (err)
 		goto cleanup;
-	}
 
 	/* Setup event handlers. */
 	gl_client_evt_conn_set(event_connected);
@@ -45,13 +43,13 @@ gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 	gl_client_evt_disconn_set(event_disconnected);
 
 	/* Connect to the server. */
-	if (!gl_client_connect(fname)) {
-		fprintf(stderr, "Failed to connect the client to the server.\n");
+	err = gl_client_connect(fname);
+	if (err)
 		goto cleanup;
-	}
 
 	/* Wait for it to return. */
-	if (!gl_client_thread_join()) {
+	err = gl_client_thread_join();
+	if (err) {
 		fprintf(stderr, "Client thread returned with errors.\n");
 		goto cleanup;
 	}

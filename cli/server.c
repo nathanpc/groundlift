@@ -31,7 +31,6 @@ void event_conn_closed(void);
  */
 gl_err_t *server_run(const char *ip, uint16_t port) {
 	gl_err_t *err = NULL;
-	/* TODO: Start using err instead of printing errors. */
 
 	/* Initialize the server. */
 	err = gl_server_init(ip, port);

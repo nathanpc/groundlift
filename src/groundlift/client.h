@@ -82,13 +82,13 @@ typedef void (*gl_client_evt_put_succeed_func)(const char *fname);
 typedef void (*gl_client_evt_discovery_peer_func)(const char *name, const struct sockaddr *addr);
 
 /* Initialization and destruction. */
-bool gl_client_init(const char *addr, uint16_t port);
+gl_err_t *gl_client_init(const char *addr, uint16_t port);
 void gl_client_free(void);
 
 /* Client connection lifecycle. */
-bool gl_client_connect(char *fname);
+gl_err_t *gl_client_connect(char *fname);
 bool gl_client_disconnect(void);
-bool gl_client_thread_join(void);
+gl_err_t *gl_client_thread_join(void);
 
 /* Client interactions. */
 gl_err_t *gl_client_send_packet(obex_packet_t *packet);
