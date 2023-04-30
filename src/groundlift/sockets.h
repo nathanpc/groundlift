@@ -20,7 +20,8 @@ extern "C" {
 
 /* TCP error codes. */
 typedef enum {
-	SOCK_EVT_CONN_SHUTDOWN = -2,
+	SOCK_EVT_TIMEOUT = -3,
+	SOCK_EVT_CONN_SHUTDOWN,
 	SOCK_EVT_CONN_CLOSED,
 	SOCK_OK,
 	SOCK_ERR_ESOCKET,

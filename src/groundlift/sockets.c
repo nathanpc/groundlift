@@ -747,6 +747,12 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 	if (bytes_recv == -1) {
+		/* Check if it was just a timeout. */
+		if (errno == EAGAIN) {
+			return SOCK_EVT_TIMEOUT;
+		}
+
+		/* Looks like it was a proper error. */
 		perror("udp_socket_recv@recvfrom");
 		return SOCK_ERR_ERECV;
 	}

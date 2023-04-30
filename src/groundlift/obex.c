@@ -1065,8 +1065,7 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 		fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive OBEX "
 				"packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return obex_invalid_packet;
-	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
-			(tcp_err == SOCK_EVT_CONN_SHUTDOWN)) {
+	} else if (tcp_err < SOCK_OK) {
 		return NULL;
 	}
 
