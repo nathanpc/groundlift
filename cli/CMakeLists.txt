@@ -15,7 +15,7 @@ if(THREADS_HAVE_PTHREAD_ARG)
 	target_compile_options(gl PUBLIC "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
-	target_link_libraries(gl "${CMAKE_THREAD_LIBS_INIT}")
+	target_link_libraries(gl PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
 # Ensure we have our main library in the include path.
