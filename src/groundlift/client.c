@@ -197,7 +197,7 @@ gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted) {
 	pthread_mutex_lock(m_client_mutex);
 	packet = obex_net_packet_recv(m_client->sockfd, true);
 	pthread_mutex_unlock(m_client_mutex);
-	if (packet == NULL) {
+	if ((packet == NULL) || (packet == obex_invalid_packet)) {
 		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 			EMSG("Failed to receive or decode the received packet"));
 		goto cleanup;
@@ -326,7 +326,7 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		pthread_mutex_lock(m_client_mutex);
 		packet = obex_net_packet_recv(m_client->sockfd, false);
 		pthread_mutex_unlock(m_client_mutex);
-		if (packet == NULL) {
+		if ((packet == NULL) || (packet == obex_invalid_packet)) {
 			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 				EMSG("Failed to receive or decode the received packet"));
 			break;
@@ -487,8 +487,7 @@ disconnect:
  */
 gl_err_t *gl_client_discover_peers(uint16_t port) {
 	sock_bundle_t sock;
-	obex_packet_t *send_packet;
-	obex_packet_t *recv_packet;
+	obex_packet_t *packet;
 	obex_opcodes_t op;
 	tcp_err_t tcp_err;
 	gl_err_t *err;
@@ -512,28 +511,33 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	}
 
 	/* Build up the discovery packet. */
-	send_packet = obex_packet_new_get("DISCOVER", true);
-	if (send_packet == NULL) {
+	packet = obex_packet_new_get("DISCOVER", true);
+	if (packet == NULL) {
 		return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_NEW,
 			EMSG("Failed to create the discovery OBEX packet"));
 	}
 
 	/* Send discovery broadcast. */
-	err = obex_net_packet_sendto(sock, send_packet);
+	err = obex_net_packet_sendto(sock, packet);
+	obex_packet_free(packet);
 	if (err)
 		return err;
 
 	/* Listen for replies. */
 	op = OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
-	while ((recv_packet = obex_net_packet_recvfrom(&sock, &op, false))
+	while ((packet = obex_net_packet_recvfrom(&sock, &op, false))
 			!= NULL) {
 		const obex_header_t *header;
 
+		/* Check if we got an invalid packet. */
+		if (packet == obex_invalid_packet)
+			continue;
+
 		/* Get the peer's hostname. */
-		header = obex_packet_header_find(recv_packet, OBEX_HEADER_EXT_HOSTNAME);
+		header = obex_packet_header_find(packet, OBEX_HEADER_EXT_HOSTNAME);
 		if (header == NULL) {
 			/* Free up resources. */
-			obex_packet_free(recv_packet);
+			obex_packet_free(packet);
 			socket_close(sock.sockfd);
 
 			return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_HEADER_NOT_FOUND,
@@ -547,7 +551,7 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 		}
 
 		/* Free up resources. */
-		obex_packet_free(recv_packet);
+		obex_packet_free(packet);
 	}
 
 	/* Close our UDP socket. */

@@ -189,6 +189,12 @@ typedef struct {
 	void *body;
 } obex_packet_t;
 
+/* Special packet declarations */
+extern obex_packet_t *obex_invalid_packet;
+
+/* Initialization */
+void obex_init(void);
+
 /* Packet manipulation. */
 obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final);
 void obex_packet_free(obex_packet_t *packet);

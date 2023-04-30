@@ -7,6 +7,7 @@
 
 #include <groundlift/conf.h>
 #include <groundlift/defaults.h>
+#include <groundlift/obex.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
@@ -39,7 +40,8 @@ int main(int argc, char **argv) {
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
 
-	/* Initialize the configuration module. */
+	/* Initialize some common modules. */
+	obex_init();
 	conf_init();
 
 	/* Start as server or as client. */

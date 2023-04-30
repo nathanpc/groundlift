@@ -626,7 +626,9 @@ void *discovery_thread_func(void *args) {
 		obex_packet_t *reply;
 		const obex_header_t *header;
 
-		/* TODO: Use gl_err instead of fprintf(). */
+		/* Check if we got an invalid packet. */
+		if (packet == obex_invalid_packet)
+			continue;
 
 		/* Check if the packet is meant for discovery. */
 		header = obex_packet_header_find(packet, OBEX_HEADER_NAME);

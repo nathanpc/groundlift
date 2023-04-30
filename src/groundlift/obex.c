@@ -18,9 +18,32 @@
 #include "sockets.h"
 #include "utf16utils.h"
 
+/* Public variables. */
+obex_packet_t *obex_invalid_packet;
+
+/* Private variables. */
+static obex_packet_t void_packet;
+
 /* Private methods. */
 bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len);
 void *memcpy_n(void *dest, const void *src, size_t len);
+
+/**
+ * Initializes some of the internal states of the OBEX module.
+ */
+void obex_init(void) {
+	/* Initialize the invalid packet. */
+	obex_invalid_packet = &void_packet;
+	void_packet.opcode = OBEX_OPCODE_ABORT;
+	void_packet.size = 0;
+	void_packet.params_count = 0;
+	void_packet.params = NULL;
+	void_packet.headers = NULL;
+	void_packet.header_count = 0;
+	void_packet.body_end = false;
+	void_packet.body_length = 0;
+	void_packet.body = NULL;
+}
 
 /**
  * Creates a brand new OBEX packet object.
@@ -176,6 +199,7 @@ bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header) {
  */
 bool obex_packet_header_add_hostname(obex_packet_t *packet) {
 	obex_header_t *header;
+	bool ret;
 
 	/* Create the header object. */
 	header = obex_header_new(OBEX_HEADER_EXT_HOSTNAME);
@@ -188,7 +212,12 @@ bool obex_packet_header_add_hostname(obex_packet_t *packet) {
 		return false;
 	}
 
-	return obex_packet_header_add(packet, header);
+	/* Add the header to the packet. */
+	ret = obex_packet_header_add(packet, header);
+	if (!ret)
+		obex_header_free(header);
+
+	return ret;
 }
 
 /**
@@ -672,7 +701,8 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
  * @param len        Length of the buffer in bytes.
  * @param has_params Does this packet contain parameters?
  *
- * @return Fully populated OBEX packet or NULL if an error occurred.
+ * @return Fully populated OBEX packet, obex_invalid_packet if the packet was
+ *         invalid or NULL if an error occurred.
  */
 obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params) {
 	obex_packet_t *packet;
@@ -719,7 +749,7 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 				fprintf(stderr, "obex_packet_decode: Invalid opcode 0x%02X "
 						"received with has_params flag.\n", packet->opcode);
 				obex_packet_free(packet);
-				return NULL;
+				return obex_invalid_packet;
 		}
 	}
 
@@ -765,7 +795,7 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 				fprintf(stderr, "obex_packet_decode: Invalid header identifier "
 						"encoding.\n");
 				obex_packet_free(packet);
-				return NULL;
+				return obex_invalid_packet;
 		}
 
 		/* Copy over some of the special values. */
@@ -959,7 +989,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	if ((tcp_err >= SOCK_OK) && (len != 3)) {
 		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
 				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
-		return NULL;
+		return obex_invalid_packet;
 	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
 			   (tcp_err == SOCK_EVT_CONN_SHUTDOWN)) {
 		return NULL;
@@ -970,7 +1000,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	if (psize > OBEX_MAX_PACKET_SIZE) {
 		fprintf(stderr, "obex_net_packet_recv: Peek'd packet length %u is "
 				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
-		return NULL;
+		return obex_invalid_packet;
 	}
 	buf = malloc(psize);
 
@@ -985,7 +1015,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 					tcp_err, psize, plen, len);
 			free(buf);
 
-			return NULL;
+			return obex_invalid_packet;
 		}
 
 		tmp += plen;
@@ -995,6 +1025,8 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 	/* Decode the packet and free up any temporary resources. */
 	packet = obex_packet_decode(buf, psize, has_params);
 	free(buf);
+	if (packet == NULL)
+		return obex_invalid_packet;
 
 	return packet;
 }
@@ -1008,7 +1040,8 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
  *                   or NULL if we want to receive everything.
  * @param has_params Does this packet contain parameters?
  *
- * @return Decoded packet object or NULL if the received packet was invalid.
+ * @return Decoded packet object, obex_invalid_packet if the received packet was
+ *         invalid or NULL if an error occurred.
  */
 obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_t *expected, bool has_params) {
 	size_t len;
@@ -1027,11 +1060,11 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	if ((tcp_err == SOCK_OK) && (expected) && (peek_buf[0] != *expected)) {
 		fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not what "
 				"was expected (0x%02X).\n", peek_buf[0], *expected);
-		return NULL;
+		return obex_invalid_packet;
 	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
 		fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive OBEX "
 				"packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
-		return NULL;
+		return obex_invalid_packet;
 	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
 			(tcp_err == SOCK_EVT_CONN_SHUTDOWN)) {
 		return NULL;
@@ -1042,7 +1075,7 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	if (psize > OBEX_MAX_PACKET_SIZE) {
 		fprintf(stderr, "obex_net_packet_recvfrom: Peek'd packet length %u is "
 				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
-		return NULL;
+		return obex_invalid_packet;
 	}
 	buf = malloc(psize);
 
@@ -1060,7 +1093,7 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 					tcp_err, psize, plen, len);
 			free(buf);
 
-			return NULL;
+			return obex_invalid_packet;
 		}
 
 		tmp += plen;
@@ -1070,6 +1103,8 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
 	/* Decode the packet and free up any temporary resources. */
 	packet = obex_packet_decode(buf, psize, has_params);
 	free(buf);
+	if (packet == NULL)
+		return obex_invalid_packet;
 
 	return packet;
 }
@@ -1300,6 +1335,12 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
  */
 void obex_print_packet(obex_packet_t *packet) {
 	uint16_t i;
+
+	/* Check if we have an invalid packet. */
+	if (packet == obex_invalid_packet) {
+		printf("INVALID OBEX PACKET\n");
+		return;
+	}
 
 	/* Opcode or response code. */
 	switch (packet->opcode) {
