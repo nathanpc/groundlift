@@ -7,6 +7,7 @@
 
 #include "error.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -24,7 +25,47 @@
  * @see gl_error_free
  */
 gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg) {
+	return gl_error_new_prefixed(type, err, NULL, msg);
+}
+
+/**
+ * Creates a brand new error reporting object from a standardized errno error
+ * message.
+ *
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param type   Type of the error being reported.
+ * @param err    Error code.
+ * @param prefix Descriptive error message prefix for the errno message string.
+ *
+ * @return Brand newly allocated, fully populated, error reporting object or
+ *         NULL if we were able to allocate the necessary memory.
+ *
+ * @see gl_error_new_prefix
+ * @see gl_error_free
+ */
+gl_err_t *gl_error_new_errno(err_type_t type, int8_t err, const char *prefix) {
+	return gl_error_new_prefixed(type, err, prefix, strerror(errno));
+}
+
+/**
+ * Creates a brand new error reporting object.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @param type   Type of the error being reported.
+ * @param err    Error code.
+ * @param prefix Prefix of the error message or NULL to not include one.
+ * @param msg    Descriptive error message.
+ *
+ * @return Brand newly allocated, fully populated, error reporting object or
+ *         NULL if we were able to allocate the necessary memory.
+ *
+ * @see gl_error_new
+ * @see gl_error_free
+ */
+gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix, const char *msg) {
 	gl_err_t *report;
+	size_t len;
 
 	/* Allocate memory for our error reporting structure. */
 	report = (gl_err_t *)malloc(sizeof(gl_err_t));
@@ -35,12 +76,30 @@ gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg) {
 	report->type = type;
 	report->error.generic = err;
 
-	/* Allocate memory and copy our message string. */
-	report->msg = strdup(msg);
+	/* Just use the message if no prefix was passed. */
+	if (prefix == NULL) {
+		/* Copy the message string and ensure we were able to allocate it. */
+		report->msg = strdup(msg);
+		if (report->msg == NULL) {
+			free(report);
+			return NULL;
+		}
+
+		return report;
+	}
+
+	/* Calculate the size of the string we need for the message. */
+	len = strlen(msg) + strlen(prefix) + 2 + 1;
+
+	/* Allocate memory for our message string. */
+	report->msg = (char *)malloc(len * sizeof(char));
 	if (report->msg == NULL) {
 		free(report);
 		return NULL;
 	}
+
+	/* Copy over the entire message. */
+	snprintf(report->msg, len, "%s: %s", prefix, msg);
 
 	return report;
 }
