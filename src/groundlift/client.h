@@ -97,6 +97,7 @@ gl_err_t *gl_client_send_put_file(const char *fname);
 
 /* Discovery service. */
 gl_err_t *gl_client_discover_peers(uint16_t port);
+gl_err_t *gl_client_discovery_thread_join(void);
 
 /* Getters and setters. */
 tcp_client_t *gl_client_get(void);

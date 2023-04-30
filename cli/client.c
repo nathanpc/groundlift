@@ -79,9 +79,11 @@ gl_err_t *client_list_peers(void) {
 	if (err)
 		return err;
 
-	/* TODO: Thread join and clean up resources. */
-
-	printf("Stopped trying to discover peers.\n");
+	/* Wait for the discovery thread to return. */
+	err = gl_client_discovery_thread_join();
+	if (err)
+		return err;
+	printf("Finished trying to discover peers.\n");
 
 	return NULL;
 }

@@ -21,6 +21,7 @@ static tcp_client_t *m_client;
 static pthread_mutex_t *m_client_mutex;
 static pthread_mutex_t *m_client_send_mutex;
 static pthread_t *m_client_thread;
+static pthread_t *m_discovery_thread;
 
 /* Function callbacks. */
 static gl_client_evt_conn_func evt_conn_cb_func;
@@ -32,6 +33,7 @@ static gl_client_evt_discovery_peer_func evt_discovery_peer_cb_func;
 
 /* Private methods. */
 void *client_thread_func(void *fname);
+void *peer_discovery_thread_func(void *port);
 
 /**
  * Initializes everything related to the client to a known clean state.
@@ -143,6 +145,90 @@ bool gl_client_disconnect(void) {
 	pthread_mutex_unlock(m_client_mutex);
 
 	return err == SOCK_OK;
+}
+
+/**
+ * Waits for the client thread to return.
+ *
+ * @return NULL if the operation was successful.
+ */
+gl_err_t *gl_client_thread_join(void) {
+	gl_err_t *err;
+
+	/* Do we even need to do something? */
+	if (m_client_thread == NULL)
+		return NULL;
+
+	/* Join the thread back into us. */
+	pthread_join(*m_client_thread, (void **)&err);
+	free(m_client_thread);
+	m_client_thread = NULL;
+
+	return err;
+}
+
+/**
+ * Sends a peer discovery broadcast.
+ *
+ * @param port UDP port to listen on for discovery packets.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_client_discover_peers(uint16_t port) {
+	gl_err_t *err;
+	int ret;
+	uint16_t *ptr_port;
+
+	/* Allocate the port value pointer and set it. (Free'd inside thread) */
+	ptr_port = malloc(sizeof(uint16_t));
+	*ptr_port = port;
+
+	/*
+	 * TODO: Use INADDR_BROADCAST as fallback, but in modern platforms go
+	 *       through network interfaces and broadcast using the subnet mask.
+	 */
+
+	/* Join the previous thread first. */
+	err = NULL;
+	if (m_discovery_thread != NULL) {
+		printf("Previous discovery thread still running. Waiting...\n");
+		err = gl_client_discovery_thread_join();
+		if (err)
+			return err;
+	}
+
+	/* Create the client thread. */
+	m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	ret = pthread_create(m_discovery_thread, NULL, peer_discovery_thread_func,
+						 (void *)ptr_port);
+	if (ret) {
+		m_discovery_thread = NULL;
+		err = gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to create the client's peer discovery thread"));
+	}
+
+	return err;
+}
+
+/**
+ * Waits for the peer discovery thread to return.
+ *
+ * @return NULL if the operation was successful.
+ */
+gl_err_t *gl_client_discovery_thread_join(void) {
+	gl_err_t *err;
+
+	/* Do we even need to do something? */
+	if (m_discovery_thread == NULL)
+		return NULL;
+
+	/* Join the thread back into us. */
+	pthread_join(*m_discovery_thread, (void **)&err);
+	free(m_discovery_thread);
+	m_discovery_thread = NULL;
+
+	return err;
 }
 
 /**
@@ -384,26 +470,6 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 }
 
 /**
- * Waits for the client thread to return.
- *
- * @return NULL if the operation was successful.
- */
-gl_err_t *gl_client_thread_join(void) {
-	gl_err_t *err;
-
-	/* Do we even need to do something? */
-	if (m_client_thread == NULL)
-		return NULL;
-
-	/* Join the thread back into us. */
-	pthread_join(*m_client_thread, (void **)&err);
-	free(m_client_thread);
-	m_client_thread = NULL;
-
-	return err;
-}
-
-/**
  * Client's thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
@@ -475,14 +541,15 @@ disconnect:
 }
 
 /**
- * Sends a peer discovery broadcast.
+ * Thread function that handles everything related to peer discovery.
+ * @warning This function allocates memory that must be free'd by you.
  *
  * @param port UDP port to listen on for discovery packets.
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_discover_peers(uint16_t port) {
+void *peer_discovery_thread_func(void *port) {
 	sock_bundle_t sock;
 	obex_packet_t *packet;
 	obex_opcodes_t op;
@@ -492,16 +559,10 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	/* Initialize some variables. */
 	err = NULL;
 
-	/* TODO: Move everything below this line into a thread. */
-
-	/*
-	 * TODO: Use INADDR_BROADCAST as fallback, but in modern platforms go
-	 *       through network interfaces and broadcast using the subnet mask.
-	 */
-
 	/* Initialize the discovery packet broadcaster. */
-	tcp_err = udp_discovery_init(&sock, false, INADDR_BROADCAST, port,
-								 UDP_TIMEOUT_MS);
+	tcp_err = udp_discovery_init(&sock, false, INADDR_BROADCAST,
+								 *((uint16_t *)port), UDP_TIMEOUT_MS);
+	free(port);
 	if (tcp_err) {
 		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
 			EMSG("Failed to initialize the client's discovery transmitter"));
@@ -518,12 +579,11 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	err = obex_net_packet_sendto(sock, packet);
 	obex_packet_free(packet);
 	if (err)
-		return err;
+		return (void *)err;
 
 	/* Listen for replies. */
 	op = OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
-	while ((packet = obex_net_packet_recvfrom(&sock, &op, false))
-			!= NULL) {
+	while ((packet = obex_net_packet_recvfrom(&sock, &op, false)) != NULL) {
 		const obex_header_t *header;
 
 		/* Check if we got an invalid packet. */
@@ -554,7 +614,7 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 	/* Close our UDP socket. */
 	socket_close(sock.sockfd);
 
-	return err;
+	return (void *)err;
 }
 
 /**
