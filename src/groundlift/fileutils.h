@@ -32,6 +32,11 @@ typedef struct {
 	fsize_t size;
 } file_bundle_t;
 
+/* File Bundles */
+file_bundle_t *file_bundle_new_empty(void);
+file_bundle_t *file_bundle_new(const char *fname);
+void file_bundle_free(file_bundle_t *fb);
+
 /* File Operations */
 FILE *file_open(const char *fname, const char *mode);
 ssize_t file_read(FILE *fh, void **buf, size_t len);

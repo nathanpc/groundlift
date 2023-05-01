@@ -18,6 +18,103 @@
 #include "defaults.h"
 
 /**
+ * Creates an empty file bundle.
+ * @warning This function allocates memory that must be free'd by you!
+ *
+ * @return Newly allocated file bundle object or NULL if an error occurred.
+ */
+file_bundle_t *file_bundle_new_empty(void) {
+	file_bundle_t *fb;
+
+	/* Allocate our file bundle. */
+	fb = (file_bundle_t *)malloc(sizeof(file_bundle_t));
+	if (fb == NULL)
+		return NULL;
+
+	/* Initialize the bundle with some sane defaults. */
+	fb->name = NULL;
+	fb->base = NULL;
+	fb->size = 0;
+
+	return fb;
+}
+
+/**
+ * Creates a fully populated file bundle from a file path.
+ *
+ * @param fname Path to the file to get information from.
+ *
+ * @return Newly allocated file bundle object or NULL if an error occurred.
+ */
+file_bundle_t *file_bundle_new(const char *fname) {
+	file_bundle_t *fb;
+	sfsize_t fsize;
+
+	/* Allocate our file bundle. */
+	fb = (file_bundle_t *)malloc(sizeof(file_bundle_t));
+	if (fb == NULL)
+		return NULL;
+
+	/* Get the size of the file. */
+	fsize = file_size(fname);
+	if (fsize < 0L) {
+		fprintf(stderr, "Failed to get the length of the file %s.\n", fname);
+		free(fb);
+
+		return NULL;
+	}
+	fb->size = (fsize_t)fsize;
+
+	/* Set the file path. */
+	fb->name = strdup(fname);
+	if (fb->name == NULL) {
+		fprintf(stderr, "Failed to duplicate %s file name string.\n", fname);
+		free(fb);
+
+		return NULL;
+	}
+
+	/* Determine the file's basename. */
+	fb->base = path_basename(fb->name);
+	if (fb->base == NULL) {
+		fprintf(stderr, "Failed to get %s basename.\n", fname);
+		free(fb->name);
+		free(fb);
+
+		return NULL;
+	}
+
+	return fb;
+}
+
+/**
+ * Frees up any resources allocated by a file bundle.
+ *
+ * @param fb File bundle object.
+ */
+void file_bundle_free(file_bundle_t *fb) {
+	/* Check if we have anything to do. */
+	if (fb == NULL)
+		return;
+
+	/* File path. */
+	if (fb->name) {
+		free(fb->name);
+		fb->name = NULL;
+	}
+
+	/* File basename. */
+	if (fb->base) {
+		free(fb->base);
+		fb->base = NULL;
+	}
+
+	/* Free ourselves. */
+	free(fb);
+	fb = NULL;
+}
+
+/**
  * Opens a file in binary mode.
  *
  * @param fname Path to the file to be opened.
