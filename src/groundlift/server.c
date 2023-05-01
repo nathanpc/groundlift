@@ -262,7 +262,8 @@ gl_err_t *gl_server_send_packet(obex_packet_t *packet) {
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted) {
+gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
+									bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *resp;
 	char *fname;
@@ -305,7 +306,8 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted)
  *
  * @return An error object if an error occurred or NULL if it was successful.
  */
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *running, conn_state_t *state) {
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
+								   bool *running, conn_state_t *state) {
 	gl_err_t *err;
 	gl_server_conn_progress_t progress;
 	obex_packet_t *packet;
@@ -532,7 +534,8 @@ void *server_thread_func(void *args) {
 		state = CONN_STATE_CREATED;
 		running = true;
 		has_params = true;
-		while (((packet = obex_net_packet_recv(m_conn->sockfd, has_params)) != NULL) && running) {
+		while (((packet = obex_net_packet_recv(m_conn->sockfd, has_params))
+				!= NULL) && running) {
 			/* Handle operations for the different states. */
 			switch (state) {
 				case CONN_STATE_CREATED:
@@ -553,9 +556,11 @@ void *server_thread_func(void *args) {
 					break;
 				case CONN_STATE_RECV_FILES:
 					/* Receiving files from the client. */
-					if (OBEX_IGNORE_FINAL_BIT(packet->opcode) == OBEX_OPCODE_PUT) {
+					if (OBEX_IGNORE_FINAL_BIT(packet->opcode)
+							== OBEX_OPCODE_PUT) {
 						/* Received a chunk of a file. */
-						gl_err = gl_server_handle_put_req(packet, &running, &state);
+						gl_err = gl_server_handle_put_req(
+							packet, &running, &state);
 					} else {
 						/* Invalid opcode for this state. */
 						gl_err = gl_error_new(ERR_TYPE_GL,
@@ -756,7 +761,8 @@ void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
  *
  * @param func Client Connection Requested event callback function.
  */
-void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func) {
+void gl_server_evt_client_conn_req_set(
+		gl_server_evt_client_conn_req_func func) {
 	evt_server_client_conn_req_cb_func = func;
 }
 
@@ -765,7 +771,8 @@ void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func) 
  *
  * @param func File Download Progress event callback function.
  */
-void gl_server_conn_evt_download_progress_set(gl_server_conn_evt_download_progress_func func) {
+void gl_server_conn_evt_download_progress_set(
+		gl_server_conn_evt_download_progress_func func) {
 	evt_server_conn_download_progress_cb_func = func;
 }
 
@@ -774,6 +781,7 @@ void gl_server_conn_evt_download_progress_set(gl_server_conn_evt_download_progre
  *
  * @param func File Downloaded Successfully event callback function.
  */
-void gl_server_conn_evt_download_success_set(gl_server_conn_evt_download_success_func func) {
+void gl_server_conn_evt_download_success_set(
+		gl_server_conn_evt_download_success_func func) {
 	evt_server_conn_download_success_cb_func = func;
 }

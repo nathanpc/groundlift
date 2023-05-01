@@ -63,7 +63,8 @@ gl_err_t *gl_error_new_errno(err_type_t type, int8_t err, const char *prefix) {
  * @see gl_error_new
  * @see gl_error_free
  */
-gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix, const char *msg) {
+gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
+								const char *msg) {
 	gl_err_t *report;
 	size_t len;
 

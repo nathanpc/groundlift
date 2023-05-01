@@ -263,7 +263,9 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
  *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  */
-tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server, in_addr_t in_addr, uint16_t port, uint32_t timeout_ms) {
+tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
+							 in_addr_t in_addr, uint16_t port,
+							 uint32_t timeout_ms) {
 	unsigned char loop;
 	int reuse;
 	int perm;
@@ -429,7 +431,8 @@ tcp_err_t tcp_client_connect(tcp_client_t *client) {
  *
  * @see tcp_socket_send
  */
-tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_t len) {
+tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf,
+							   size_t len) {
 	return tcp_socket_send(conn->sockfd, buf, len, NULL);
 }
 
@@ -445,7 +448,8 @@ tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf, size_
  *
  * @see tcp_socket_send
  */
-tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t len) {
+tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf,
+						  size_t len) {
 	return tcp_socket_send(client->sockfd, buf, len, NULL);
 }
 
@@ -464,7 +468,8 @@ tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf, size_t le
  *
  * @see tcp_socket_recv
  */
-tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf,
+							   size_t buf_len, size_t *recv_len, bool peek) {
 	return tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
 }
 
@@ -483,7 +488,8 @@ tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf, size_t buf_
  *
  * @see tcp_socket_recv
  */
-tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
+						  size_t *recv_len, bool peek) {
 	return tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
 }
 
@@ -575,7 +581,8 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
  *
  * @see sockets_server_new
  */
-socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr, uint16_t port) {
+socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr,
+							  uint16_t port) {
 	socklen_t addr_size;
 
 	/* Setup the structure. */
@@ -600,7 +607,8 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr, uint1
  * @see sockets_server_new
  * @see tcp_client_new
  */
-socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t port) {
+socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
+					   uint16_t port) {
 	if (ipaddr == NULL)
 		return socket_setup_inaddr(addr, INADDR_ANY, port);
 
@@ -621,7 +629,8 @@ socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr, uint16_t po
  *
  * @see send
  */
-tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_len) {
+tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
+						  size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
@@ -654,12 +663,13 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len, size_t *sent_
  *
  * @see send
  */
-tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct sockaddr *sock_addr, socklen_t sock_len, size_t *sent_len) {
+tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
+						  const struct sockaddr *sock_addr, socklen_t sock_len,
+						  size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
-	bytes_sent = sendto(sockfd, buf, len, 0, (const struct sockaddr *)sock_addr,
-						sock_len);
+	bytes_sent = sendto(sockfd, buf, len, 0, sock_addr, sock_len);
 	if (bytes_sent == -1) {
 		perror("udp_socket_send@sendto");
 		return SOCK_ERR_ESEND;
@@ -688,7 +698,8 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len, const struct 
  *
  * @see recv
  */
-tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_len, bool peek) {
+tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
+						  size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
@@ -736,7 +747,9 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len, size_t *recv_le
  *
  * @see recv
  */
-tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len, struct sockaddr *sock_addr, socklen_t *sock_len, size_t *recv_len, bool peek) {
+tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
+						  struct sockaddr *sock_addr, socklen_t *sock_len,
+						  size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
@@ -864,11 +877,13 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 	/* Determine which type of IP address we are dealing with. */
 	switch (sock_addr->sa_family) {
 		case AF_INET:
-			inet_ntop(AF_INET, &(((const struct sockaddr_in *)sock_addr)->sin_addr),
+			inet_ntop(AF_INET,
+					  &(((const struct sockaddr_in *)sock_addr)->sin_addr),
 					  tmp, INET_ADDRSTRLEN);
 			break;
 		case AF_INET6:
-			inet_ntop(AF_INET6, &(((const struct sockaddr_in6 *)sock_addr)->sin6_addr),
+			inet_ntop(AF_INET6,
+					  &(((const struct sockaddr_in6 *)sock_addr)->sin6_addr),
 					  tmp, INET6_ADDRSTRLEN);
 			break;
 		default:

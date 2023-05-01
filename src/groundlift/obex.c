@@ -25,7 +25,8 @@ obex_packet_t *obex_invalid_packet;
 static obex_packet_t void_packet;
 
 /* Private methods. */
-bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len);
+bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
+									   const uint32_t *len);
 void *memcpy_n(void *dest, const void *src, size_t len);
 
 /**
@@ -131,7 +132,8 @@ void obex_packet_free(obex_packet_t *packet) {
  *
  * @return TRUE if the operation was successful.
  */
-bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size) {
+bool obex_packet_param_add(obex_packet_t *packet, uint16_t value,
+						   uint8_t size) {
 	/* Reallocate the memory for the parameters array. */
 	packet->params = (obex_packet_param_t *)realloc(packet->params,
 		(packet->params_count + 1) * sizeof(obex_packet_param_t));
@@ -270,7 +272,8 @@ bool obex_packet_header_pop(obex_packet_t *packet) {
  *
  * @see obex_packet_body_copy
  */
-void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob) {
+void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body,
+						  bool eob) {
 	packet->body_length = size;
 	packet->body = body;
 	packet->body_end = eob;
@@ -288,7 +291,8 @@ void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool
  *
  * @see obex_packet_body_set
  */
-bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob) {
+bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size,
+						   const void *src, bool eob) {
 	void *body;
 
 	/* Allocate memory for the body contents. */
@@ -346,7 +350,8 @@ uint16_t obex_packet_size_refresh(obex_packet_t *packet) {
  *
  * @return Header that was being searched for or NULL if one wasn't found.
  */
-obex_header_t *obex_packet_header_find(const obex_packet_t *packet, obex_header_id_t hid) {
+obex_header_t *obex_packet_header_find(const obex_packet_t *packet,
+									   obex_header_id_t hid) {
 	uint16_t i;
 
 	/* Go through the headers searching for a match. */
@@ -704,7 +709,8 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
  * @return Fully populated OBEX packet, obex_invalid_packet if the packet was
  *         invalid or NULL if an error occurred.
  */
-obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params) {
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len,
+								  bool has_params) {
 	obex_packet_t *packet;
 	const uint8_t *cur;
 	uint16_t rlen;
@@ -823,7 +829,8 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 
 			cur += blen;
 			rlen += blen;
-		} else if (header->identifier.fields.encoding == OBEX_HEADER_ENCODING_STRING) {
+		} else if (header->identifier.fields.encoding
+					   == OBEX_HEADER_ENCODING_STRING) {
 			/* Header containing an regular string. */
 			char *str;
 			uint16_t str_len;
@@ -844,7 +851,8 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params
 				cur++;
 				rlen++;
 			}
-		} else if (header->identifier.fields.encoding == OBEX_HEADER_ENCODING_UTF16) {
+		} else if (header->identifier.fields.encoding
+					   == OBEX_HEADER_ENCODING_UTF16) {
 			/* Header containing an UTF-16 string. */
 			wchar_t *wstr;
 			uint16_t wstr_len;
@@ -1043,7 +1051,9 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
  * @return Decoded packet object, obex_invalid_packet if the received packet was
  *         invalid or NULL if an error occurred.
  */
-obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_t *expected, bool has_params) {
+obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
+										const obex_opcodes_t *expected,
+										bool has_params) {
 	size_t len;
 	size_t plen;
 	tcp_err_t tcp_err;
@@ -1117,7 +1127,8 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_
  *
  * @return New populated CONNECT packet or NULL if we were unable to create it.
  */
-obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize) {
+obex_packet_t *obex_packet_new_connect(const char *fname,
+									   const uint32_t *fsize) {
 	obex_packet_t *packet;
 
 	/* Create the packet and populate it with default parameters and headers. */
@@ -1232,7 +1243,8 @@ obex_packet_t *obex_packet_new_unauthorized(bool final) {
  *
  * @return New populated PUT packet or NULL if we were unable to create it.
  */
-obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final) {
+obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize,
+								   bool final) {
 	obex_packet_t *packet;
 
 	/* Create the packet and populate it with default parameters. */
@@ -1325,7 +1337,9 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
 
 /**
  * Prints the contents of a packet in a human-readable, debug-friendly, way.
- * @warning This function will also recalculate and update the packet network size.
+ *
+ * @warning This function will also recalculate and update the packet network
+ *          size.
  *
  * @param packet OBEX packet to have its contents inspected and its size
  *               updated.
@@ -1527,7 +1541,8 @@ void obex_print_header_value(const obex_header_t *header) {
  *
  * @return TRUE if the operation was successful.
  */
-bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name, const uint32_t *len) {
+bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
+									   const uint32_t *len) {
 	obex_header_t *header;
 
 	/* Add the name if required. */

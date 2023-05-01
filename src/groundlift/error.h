@@ -90,7 +90,8 @@ typedef struct {
 
 /* Initialization and destruction. */
 gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg);
-gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix, const char *msg);
+gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
+								const char *msg);
 gl_err_t *gl_error_new_errno(err_type_t type, int8_t err, const char *prefix);
 void gl_error_free(gl_err_t *err);
 

@@ -65,14 +65,16 @@ typedef void (*gl_server_evt_stop_func)(void);
  * @return Return 0 to refuse the connection request. Anything else will be
  *         treated as accepting.
  */
-typedef int (*gl_server_evt_client_conn_req_func)(const char *fname, uint32_t fsize);
+typedef int (*gl_server_evt_client_conn_req_func)(const char *fname,
+												  uint32_t fsize);
 
 /**
  * File download progress event callback function pointer type definition.
  *
  * @param progress Structure containing all the information about the progress.
  */
-typedef void (*gl_server_conn_evt_download_progress_func)(const gl_server_conn_progress_t *progress);
+typedef void (*gl_server_conn_evt_download_progress_func)(
+	const gl_server_conn_progress_t *progress);
 
 /**
  * File downloaded successfully event callback function pointer type definition.
@@ -106,8 +108,10 @@ gl_err_t *gl_server_discovery_thread_join(void);
 
 /* Server interactions. */
 gl_err_t *gl_server_send_packet(obex_packet_t *packet);
-gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet, bool *accepted);
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet, bool *running, conn_state_t *state);
+gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
+									bool *accepted);
+gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
+								   bool *running, conn_state_t *state);
 
 /* Getters and setters. */
 server_t *gl_server_get(void);
@@ -118,8 +122,10 @@ void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func);
 void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func);
 void gl_server_evt_stop_set(gl_server_evt_stop_func func);
 void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func);
-void gl_server_conn_evt_download_progress_set(gl_server_conn_evt_download_progress_func func);
-void gl_server_conn_evt_download_success_set(gl_server_conn_evt_download_success_func func);
+void gl_server_conn_evt_download_progress_set(
+	gl_server_conn_evt_download_progress_func func);
+void gl_server_conn_evt_download_success_set(
+	gl_server_conn_evt_download_success_func func);
 
 #ifdef __cplusplus
 }

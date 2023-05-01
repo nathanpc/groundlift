@@ -202,10 +202,13 @@ bool obex_packet_param_add(obex_packet_t *packet, uint16_t value, uint8_t size);
 bool obex_packet_header_add(obex_packet_t *packet, obex_header_t *header);
 bool obex_packet_header_add_hostname(obex_packet_t *packet);
 bool obex_packet_header_pop(obex_packet_t *packet);
-void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body, bool eob);
-bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size, const void *src, bool eob);
+void obex_packet_body_set(obex_packet_t *packet, uint16_t size, void *body,
+						  bool eob);
+bool obex_packet_body_copy(obex_packet_t *packet, uint16_t size,
+						   const void *src, bool eob);
 uint16_t obex_packet_size_refresh(obex_packet_t *packet);
-obex_header_t *obex_packet_header_find(const obex_packet_t *packet, obex_header_id_t hid);
+obex_header_t *obex_packet_header_find(const obex_packet_t *packet,
+									   obex_header_id_t hid);
 
 /* Header manipulation. */
 obex_header_t *obex_header_new(obex_header_id_t id);
@@ -219,21 +222,26 @@ uint16_t obex_header_size(const obex_header_t *header);
 /* Packet encoding and decoding. */
 bool obex_packet_encode(obex_packet_t *packet, void **buf);
 void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf);
-obex_packet_t *obex_packet_decode(const void *buf, uint16_t len, bool has_params);
+obex_packet_t *obex_packet_decode(const void *buf, uint16_t len,
+								  bool has_params);
 
 /* Networking */
 gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
 gl_err_t *obex_net_packet_sendto(sock_bundle_t sock, obex_packet_t *packet);
 obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
-obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock, const obex_opcodes_t *expected, bool has_params);
+obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
+										const obex_opcodes_t *expected,
+										bool has_params);
 
 /* Common packet constructors. */
-obex_packet_t *obex_packet_new_connect(const char *fname, const uint32_t *fsize);
+obex_packet_t *obex_packet_new_connect(const char *fname,
+									   const uint32_t *fsize);
 obex_packet_t *obex_packet_new_disconnect(void);
 obex_packet_t *obex_packet_new_success(bool final, bool conn);
 obex_packet_t *obex_packet_new_continue(bool final);
 obex_packet_t *obex_packet_new_unauthorized(bool final);
-obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize, bool final);
+obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize,
+								   bool final);
 obex_packet_t *obex_packet_new_get(const char *name, bool final);
 
 /* Debugging */
