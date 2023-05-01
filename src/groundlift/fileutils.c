@@ -119,9 +119,9 @@ bool file_close(FILE *fh) {
  *
  * @return The size of the file in bytes or -1 if an error occurred.
  */
-int64_t file_size(const char *fname) {
+sfsize_t file_size(const char *fname) {
 	FILE *fh;
-	long len;
+	fsize_t len;
 
 	/* Open the file. */
 	fh = file_open(fname, "rb");

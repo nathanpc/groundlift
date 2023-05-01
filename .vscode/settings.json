@@ -23,6 +23,7 @@
 		"ltos",
 		"OBEX",
 		"SETPATH",
+		"sfsize",
 		"SOCKSERVERCLIENT",
 		"STRINGIZE",
 		"tcpserver",

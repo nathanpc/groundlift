@@ -74,7 +74,7 @@ client_handle_t *gl_client_new(void) {
  */
 gl_err_t *gl_client_setup(client_handle_t *handle, const char *addr,
 						  uint16_t port, const char *fname) {
-	int64_t fsize;
+	sfsize_t fsize;
 
 	/* Check if the file exists. */
 	if (!file_exists(fname)) {
@@ -88,7 +88,7 @@ gl_err_t *gl_client_setup(client_handle_t *handle, const char *addr,
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE,
 							EMSG("Failed to get the length of the file"));
 	}
-	handle->fb.size = (uint64_t)fsize;
+	handle->fb.size = (fsize_t)fsize;
 
 	/* Set the file path to be transferred. */
 	handle->fb.name = strdup(fname);

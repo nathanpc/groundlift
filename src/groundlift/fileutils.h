@@ -18,12 +18,18 @@ extern "C" {
 #endif
 
 /**
+ * System-agnostic representation of the size of a file.
+ */
+typedef uint64_t fsize_t;
+typedef int64_t sfsize_t;
+
+/**
  * Compilation of all of the common properties of a file.
  */
 typedef struct {
 	char *name;
 	char *base;
-	uint64_t size;
+	fsize_t size;
 } file_bundle_t;
 
 /* File Operations */
@@ -33,7 +39,7 @@ ssize_t file_write(FILE *fh, const void *buf, size_t len);
 bool file_close(FILE *fh);
 
 /* Checking */
-int64_t file_size(const char *fname);
+sfsize_t file_size(const char *fname);
 bool file_exists(const char *fname);
 
 /* Directories */
