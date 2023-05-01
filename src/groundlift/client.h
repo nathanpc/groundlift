@@ -137,6 +137,7 @@ gl_err_t *gl_client_thread_join(client_handle_t *handle);
 discovery_client_t *gl_client_discovery_new(void);
 gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port);
 gl_err_t *gl_client_discover_peers(discovery_client_t *handle);
+gl_err_t *gl_client_discovery_abort(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_free(discovery_client_t *handle);
 

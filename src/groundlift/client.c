@@ -347,6 +347,34 @@ gl_err_t *gl_client_discover_peers(discovery_client_t *handle) {
 }
 
 /**
+ * Aborts an ongoing peer discovery operation.
+ *
+ * @param handle Peer discovery client handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_client_discovery_abort(discovery_client_t *handle) {
+	tcp_err_t tcp_err;
+
+	/* Sanity check. */
+	if ((handle == NULL) || (handle->sock.sockfd == -1))
+		return NULL;
+
+	/* Close the socket. */
+	tcp_err = socket_shutdown(handle->sock.sockfd);
+	handle->sock.sockfd = -1;
+
+	/* Check for errors. */
+	if (tcp_err > SOCK_OK) {
+		return gl_error_new_errno(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Failed to close the client peer discovery socket"));
+	}
+
+	return NULL;
+}
+
+/**
  * Waits for the peer discovery thread to return.
  *
  * @param handle Peer discovery client handle object.
@@ -385,8 +413,9 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
 		return NULL;
 
 	/* Close the connection if needed. */
-	socket_close(handle->sock.sockfd);
-	handle->sock.sockfd = -1;
+	err = gl_client_discovery_abort(handle);
+	if (err)
+		gl_error_print(err);
 
 	/* Join the thread if needed. */
 	err = gl_client_discovery_thread_join(handle);

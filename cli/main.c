@@ -80,12 +80,9 @@ int main(int argc, char **argv) {
 void sigint_handler(int sig) {
 	printf("Got a Ctrl-C\n");
 
-	/* Disconnect the client. */
+	/* Abort any ongoing operation. */
 	gl_client_disconnect(g_client);
-
-	/* TODO: Abort peer discovery. */
-
-	/* Stop the server. */
+	gl_client_discovery_abort(g_discovery_client);
 	gl_server_stop(g_server);
 
 	/* Don't let the signal propagate. */
