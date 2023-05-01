@@ -154,8 +154,8 @@ void event_conn_req_resp(const file_bundle_t *fb, bool accepted) {
  * @param progress Structure containing all the information about the progress.
  */
 void event_send_progress(const gl_client_progress_t *progress) {
-	printf("Sending %s (%u/%lu)\n", progress->bname,
-		   progress->sent_chunk * progress->csize, progress->fsize);
+	printf("Sending %s (%u/%lu)\n", progress->fb->base,
+		   progress->sent_chunk * progress->csize, progress->fb->size);
 }
 
 /**

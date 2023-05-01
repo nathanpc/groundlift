@@ -12,6 +12,8 @@
 #include <string.h>
 
 #include "defaults.h"
+#include "error.h"
+#include "fileutils.h"
 
 /* Private methods. */
 gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet);
@@ -42,9 +44,7 @@ client_handle_t *gl_client_new(void) {
 	/* Set some sane defaults. */
 	handle->client = NULL;
 	handle->thread = NULL;
-	handle->fb.name = NULL;
-	handle->fb.base = NULL;
-	handle->fb.size = 0;
+	handle->fb = NULL;
 	handle->running = false;
 	handle->mutexes.client = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(handle->mutexes.client, NULL);
@@ -60,7 +60,7 @@ client_handle_t *gl_client_new(void) {
 }
 
 /**
- * Initializes everything related to the client to a known clean state.
+ * Sets everything up for the client handle to be usable.
  *
  * @param handle Client's handle object.
  * @param addr   Address to connect to.
@@ -74,34 +74,17 @@ client_handle_t *gl_client_new(void) {
  */
 gl_err_t *gl_client_setup(client_handle_t *handle, const char *addr,
 						  uint16_t port, const char *fname) {
-	sfsize_t fsize;
-
 	/* Check if the file exists. */
 	if (!file_exists(fname)) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
 							EMSG("File to be sent doesn't exist"));
 	}
 
-	/* Get the size of the file for transferring. */
-	fsize = file_size(fname);
-	if (fsize < 0L) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE,
-							EMSG("Failed to get the length of the file"));
-	}
-	handle->fb.size = (fsize_t)fsize;
-
-	/* Set the file path to be transferred. */
-	handle->fb.name = strdup(fname);
-	if (handle->fb.name == NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-							EMSG("Failed to duplicate the file name string"));
-	}
-
-	/* Determine the file's basename. */
-	handle->fb.base = path_basename(handle->fb.name);
-	if (handle->fb.base == NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-							EMSG("Failed to get the file basename"));
+	/* Populate our file bundle. */
+	handle->fb = file_bundle_new(fname);
+	if (handle->fb == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_FOPEN,
+			EMSG("Failed to get information about the file to be transferred"));
 	}
 
 	/* Get a client handle. */
@@ -132,10 +115,10 @@ gl_err_t *gl_client_free(client_handle_t *handle) {
 	if (handle == NULL)
 		return NULL;
 
-	/* Free the file name string. */
-	if (handle->fb.name) {
-		free(handle->fb.name);
-		handle->fb.name = NULL;
+	/* Free the file bundle. */
+	if (handle->fb) {
+		file_bundle_free(handle->fb);
+		handle->fb = NULL;
 	}
 
 	/* Disconnect the client and free up any allocated resources. */
@@ -455,7 +438,7 @@ gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted) {
 
 	/* TODO: Properly handle files with a size larger than 32-bits. */
 	/* Create the OBEX packet. */
-	packet = obex_packet_new_connect(handle->fb.base, (uint32_t *)&handle->fb.size);
+	packet = obex_packet_new_connect(handle->fb->base, (uint32_t *)&handle->fb->size);
 
 	/* Send the packet. */
 	err = gl_client_send_packet(handle, packet);
@@ -465,6 +448,7 @@ gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted) {
 	/* Read the response packet. */
 	obex_packet_free(packet);
 	pthread_mutex_lock(handle->mutexes.client);
+	/* TODO: Filter out invalid packets. */
 	packet = obex_net_packet_recv(handle->client->sockfd, true);
 	pthread_mutex_unlock(handle->mutexes.client);
 	if ((packet == NULL) || (packet == obex_invalid_packet)) {
@@ -510,8 +494,8 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 	csize = OBEX_MAX_FILE_CHUNK;
 	if (handle->client->packet_len < OBEX_MAX_FILE_CHUNK)
 		csize = handle->client->packet_len; /* TODO: Properly take into account the negotiated packet size. */
-	chunks = (uint32_t)(handle->fb.size / csize);
-	if ((csize * chunks) < handle->fb.size)
+	chunks = (uint32_t)(handle->fb->size / csize);
+	if ((csize * chunks) < handle->fb->size)
 		chunks++;
 
 #ifdef DEBUG
@@ -519,16 +503,14 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 #endif
 
 	/* Open the file. */
-	fh = file_open(handle->fb.name, "rb");
+	fh = file_open(handle->fb->name, "rb");
 	if (fh == NULL) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
 							EMSG("Failed to open the file for upload"));
 	}
 
 	/* Get the basename of the file and populate the information structure. */
-	progress.fname = handle->fb.name;
-	progress.bname = handle->fb.base;
-	progress.fsize = handle->fb.size;
+	progress.fb = handle->fb;
 	progress.csize = csize;
 	progress.chunks = chunks;
 	progress.sent_chunk = 0;
@@ -553,11 +535,11 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 		/* Create the OBEX packet object. */
 		if (cc == 0) {
-			packet = obex_packet_new_put(handle->fb.base,
-										 (uint32_t *)&handle->fb.size,
+			packet = obex_packet_new_put(handle->fb->base,
+										 (uint32_t *)&handle->fb->size,
 										 last_chunk);
 		} else {
-			packet = obex_packet_new_put(handle->fb.base, NULL, last_chunk);
+			packet = obex_packet_new_put(handle->fb->base, NULL, last_chunk);
 		}
 
 		/* Check if the packet object was created. */
@@ -586,6 +568,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 		/* Read the response packet. */
 		pthread_mutex_lock(handle->mutexes.client);
+		/* TODO: Filter out invalid packets. */
 		packet = obex_net_packet_recv(handle->client->sockfd, false);
 		pthread_mutex_unlock(handle->mutexes.client);
 		if ((packet == NULL) || (packet == obex_invalid_packet)) {
@@ -628,7 +611,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 	/* Trigger the put succeeded event. */
 	if (handle->events.put_succeeded != NULL)
-		handle->events.put_succeeded(&handle->fb);
+		handle->events.put_succeeded(handle->fb);
 
 	return err;
 }
@@ -681,7 +664,7 @@ void *client_thread_func(void *handle_ptr) {
 	/* Send the OBEX connection request and trigger an event upon reply. */
 	gl_err = gl_client_send_conn_req(handle, &handle->running);
 	if (handle->events.request_response != NULL)
-		handle->events.request_response(&handle->fb, handle->running);
+		handle->events.request_response(handle->fb, handle->running);
 	if (!handle->running || (gl_err != NULL))
 		goto disconnect;
 

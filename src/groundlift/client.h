@@ -25,13 +25,10 @@ extern "C" {
  * Structure holding all of the information about a transfer's current progress.
  */
 typedef struct {
-	const char *fname;
-	const char *bname;
+	file_bundle_t *fb;
 
 	uint32_t chunks;
 	uint32_t sent_chunk;
-
-	uint64_t fsize;
 	uint16_t csize;
 } gl_client_progress_t;
 
@@ -92,7 +89,7 @@ typedef struct {
 	tcp_client_t *client;
 	pthread_t *thread;
 
-	file_bundle_t fb;
+	file_bundle_t *fb;
 	bool running;
 
 	/* Mutexes */
