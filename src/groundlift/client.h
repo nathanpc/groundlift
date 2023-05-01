@@ -27,6 +27,7 @@ extern "C" {
 typedef struct {
 	file_bundle_t *fb;
 
+	uint32_t sent_bytes;
 	uint32_t chunks;
 	uint32_t sent_chunk;
 	uint16_t csize;

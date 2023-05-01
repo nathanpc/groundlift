@@ -514,6 +514,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 	progress.csize = csize;
 	progress.chunks = chunks;
 	progress.sent_chunk = 0;
+	progress.sent_bytes = 0;
 
 	/* Read the file in chunks for sending over OBEX packets. */
 	for (cc = 0; cc < chunks; cc++) {
@@ -556,6 +557,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 		/* Send the packet. */
 		err = obex_net_packet_send(handle->client->sockfd, packet);
+		progress.sent_bytes += (uint32_t)len;
 		obex_packet_free(packet);
 		if (err)
 			break;
