@@ -39,8 +39,8 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 	/* Construct the client handle object. */
 	m_client = gl_client_new();
 	if (m_client == NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-			EMSG("Failed to construct the client handle object."));
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the client handle object"));
 	}
 
 	/* Setup event handlers. */
@@ -52,13 +52,17 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 
 	/* Setup the client. */
 	err = gl_client_setup(m_client, ip, port, fname);
-	if (err)
+	if (err) {
+		fprintf(stderr, "Client setup failed.\n");
 		goto cleanup;
+	}
 
 	/* Connect to the server. */
 	err = gl_client_connect(m_client);
-	if (err)
+	if (err) {
+		fprintf(stderr, "Client failed to start.\n");
 		goto cleanup;
+	}
 
 	/* Wait for it to return. */
 	err = gl_client_thread_join(m_client);
@@ -86,22 +90,26 @@ gl_err_t *client_list_peers(void) {
 
 	/* Construct the discovery client handle object. */
 	m_discovery_client = gl_client_discovery_new();
-	if (m_discovery_client != NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-			EMSG("Failed to construct the discovery client handle object.\n"));
+	if (m_discovery_client == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the discovery client handle object"));
 	}
 
 	/* Setup event handlers and the discovery socket. */
 	gl_client_evt_discovery_peer_set(m_discovery_client, event_peer_discovered);
 	err = gl_client_discovery_setup(m_discovery_client, UDPSERVER_PORT);
-	if (err)
+	if (err) {
+		fprintf(stderr, "Discovery service setup failed.\n");
 		goto cleanup;
+	}
 
 	/* Send discovery broadcast and listen to replies. */
 	printf("Sending discovery broadcast...\n");
 	err = gl_client_discover_peers(m_discovery_client);
-	if (err)
+	if (err) {
+		fprintf(stderr, "Discovery service thread failed to start.\n");
 		goto cleanup;
+	}
 
 	/* Wait for the discovery thread to return. */
 	err = gl_client_discovery_thread_join(m_discovery_client);
