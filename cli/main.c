@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 
 	/* Free up any resources. */
 	gl_server_free(g_server);
-	gl_client_free(m_client);
+	gl_client_free(g_client);
 	gl_error_free(err);
 	conf_free();
 
@@ -81,7 +81,7 @@ void sigint_handler(int sig) {
 	printf("Got a Ctrl-C\n");
 
 	/* Disconnect the client. */
-	gl_client_disconnect(m_client);
+	gl_client_disconnect(g_client);
 
 	/* TODO: Abort peer discovery. */
 

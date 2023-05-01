@@ -12,8 +12,8 @@
 #include "groundlift/error.h"
 
 /* Public variables. */
-client_handle_t *m_client;
-discovery_client_t *m_discovery_client;
+client_handle_t *g_client;
+discovery_client_t *g_discovery_client;
 
 /* Client event handlers. */
 void event_connected(const tcp_client_t *client);
@@ -37,35 +37,35 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 	gl_err_t *err = NULL;
 
 	/* Construct the client handle object. */
-	m_client = gl_client_new();
-	if (m_client == NULL) {
+	g_client = gl_client_new();
+	if (g_client == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
 			EMSG("Failed to construct the client handle object"));
 	}
 
 	/* Setup event handlers. */
-	gl_client_evt_conn_set(m_client, event_connected);
-	gl_client_evt_conn_req_resp_set(m_client, event_conn_req_resp);
-	gl_client_evt_put_progress_set(m_client, event_send_progress);
-	gl_client_evt_put_succeed_set(m_client, event_send_success);
-	gl_client_evt_disconn_set(m_client, event_disconnected);
+	gl_client_evt_conn_set(g_client, event_connected);
+	gl_client_evt_conn_req_resp_set(g_client, event_conn_req_resp);
+	gl_client_evt_put_progress_set(g_client, event_send_progress);
+	gl_client_evt_put_succeed_set(g_client, event_send_success);
+	gl_client_evt_disconn_set(g_client, event_disconnected);
 
 	/* Setup the client. */
-	err = gl_client_setup(m_client, ip, port, fname);
+	err = gl_client_setup(g_client, ip, port, fname);
 	if (err) {
 		fprintf(stderr, "Client setup failed.\n");
 		goto cleanup;
 	}
 
 	/* Connect to the server. */
-	err = gl_client_connect(m_client);
+	err = gl_client_connect(g_client);
 	if (err) {
 		fprintf(stderr, "Client failed to start.\n");
 		goto cleanup;
 	}
 
 	/* Wait for it to return. */
-	err = gl_client_thread_join(m_client);
+	err = gl_client_thread_join(g_client);
 	if (err) {
 		fprintf(stderr, "Client thread returned with errors.\n");
 		goto cleanup;
@@ -73,8 +73,8 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 
 cleanup:
 	/* Free up any resources. */
-	gl_client_free(m_client);
-	m_client = NULL;
+	gl_client_free(g_client);
+	g_client = NULL;
 
 	return err;
 }
@@ -89,15 +89,15 @@ gl_err_t *client_list_peers(void) {
 	gl_err_t *err;
 
 	/* Construct the discovery client handle object. */
-	m_discovery_client = gl_client_discovery_new();
-	if (m_discovery_client == NULL) {
+	g_discovery_client = gl_client_discovery_new();
+	if (g_discovery_client == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
 			EMSG("Failed to construct the discovery client handle object"));
 	}
 
 	/* Setup event handlers and the discovery socket. */
-	gl_client_evt_discovery_peer_set(m_discovery_client, event_peer_discovered);
-	err = gl_client_discovery_setup(m_discovery_client, UDPSERVER_PORT);
+	gl_client_evt_discovery_peer_set(g_discovery_client, event_peer_discovered);
+	err = gl_client_discovery_setup(g_discovery_client, UDPSERVER_PORT);
 	if (err) {
 		fprintf(stderr, "Discovery service setup failed.\n");
 		goto cleanup;
@@ -105,22 +105,22 @@ gl_err_t *client_list_peers(void) {
 
 	/* Send discovery broadcast and listen to replies. */
 	printf("Sending discovery broadcast...\n");
-	err = gl_client_discover_peers(m_discovery_client);
+	err = gl_client_discover_peers(g_discovery_client);
 	if (err) {
 		fprintf(stderr, "Discovery service thread failed to start.\n");
 		goto cleanup;
 	}
 
 	/* Wait for the discovery thread to return. */
-	err = gl_client_discovery_thread_join(m_discovery_client);
+	err = gl_client_discovery_thread_join(g_discovery_client);
 	if (err)
 		goto cleanup;
 	printf("Finished trying to discover peers.\n");
 
 cleanup:
 	/* Clean things up. */
-	gl_client_discovery_free(m_discovery_client);
-	m_discovery_client = NULL;
+	gl_client_discovery_free(g_discovery_client);
+	g_discovery_client = NULL;
 
 	return err;
 }
@@ -162,8 +162,8 @@ void event_conn_req_resp(const file_bundle_t *fb, bool accepted) {
  * @param progress Structure containing all the information about the progress.
  */
 void event_send_progress(const gl_client_progress_t *progress) {
-	printf("Sending %s (%u/%lu)\n", progress->fb->base,
-		   progress->sent_chunk * progress->csize, progress->fb->size);
+	printf("Sending %s (%u/%lu)\n", progress->fb->base, progress->sent_bytes,
+		   progress->fb->size);
 }
 
 /**
