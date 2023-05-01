@@ -104,6 +104,8 @@ bool file_bundle_set_name(file_bundle_t *fb, const char *fname) {
 
 		return false;
 	}
+
+	return true;
 }
 
 /**
