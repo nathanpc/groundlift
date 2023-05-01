@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "defaults.h"
+#include "fileutils.h"
 
 /* Private variables. */
 static gl_conf_t conf;
@@ -24,7 +25,7 @@ char *conf_gethostname(void);
  */
 void conf_init(void) {
 	/* Initialize some defaults. */
-	conf.download_dir = NULL;
+	conf.download_dir = dir_defaults_downloads();
 	conf.hostname = conf_gethostname();
 }
 

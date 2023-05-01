@@ -47,8 +47,6 @@ typedef struct {
 typedef struct {
 	sock_bundle_t tcp;
 	sock_bundle_t udp;
-
-	char *download_dir;
 } server_t;
 
 /* Server client connection handle. */

@@ -215,7 +215,7 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 	tcp_err_t err;
 
 	/* Do we even need to shut it down? */
-	if (handle->client == NULL)
+	if ((handle == NULL) || (handle->client == NULL))
 		return NULL;
 
 	/* Shut the connection down. */

@@ -10,11 +10,9 @@
 #include <pthread.h>
 #include <string.h>
 
+#include "conf.h"
 #include "defaults.h"
-#include "error.h"
 #include "fileutils.h"
-#include "obex.h"
-#include "sockets.h"
 #include "utf16utils.h"
 
 /* Private variables. */
@@ -77,9 +75,6 @@ gl_err_t *gl_server_init(const char *addr, uint16_t port) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_SOCKET,
 			EMSG("Failed to allocate and setup the server sockets"));
 	}
-
-	/* Get the default download directory. */
-	m_server->download_dir = dir_defaults_downloads();
 
 	return NULL;
 }
@@ -325,7 +320,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 		fprintf(stderr, "WARNING: PUT request doesn't include a file length\n");
 
 	/* Get the path to save the downloaded file to. */
-	fpath = path_build_download(m_server->download_dir, fname);
+	fpath = path_build_download(conf_get_download_dir(), fname);
 
 	/* Get the basename of the file and populate the information structure. */
 	progress.fpath = fpath;
