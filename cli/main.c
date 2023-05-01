@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 		ret = 1;
 
 	/* Free up any resources. */
-	gl_server_free();
+	gl_server_free(g_server);
 	gl_client_free(m_client);
 	gl_error_free(err);
 	conf_free();
@@ -83,8 +83,10 @@ void sigint_handler(int sig) {
 	/* Disconnect the client. */
 	gl_client_disconnect(m_client);
 
+	/* TODO: Abort peer discovery. */
+
 	/* Stop the server. */
-	gl_server_stop();
+	gl_server_stop(g_server);
 
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);

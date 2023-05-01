@@ -8,16 +8,20 @@
 #include "server.h"
 
 #include <groundlift/defaults.h>
+#include "groundlift/fileutils.h"
+
+/* Public variables. */
+server_handle_t *g_server;
 
 /* Server event handlers. */
 void event_started(const server_t *server);
-int event_conn_req(const char *fname, uint32_t fsize);
+int event_conn_req(const file_bundle_t *fb);
 void event_stopped(void);
 
 /* Server client's connection event handlers. */
 void event_conn_accepted(const server_conn_t *conn);
 void event_conn_download_progress(const gl_server_conn_progress_t *progress);
-void event_conn_download_success(const char *fpath);
+void event_conn_download_success(const file_bundle_t *fb);
 void event_conn_closed(void);
 
 /**
@@ -32,41 +36,54 @@ void event_conn_closed(void);
 gl_err_t *server_run(const char *ip, uint16_t port) {
 	gl_err_t *err = NULL;
 
-	/* Initialize the server. */
-	err = gl_server_init(ip, port);
-	if (err)
-		goto cleanup;
+	/* Construct the server handle object. */
+	g_server = gl_server_new();
+	if (g_server == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the server handle object."));
+	}
 
 	/* Setup event handlers. */
-	gl_server_evt_start_set(event_started);
-	gl_server_evt_client_conn_req_set(event_conn_req);
-	gl_server_evt_stop_set(event_stopped);
-	gl_server_conn_evt_accept_set(event_conn_accepted);
-	gl_server_conn_evt_download_progress_set(
-		event_conn_download_progress);
-	gl_server_conn_evt_download_success_set(
-		event_conn_download_success);
-	gl_server_conn_evt_close_set(event_conn_closed);
+	gl_server_evt_start_set(g_server, event_started);
+	gl_server_evt_client_conn_req_set(g_server, event_conn_req);
+	gl_server_evt_stop_set(g_server, event_stopped);
+	gl_server_conn_evt_accept_set(g_server, event_conn_accepted);
+	gl_server_conn_evt_download_progress_set(g_server,
+											 event_conn_download_progress);
+	gl_server_conn_evt_download_success_set(g_server,
+											event_conn_download_success);
+	gl_server_conn_evt_close_set(g_server, event_conn_closed);
+
+	/* Initialize the server. */
+	err = gl_server_setup(g_server, ip, port);
+	if (err) {
+		fprintf(stderr, "Server setup failed.\n");
+		goto cleanup;
+	}
 
 	/* Start the main server up. */
-	err = gl_server_start();
-	if (err)
+	err = gl_server_start(g_server);
+	if (err) {
+		fprintf(stderr, "Server thread failed to start.\n");
 		goto cleanup;
+	}
 
 	/* Start the discovery server. */
-	err = gl_server_discovery_start(UDPSERVER_PORT);
-	if (err)
+	err = gl_server_discovery_start(g_server, UDPSERVER_PORT);
+	if (err) {
+		fprintf(stderr, "Discovery server thread failed to start.\n");
 		goto cleanup;
+	}
 
 	/* Wait for the discovery server thread to return. */
-	err = gl_server_discovery_thread_join();
+	err = gl_server_discovery_thread_join(g_server);
 	if (err) {
 		fprintf(stderr, "Discovery server thread returned with errors.\n");
 		goto cleanup;
 	}
 
 	/* Wait for the main server thread to return. */
-	err = gl_server_thread_join();
+	err = gl_server_thread_join(g_server);
 	if (err) {
 		fprintf(stderr, "Server thread returned with errors.\n");
 		goto cleanup;
@@ -74,7 +91,7 @@ gl_err_t *server_run(const char *ip, uint16_t port) {
 
 cleanup:
 	/* Free up any resources. */
-	gl_server_free();
+	gl_server_free(g_server);
 
 	return err;
 }
@@ -99,14 +116,16 @@ void event_started(const server_t *server) {
 /**
  * Handles the server client connection requested event.
  *
+ * @param fb File bundle of what is supposed to be received.
+ *
  * @return 0 to refuses the request. Anything else will be treated as accepting.
  */
-int event_conn_req(const char *fname, uint32_t fsize) {
+int event_conn_req(const file_bundle_t *fb) {
 	int c;
 
 	/* Ask the user for permission to accept the transfer of the file. */
-	printf("Client wants to send a file '%s' with %u bytes. Accept? [y/n]? ",
-		   fname, fsize);
+	printf("Client wants to send the file '%s' with %lu bytes. Accept? [y/n]? ",
+		   fb->base, fb->size);
 	do {
 		c = getc(stdin);
 	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
@@ -142,17 +161,17 @@ void event_conn_accepted(const server_conn_t *conn) {
  * @param progress Structure containing all the information about the progress.
  */
 void event_conn_download_progress(const gl_server_conn_progress_t *progress) {
-	printf("Receiving file... (%u/%u)\n", progress->recv_bytes,
-		   progress->fsize);
+	printf("Receiving file... (%u/%lu)\n", progress->recv_bytes,
+		   progress->fb->size);
 }
 
 /**
  * Handles the server connection download finished event.
  *
- * @param fpath Path of the downloaded file.
+ * @param fb File bundle of the downloaded file.
  */
-void event_conn_download_success(const char *fpath) {
-	printf("Finished receiving %s\n", fpath);
+void event_conn_download_success(const file_bundle_t *fb) {
+	printf("Finished receiving %s\n", fb->base);
 }
 
 /**

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "error.h"
+#include "fileutils.h"
 #include "obex.h"
 #include "sockets.h"
 
@@ -24,10 +25,7 @@ extern "C" {
  * Structure holding all of the information about a transfer's current progress.
  */
 typedef struct {
-	const char *fpath;
-	const char *bname;
-
-	uint32_t fsize;
+	file_bundle_t *fb;
 	uint32_t recv_bytes;
 } gl_server_conn_progress_t;
 
@@ -58,15 +56,12 @@ typedef void (*gl_server_evt_stop_func)(void);
 /**
  * Client connection request event callback function pointer type definition.
  *
- * @param fname Name of the file to be downloaded.
- * @param fsize Size in bytes of the entire file being downloaded. Will be 0 if
- *              the client didn't send a file length.
+ * @param fb File bundle that was uploaded.
  *
  * @return Return 0 to refuse the connection request. Anything else will be
  *         treated as accepting.
  */
-typedef int (*gl_server_evt_client_conn_req_func)(const char *fname,
-												  uint32_t fsize);
+typedef int (*gl_server_evt_client_conn_req_func)(const file_bundle_t *fb);
 
 /**
  * File download progress event callback function pointer type definition.
@@ -79,9 +74,10 @@ typedef void (*gl_server_conn_evt_download_progress_func)(
 /**
  * File downloaded successfully event callback function pointer type definition.
  *
- * @param fpath Path of the downloaded file.
+ * @param fb File bundle that was uploaded.
  */
-typedef void (*gl_server_conn_evt_download_success_func)(const char *fpath);
+typedef void (*gl_server_conn_evt_download_success_func)(
+	const file_bundle_t *fb);
 
 /**
  * Client connection states.
@@ -92,40 +88,68 @@ typedef enum {
 	CONN_STATE_ERROR
 } conn_state_t;
 
+/**
+ * Server handle object.
+ */
+typedef struct {
+	server_t *server;
+	server_conn_t *conn;
+
+	/* Threads */
+	struct {
+		pthread_t *main;
+		pthread_t *discovery;
+	} threads;
+
+	/* Mutexes */
+	struct {
+		pthread_mutex_t *server;
+		pthread_mutex_t *conn;
+	} mutexes;
+
+	/* Event handlers. */
+	struct {
+		gl_server_evt_start_func started;
+		gl_server_conn_evt_accept_func conn_accepted;
+		gl_server_conn_evt_close_func conn_closed;
+		gl_server_evt_stop_func stopped;
+		gl_server_evt_client_conn_req_func transfer_requested;
+		gl_server_conn_evt_download_progress_func transfer_progress;
+		gl_server_conn_evt_download_success_func transfer_success;
+	} events;
+} server_handle_t;
+
 /* Initialization and destruction. */
-gl_err_t *gl_server_init(const char *addr, uint16_t port);
-void gl_server_free(void);
+server_handle_t *gl_server_new(void);
+gl_err_t *gl_server_setup(server_handle_t *handle, const char *addr,
+						  uint16_t port);
+gl_err_t *gl_server_free(server_handle_t *handle);
 
 /* Server lifecycle. */
-gl_err_t *gl_server_start(void);
-tcp_err_t gl_server_conn_destroy(void);
-bool gl_server_stop(void);
-gl_err_t *gl_server_thread_join(void);
+gl_err_t *gl_server_start(server_handle_t *handle);
+gl_err_t *gl_server_conn_destroy(server_handle_t *handle);
+gl_err_t *gl_server_stop(server_handle_t *handle);
+gl_err_t *gl_server_thread_join(server_handle_t *handle);
 
 /* Discovery server lifecycle. */
-gl_err_t *gl_server_discovery_start(uint16_t port);
-gl_err_t *gl_server_discovery_thread_join(void);
-
-/* Server interactions. */
-gl_err_t *gl_server_send_packet(obex_packet_t *packet);
-gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
-									bool *accepted);
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
-								   bool *running, conn_state_t *state);
-
-/* Getters and setters. */
-server_t *gl_server_get(void);
+gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port);
+gl_err_t *gl_server_discovery_thread_join(server_handle_t *handle);
 
 /* Callbacks */
-void gl_server_evt_start_set(gl_server_evt_start_func func);
-void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func);
-void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func);
-void gl_server_evt_stop_set(gl_server_evt_stop_func func);
-void gl_server_evt_client_conn_req_set(gl_server_evt_client_conn_req_func func);
-void gl_server_conn_evt_download_progress_set(
-	gl_server_conn_evt_download_progress_func func);
-void gl_server_conn_evt_download_success_set(
-	gl_server_conn_evt_download_success_func func);
+void gl_server_evt_start_set(server_handle_t *handle,
+							 gl_server_evt_start_func func);
+void gl_server_conn_evt_accept_set(server_handle_t *handle,
+								   gl_server_conn_evt_accept_func func);
+void gl_server_conn_evt_close_set(server_handle_t *handle,
+								  gl_server_conn_evt_close_func func);
+void gl_server_evt_stop_set(server_handle_t *handle,
+							gl_server_evt_stop_func func);
+void gl_server_evt_client_conn_req_set(server_handle_t *handle,
+									   gl_server_evt_client_conn_req_func func);
+void gl_server_conn_evt_download_progress_set(server_handle_t *handle,
+								gl_server_conn_evt_download_progress_func func);
+void gl_server_conn_evt_download_success_set(server_handle_t *handle,
+								gl_server_conn_evt_download_success_func func);
 
 #ifdef __cplusplus
 }

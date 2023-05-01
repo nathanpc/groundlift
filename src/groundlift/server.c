@@ -12,67 +12,80 @@
 
 #include "conf.h"
 #include "defaults.h"
+#include "error.h"
 #include "fileutils.h"
 #include "utf16utils.h"
 
-/* Private variables. */
-static server_t *m_server;
-static server_conn_t *m_conn;
-static pthread_t *m_server_thread;
-static pthread_t *m_discovery_thread;
-static pthread_mutex_t *m_server_mutex;
-static pthread_mutex_t *m_discovery_mutex;
-static pthread_mutex_t *m_conn_mutex;
-
-/* Function callbacks. */
-static gl_server_evt_start_func evt_server_start_cb_func;
-static gl_server_conn_evt_accept_func evt_server_conn_accept_cb_func;
-static gl_server_conn_evt_close_func evt_server_conn_close_cb_func;
-static gl_server_evt_stop_func evt_server_stop_cb_func;
-static gl_server_evt_client_conn_req_func evt_server_client_conn_req_cb_func;
-static gl_server_conn_evt_download_progress_func evt_server_conn_download_progress_cb_func;
-static gl_server_conn_evt_download_success_func evt_server_conn_download_success_cb_func;
-
 /* Private methods. */
-uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname);
-void *server_thread_func(void *args);
-void *discovery_thread_func(void *args);
+gl_err_t *gl_server_packet_file_info(const obex_packet_t *packet,
+									 file_bundle_t **fb);
+gl_err_t *gl_server_send_packet(server_handle_t *handle, obex_packet_t *packet);
+gl_err_t *gl_server_handle_conn_req(server_handle_t *handle,
+									const obex_packet_t *packet,
+									bool *accepted);
+gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
+								   const obex_packet_t *init_packet,
+								   bool *running, conn_state_t *state);
+void *server_thread_func(void *handle_ptr);
+void *discovery_thread_func(void *handle_ptr);
 
 /**
- * Initializes everything related to the server to a known clean state.
+ * Allocates a brand new server handle object and populates it with some sane
+ * defaults.
  *
- * @param addr Address to listen on.
- * @param port TCP port to listen on for file transfers.
+ * @warning This function allocates memory that must be free'd by you.
  *
- * @return NULL if the operation was successful.
+ * @return Newly allocated server handle object or NULL if an error occurred.
+ *
+ * @see gl_server_setup
+ * @see gl_server_free
+ */
+server_handle_t *gl_server_new(void) {
+	server_handle_t *handle;
+
+	/* Allocate some memory for our handle object. */
+	handle = (server_handle_t *)malloc(sizeof(server_handle_t));
+	if (handle == NULL)
+		return NULL;
+
+	/* Set some sane defaults. */
+	handle->server = NULL;
+	handle->conn = NULL;
+	handle->threads.main = NULL;
+	handle->threads.discovery = NULL;
+	handle->mutexes.server = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(handle->mutexes.server, NULL);
+	handle->mutexes.conn = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(handle->mutexes.conn, NULL);
+	handle->events.started = NULL;
+	handle->events.conn_accepted = NULL;
+	handle->events.conn_closed = NULL;
+	handle->events.stopped = NULL;
+	handle->events.transfer_requested = NULL;
+	handle->events.transfer_progress = NULL;
+	handle->events.transfer_success = NULL;
+
+	return handle;
+}
+
+/**
+ * Sets everything up for the server handle to be usable.
+ *
+ * @param handle Server handle object.
+ * @param addr   Address to listen on.
+ * @param port   TCP port to listen on for file transfers.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_server_start
  */
-gl_err_t *gl_server_init(const char *addr, uint16_t port) {
-	/* Ensure we have everything in a known clean state. */
-	m_conn = NULL;
-	m_server_thread = (pthread_t *)malloc(sizeof(pthread_t));
-	m_discovery_thread = NULL;
-	evt_server_start_cb_func = NULL;
-	evt_server_conn_accept_cb_func = NULL;
-	evt_server_conn_close_cb_func = NULL;
-	evt_server_stop_cb_func = NULL;
-	evt_server_client_conn_req_cb_func = NULL;
-	evt_server_conn_download_progress_cb_func = NULL;
-	evt_server_conn_download_success_cb_func = NULL;
-
-	/* Initialize our mutexes. */
-	m_server_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(m_server_mutex, NULL);
-	m_discovery_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(m_discovery_mutex, NULL);
-	m_conn_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(m_conn_mutex, NULL);
-
+gl_err_t *gl_server_setup(server_handle_t *handle, const char *addr,
+						  uint16_t port) {
 	/* Get a server handle. */
-	m_server = sockets_server_new(addr, port);
-	if (m_server == NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_SOCKET,
+	handle->server = sockets_server_new(addr, port);
+	if (handle->server == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_SOCKET,
 			EMSG("Failed to allocate and setup the server sockets"));
 	}
 
@@ -83,52 +96,82 @@ gl_err_t *gl_server_init(const char *addr, uint16_t port) {
  * Frees up any resources allocated by the server. Shutting down the server
  * previously to calling this function isn't required.
  *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
  * @see gl_server_stop
  */
-void gl_server_free(void) {
+gl_err_t *gl_server_free(server_handle_t *handle) {
+	gl_err_t *err;
+
+	/* Do we even have a handle? */
+	if (handle == NULL)
+		return NULL;
+
 	/* Stop the servers and free up any allocated resources. */
-	gl_server_stop();
-	sockets_server_free(m_server);
-	m_server = NULL;
+	err = gl_server_stop(handle);
+	if (err)
+		gl_error_print(err);
+	sockets_server_free(handle->server);
+	handle->server = NULL;
 
 	/* Join the discovery service's thread and free its mutex. */
-	gl_server_discovery_thread_join();
-	if (m_discovery_mutex) {
-		free(m_discovery_mutex);
-		m_discovery_mutex = NULL;
-	}
+	err = gl_server_discovery_thread_join(handle);
+	if (err)
+		gl_error_print(err);
 
 	/* Join the server thread. */
-	gl_server_thread_join();
+	err = gl_server_thread_join(handle);
 
 	/* Free our server mutex. */
-	if (m_server_mutex) {
-		free(m_server_mutex);
-		m_server_mutex = NULL;
+	if (handle->mutexes.server) {
+		free(handle->mutexes.server);
+		handle->mutexes.server = NULL;
 	}
 
 	/* Free our connection mutex. */
-	if (m_conn_mutex) {
-		free(m_conn_mutex);
-		m_conn_mutex = NULL;
+	if (handle->mutexes.conn) {
+		free(handle->mutexes.conn);
+		handle->mutexes.conn = NULL;
 	}
+
+	return err;
 }
 
 /**
  * Starts the server up.
  *
- * @return NULL if the operation was successful.
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_server_thread_join
  * @see gl_server_stop
  */
-gl_err_t *gl_server_start(void) {
+gl_err_t *gl_server_start(server_handle_t *handle) {
 	int ret;
 
+	/* Check if we already have the discovery thread running. */
+	if (handle->threads.main != NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_THREAD,
+							EMSG("Server's main thread already created"));
+	}
+
+	/* Allocate some memory for our main server thread. */
+	handle->threads.main = (pthread_t *)malloc(sizeof(pthread_t));
+	if (handle->threads.main == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to allocate the server thread"));
+	}
+
 	/* Create the server thread. */
-	ret = pthread_create(m_server_thread, NULL, server_thread_func, NULL);
+	ret = pthread_create(handle->threads.main, NULL, server_thread_func,
+						 (void *)handle);
 	if (ret) {
-		m_server_thread = NULL;
+		handle->threads.main = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 								  EMSG("Failed to start the server thread"));
 	}
@@ -137,34 +180,151 @@ gl_err_t *gl_server_start(void) {
 }
 
 /**
+ * Closes and frees up any resources associated with the current active
+ * connection to the server.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
+ * @see gl_server_stop
+ * @see tcp_server_conn_close
+ */
+gl_err_t *gl_server_conn_destroy(server_handle_t *handle) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+
+	/* Do we even need to do stuff? */
+	if ((handle == NULL) || (handle->conn == NULL))
+		return NULL;
+
+	/* Close the connection and free up any resources allocated. */
+	tcp_err = tcp_server_conn_shutdown(handle->conn);
+	tcp_server_conn_free(handle->conn);
+	handle->conn = NULL;
+
+	/* Check for errors. */
+	err = NULL;
+	if (tcp_err > SOCK_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Failed to shutdown the server's client connection socket"));
+	}
+
+	return err;
+}
+
+/**
+ * Stops the running server if needed.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
+ * @see gl_server_thread_join
+ * @see gl_server_free
+ * @see gl_server_conn_destroy
+ */
+gl_err_t *gl_server_stop(server_handle_t *handle) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+
+	/* Do we even need to stop it? */
+	if ((handle == NULL) || (handle->server == NULL))
+		return NULL;
+
+	/* Destroy any active connections. */
+	pthread_mutex_lock(handle->mutexes.conn);
+	err = gl_server_conn_destroy(handle);
+	if (err)
+		gl_error_print(err);
+	pthread_mutex_unlock(handle->mutexes.conn);
+
+	/* Shut the thing down. */
+	pthread_mutex_lock(handle->mutexes.server);
+	tcp_err = sockets_server_shutdown(handle->server);
+	pthread_mutex_unlock(handle->mutexes.server);
+
+	/* Check for errors. */
+	err = NULL;
+	if (tcp_err > SOCK_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Failed to shutdown the main server/discovery sockets"));
+	}
+
+	return err;
+}
+
+/**
+ * Waits for the server thread to return.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_server_thread_join(server_handle_t *handle) {
+	gl_err_t *err;
+
+	/* Do we even need to do something? */
+	if (handle->threads.main == NULL)
+		return NULL;
+
+	/* Join the thread back into us. */
+	pthread_join(*handle->threads.main, (void **)&err);
+	free(handle->threads.main);
+	handle->threads.main = NULL;
+
+	return err;
+}
+
+/**
  * Starts the server's discovery service up.
  *
- * @param port TCP port to listen on for file transfers.
+ * @param handle Server handle object.
+ * @param port   Port to bind the discovery service to.
  *
- * @return NULL if the operation was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_server_discovery_thread_join
  * @see gl_server_stop
  */
-gl_err_t *gl_server_discovery_start(uint16_t port) {
+gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port) {
 	tcp_err_t err;
 	int ret;
 
+	/* Check if we already have the discovery thread running. */
+	if (handle->threads.discovery != NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_THREAD,
+							EMSG("Discovery server thread already created"));
+	}
+
 	/* Allocate our thread object. */
-	if (m_discovery_thread == NULL)
-		m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
+	handle->threads.discovery = (pthread_t *)malloc(sizeof(pthread_t));
+	if (handle->threads.discovery == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to allocate the server thread"));
+	}
 
 	/* Initialize discovery service. */
-	err = udp_discovery_init(&m_server->udp, true, INADDR_ANY, port, 0);
+	pthread_mutex_lock(handle->mutexes.server);
+	err = udp_discovery_init(&handle->server->udp, true, INADDR_ANY, port, 0);
+	pthread_mutex_unlock(handle->mutexes.server);
 	if (err) {
+		free(handle->threads.discovery);
+		handle->threads.discovery = NULL;
+
 		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
 			EMSG("Failed to initialize the discovery server socket"));
 	}
 
 	/* Create the server thread. */
-	ret = pthread_create(m_discovery_thread, NULL, discovery_thread_func, NULL);
+	ret = pthread_create(handle->threads.discovery, NULL, discovery_thread_func,
+						 (void *)handle);
 	if (ret) {
-		m_discovery_thread = NULL;
+		handle->threads.discovery = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to start the discovery server thread"));
 	}
@@ -173,60 +333,24 @@ gl_err_t *gl_server_discovery_start(uint16_t port) {
 }
 
 /**
- * Stops the running server if needed.
+ * Waits for the server thread to return.
  *
- * @return TRUE if the operation was successful.
+ * @param handle Server handle object.
  *
- * @see gl_server_thread_join
- * @see gl_server_free
- * @see gl_server_conn_destroy
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-bool gl_server_stop(void) {
-	tcp_err_t err;
+gl_err_t *gl_server_discovery_thread_join(server_handle_t *handle) {
+	gl_err_t *err;
 
-	/* Do we even need to stop it? */
-	if (m_server == NULL)
-		return true;
+	/* Do we even need to do something? */
+	if ((handle == NULL) || (handle->threads.discovery == NULL))
+		return NULL;
 
-	/* Destroy any active connections. */
-	pthread_mutex_lock(m_conn_mutex);
-	gl_server_conn_destroy();
-	pthread_mutex_unlock(m_conn_mutex);
-
-	/* Shut the thing down. */
-	pthread_mutex_lock(m_server_mutex);
-	pthread_mutex_lock(m_discovery_mutex);
-	err = sockets_server_shutdown(m_server);
-	pthread_mutex_unlock(m_discovery_mutex);
-	pthread_mutex_unlock(m_server_mutex);
-
-	return err == SOCK_OK;
-}
-
-/**
- * Closes and frees up any resources associated with the current active
- * connection to the server.
- *
- * @return Return value of tcp_server_conn_close.
- *
- * @see gl_server_stop
- * @see tcp_server_conn_close
- */
-tcp_err_t gl_server_conn_destroy(void) {
-	tcp_err_t err;
-
-	/* Do we even need to do stuff? */
-	if (m_conn == NULL)
-		return SOCK_OK;
-
-	/* Tell the world that we are closing an active connection. */
-	if (m_conn->sockfd != -1)
-		printf("Closing the currently active connection\n");
-
-	/* Close the connection and free up any resources allocated. */
-	err = tcp_server_conn_shutdown(m_conn);
-	tcp_server_conn_free(m_conn);
-	m_conn = NULL;
+	/* Join the thread back into us. */
+	pthread_join(*handle->threads.discovery, (void **)&err);
+	free(handle->threads.discovery);
+	handle->threads.discovery = NULL;
 
 	return err;
 }
@@ -234,16 +358,19 @@ tcp_err_t gl_server_conn_destroy(void) {
 /**
  * Sends an OBEX packet to the client.
  *
+ * @param handle Server handle object.
  * @param packet OBEX packet object.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_server_send_packet(obex_packet_t *packet) {
+gl_err_t *gl_server_send_packet(server_handle_t *handle,
+								obex_packet_t *packet) {
 	gl_err_t *err;
 
-	pthread_mutex_lock(m_conn_mutex);
-	err = obex_net_packet_send(m_conn->sockfd, packet);
-	pthread_mutex_unlock(m_conn_mutex);
+	pthread_mutex_lock(handle->mutexes.conn);
+	err = obex_net_packet_send(handle->conn->sockfd, packet);
+	pthread_mutex_unlock(handle->mutexes.conn);
 
 	return err;
 }
@@ -251,30 +378,36 @@ gl_err_t *gl_server_send_packet(obex_packet_t *packet) {
 /**
  * Handles a client's connection request.
  *
+ * @param handle   Server handle object.
  * @param packet   OBEX packet object.
  * @param accepted Pointer to a boolean that will store a flag of whether the
  *                 connection request was accepted.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
+gl_err_t *gl_server_handle_conn_req(server_handle_t *handle,
+									const obex_packet_t *packet,
 									bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *resp;
-	char *fname;
-	uint32_t fsize;
+	file_bundle_t *fb;
 
-	/* Get the file name and size and trigger the connection requested event. */
-	fsize = gl_server_packet_file_info(packet, &fname);
+	/* Get the file information. */
+	err = gl_server_packet_file_info(packet, &fb);
+	if (err)
+		return err;
+
+	/* Trigger the connection requested event. */
 	*accepted = true;
-	if (evt_server_client_conn_req_cb_func != NULL)
-		*accepted = evt_server_client_conn_req_cb_func(fname, fsize);
-	free(fname);
-	fname = NULL;
+	if (handle->events.transfer_requested != NULL)
+		*accepted = handle->events.transfer_requested(fb);
 
 	/* Set our packet length if needed. */
-	if (packet->params[2].value.uint16 < m_conn->packet_len)
-		m_conn->packet_len = packet->params[2].value.uint16;
+	pthread_mutex_lock(handle->mutexes.conn);
+	if (packet->params[2].value.uint16 < handle->conn->packet_len)
+		handle->conn->packet_len = packet->params[2].value.uint16;
+	pthread_mutex_unlock(handle->mutexes.conn);
 
 	/* Initialize reply packet. */
 	if (*accepted) {
@@ -284,7 +417,7 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
 	}
 
 	/* Send reply. */
-	err = gl_server_send_packet(resp);
+	err = gl_server_send_packet(handle, resp);
 	obex_packet_free(resp);
 
 	return err;
@@ -293,49 +426,64 @@ gl_err_t *gl_server_handle_conn_req(const obex_packet_t *packet,
 /**
  * Handles a file transfer from a client.
  *
+ * @param handle      Server handle object.
  * @param init_packet OBEX packet object.
  * @param running     Pointer to a boolean that will store a flag of whether the
  *                    connection should continue running.
  * @param state       Pointer to the variable that's holding the current state
  *                    of the client's connection.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
+gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
+								   const obex_packet_t *init_packet,
 								   bool *running, conn_state_t *state) {
 	gl_err_t *err;
 	gl_server_conn_progress_t progress;
 	obex_packet_t *packet;
 	obex_packet_t *resp;
-	FILE *fh;
-	char *fname;
+	file_bundle_t *fb;
 	char *fpath;
-	uint32_t fsize;
+	FILE *fh;
 
 	/* Get the file name and size. */
-	fsize = gl_server_packet_file_info(init_packet, &fname);
-	if (fname == NULL)
-		fname = strdup("Unnamed");
-	if (fsize == 0)
+	err = gl_server_packet_file_info(init_packet, &fb);
+	if (err)
+		return err;
+	if (fb->size == 0)
 		fprintf(stderr, "WARNING: PUT request doesn't include a file length\n");
 
 	/* Get the path to save the downloaded file to. */
-	fpath = path_build_download(conf_get_download_dir(), fname);
+	fpath = path_build_download(conf_get_download_dir(), fb->base);
+	if (fpath == NULL) {
+		file_bundle_free(fb);
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+								  EMSG("Failed to build download file path"));
+	}
+
+	/* Switch around the file bundle path to the local one. */
+	if (!file_bundle_set_name(fb, fpath)) {
+		file_bundle_free(fb);
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to set file bundle to the download file path"));
+	}
+	free(fpath);
+	fpath = NULL;
 
 	/* Get the basename of the file and populate the information structure. */
-	progress.fpath = fpath;
-	progress.bname = fname;
-	progress.fsize = fsize;
+	progress.fb = fb;
 	progress.recv_bytes = 0;
 
 	/* Open the file for download. */
-	fh = file_open(fpath, "wb");
+	fh = file_open(fb->name, "wb");
 	if (fh == NULL) {
 		*running = false;
 		*state = CONN_STATE_ERROR;
+		file_bundle_free(fb);
 
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
-			"the file for download"));
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+							EMSG("Failed to open the file for download"));
 	}
 
 	/* Write the chunk of data to the file. */
@@ -343,14 +491,15 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 	if (file_write(fh, init_packet->body, init_packet->body_length) < 0) {
 		*running = false;
 		*state = CONN_STATE_ERROR;
+		file_bundle_free(fb);
 
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to write "
-			"initial data to the downloaded file"));
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+			EMSG("Failed to write initial data to the downloaded file"));
 	}
 
 	/* Update the progress of the current transfer via an event. */
-	if (evt_server_conn_download_progress_cb_func != NULL)
-		evt_server_conn_download_progress_cb_func(&progress);
+	if (handle->events.transfer_progress != NULL)
+		handle->events.transfer_progress(&progress);
 
 	/* Initialize reply packet. */
 	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
@@ -360,7 +509,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 	}
 
 	/* Send reply. */
-	err = gl_server_send_packet(resp);
+	err = gl_server_send_packet(handle, resp);
 	obex_packet_free(resp);
 
 	/* Was this transfer just a single packet long? */
@@ -368,31 +517,33 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 		/* Close the downloaded file handle. */
 		file_close(fh);
 
-		/* Trigger the downloaded success event and free the path string. */
-		if (evt_server_conn_download_success_cb_func != NULL)
-			evt_server_conn_download_success_cb_func(fpath);
-		free(fname);
-		free(fpath);
+		/* Trigger the downloaded success event and free the file bundle. */
+		if (handle->events.transfer_success != NULL)
+			handle->events.transfer_success(fb);
+		file_bundle_free(fb);
 
 		return err;
 	}
 
 	/* Receive the rest of the file. */
-	while ((packet = obex_net_packet_recv(m_conn->sockfd, false)) != NULL) {
+	/* TODO: Filter out invalid packets. */
+	while ((packet = obex_net_packet_recv(handle->conn->sockfd, false))
+		   != NULL) {
 		/* Write the chunk of data to the file. */
 		progress.recv_bytes += packet->body_length;
 		if (file_write(fh, packet->body, packet->body_length) < 0) {
 			*running = false;
 			*state = CONN_STATE_ERROR;
 			obex_packet_free(packet);
+			file_bundle_free(fb);
 
 			return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
 				EMSG("Failed to write chunked data to the downloaded file"));
 		}
 
 		/* Update the progress of the current transfer via an event. */
-		if (evt_server_conn_download_progress_cb_func != NULL)
-			evt_server_conn_download_progress_cb_func(&progress);
+		if (handle->events.transfer_progress != NULL)
+			handle->events.transfer_progress(&progress);
 
 		/* Initialize reply packet. */
 		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
@@ -402,7 +553,7 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 		}
 
 		/* Send reply. */
-		err = gl_server_send_packet(resp);
+		err = gl_server_send_packet(handle, resp);
 		obex_packet_free(resp);
 
 		/* Has the transfer ended? */
@@ -411,11 +562,10 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 			obex_packet_free(packet);
 			file_close(fh);
 
-			/* Trigger the downloaded success event and free the path string. */
-			if (evt_server_conn_download_success_cb_func != NULL)
-				evt_server_conn_download_success_cb_func(fpath);
-			free(fpath);
-			free(fname);
+			/* Trigger the downloaded success event and free the file bundle. */
+			if (handle->events.transfer_success != NULL)
+				handle->events.transfer_success(fb);
+			file_bundle_free(fb);
 
 			return err;
 		}
@@ -424,69 +574,33 @@ gl_err_t *gl_server_handle_put_req(const obex_packet_t *init_packet,
 		obex_packet_free(packet);
 	}
 
+	/* Free any resources and return the error. */
+	file_bundle_free(fb);
 	return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 		EMSG("An invalid packet was received during a chunked file transfer"));
 }
 
 /**
- * Waits for the server thread to return.
- *
- * @return NULL if the operation was successful.
- */
-gl_err_t *gl_server_thread_join(void) {
-	gl_err_t *err;
-
-	/* Do we even need to do something? */
-	if (m_server_thread == NULL)
-		return NULL;
-
-	/* Join the thread back into us. */
-	pthread_join(*m_server_thread, (void **)&err);
-	free(m_server_thread);
-	m_server_thread = NULL;
-
-	return err;
-}
-
-/**
- * Waits for the server thread to return.
- *
- * @return NULL if the operation was successful.
- */
-gl_err_t *gl_server_discovery_thread_join(void) {
-	gl_err_t *err;
-
-	/* Do we even need to do something? */
-	if (m_discovery_thread == NULL)
-		return NULL;
-
-	/* Join the thread back into us. */
-	pthread_join(*m_discovery_thread, (void **)&err);
-	free(m_discovery_thread);
-	m_discovery_thread = NULL;
-
-	return err;
-}
-
-/**
  * Server thread function.
- * @warning This function allocates memory that must be free'd by you.
  *
- * @param args No arguments should be passed.
+ * @param handle_ptr Server handle object.
  *
- * @return Pointer to a gl_err_t with the last error code. This pointer must be
- *         free'd by you.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-void *server_thread_func(void *args) {
+void *server_thread_func(void *handle_ptr) {
+	server_handle_t *handle;
 	tcp_err_t tcp_err;
 	gl_err_t *gl_err;
 
-	/* Ignore the argument passed and initialize things. */
-	(void)args;
+	/* Initialize variables. */
+	handle = (server_handle_t *)handle_ptr;
 	gl_err = NULL;
 
 	/* Start the server and listen for incoming connections. */
-	tcp_err = sockets_server_start(m_server);
+	pthread_mutex_lock(handle->mutexes.server);
+	tcp_err = sockets_server_start(handle->server);
+	pthread_mutex_unlock(handle->mutexes.server);
 	switch (tcp_err) {
 		case SOCK_OK:
 			break;
@@ -505,38 +619,40 @@ void *server_thread_func(void *args) {
 	}
 
 	/* Trigger the server started event. */
-	if (evt_server_start_cb_func != NULL)
-		evt_server_start_cb_func(m_server);
+	if (handle->events.started != NULL)
+		handle->events.started(handle->server);
 
 	/* Accept incoming connections. */
-	while ((m_conn = tcp_server_conn_accept(m_server)) != NULL) {
+	while ((handle->conn = tcp_server_conn_accept(handle->server)) != NULL) {
 		obex_packet_t *packet;
 		conn_state_t state;
 		bool running;
 		bool has_params;
 
 		/* Check if the connection socket is valid. */
-		if (m_conn->sockfd == -1) {
-			gl_server_conn_destroy();
+		if (handle->conn->sockfd == -1) {
+			gl_server_conn_destroy(handle);
 			break;
 		}
 
 		/* Trigger the connection accepted event. */
-		if (evt_server_conn_accept_cb_func != NULL)
-			evt_server_conn_accept_cb_func(m_conn);
+		if (handle->events.conn_accepted != NULL)
+			handle->events.conn_accepted(handle->conn);
 
 		/* Read packets until the connection is closed or an error occurs. */
 		state = CONN_STATE_CREATED;
 		running = true;
 		has_params = true;
-		while (((packet = obex_net_packet_recv(m_conn->sockfd, has_params))
-				!= NULL) && running) {
+		/* TODO: Filter out invalid packets. */
+		while (((packet = obex_net_packet_recv(handle->conn->sockfd,
+			   has_params)) != NULL) && running) {
 			/* Handle operations for the different states. */
 			switch (state) {
 				case CONN_STATE_CREATED:
 					if (packet->opcode == OBEX_OPCODE_CONNECT) {
 						/* Got a connection request packet. */
-						gl_err = gl_server_handle_conn_req(packet, &running);
+						gl_err = gl_server_handle_conn_req(
+							handle, packet, &running);
 						if (running) {
 							state = CONN_STATE_RECV_FILES;
 							has_params = false;
@@ -555,7 +671,7 @@ void *server_thread_func(void *args) {
 							== OBEX_OPCODE_PUT) {
 						/* Received a chunk of a file. */
 						gl_err = gl_server_handle_put_req(
-							packet, &running, &state);
+							handle, packet, &running, &state);
 					} else {
 						/* Invalid opcode for this state. */
 						gl_err = gl_error_new(ERR_TYPE_GL,
@@ -582,46 +698,46 @@ void *server_thread_func(void *args) {
 
 		/* Close the connection and free up any resources. */
 		obex_packet_free(packet);
-		pthread_mutex_lock(m_conn_mutex);
-		gl_server_conn_destroy();
-		pthread_mutex_unlock(m_conn_mutex);
+		pthread_mutex_lock(handle->mutexes.conn);
+		gl_server_conn_destroy(handle);
+		pthread_mutex_unlock(handle->mutexes.conn);
 
 		/* Trigger the connection closed event. */
-		if (evt_server_conn_close_cb_func != NULL)
-			evt_server_conn_close_cb_func();
+		if (handle->events.conn_closed != NULL)
+			handle->events.conn_closed();
 	}
 
 	/* Stop the server and free up any resources. */
-	gl_server_stop();
+	gl_server_stop(handle);
 
 	/* Trigger the server stopped event. */
-	if (evt_server_stop_cb_func != NULL)
-		evt_server_stop_cb_func();
+	if (handle->events.stopped != NULL)
+		handle->events.stopped();
 
 	return (void *)gl_err;
 }
 
 /**
  * Server discovery service thread function.
- * @warning This function allocates memory that must be free'd by you.
  *
- * @param args No arguments should be passed.
+ * @param handle_ptr Server handle object.
  *
- * @return Pointer to a gl_err_t with the last error code. This pointer must be
- *         free'd by you.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-void *discovery_thread_func(void *args) {
+void *discovery_thread_func(void *handle_ptr) {
+	server_handle_t *handle;
 	gl_err_t *gl_err;
 	obex_packet_t *packet;
 	obex_opcodes_t op;
 
-	/* Ignore the argument passed and initialize things. */
-	(void)args;
+	/* Initialize variables. */
+	handle = (server_handle_t *)handle_ptr;
 	gl_err = NULL;
 	op = OBEX_SET_FINAL_BIT(OBEX_OPCODE_GET);
 
 	/* Listen for discovery packets. */
-	while ((packet = obex_net_packet_recvfrom(&m_server->udp, &op, false))
+	while ((packet = obex_net_packet_recvfrom(&handle->server->udp, &op, false))
 			!= NULL) {
 		obex_packet_t *reply;
 		const obex_header_t *header;
@@ -662,7 +778,7 @@ void *discovery_thread_func(void *args) {
 		}
 
 		/* Send reply and free our resources. */
-		gl_err = obex_net_packet_sendto(m_server->udp, reply);
+		gl_err = obex_net_packet_sendto(handle->server->udp, reply);
 		obex_packet_free(reply);
 		obex_packet_free(packet);
 
@@ -681,102 +797,125 @@ void *discovery_thread_func(void *args) {
  * @warning This function allocates memory that must be free'd by you!
  *
  * @param packet OBEX packet object to extract the information from.
- * @param fname  Pointer to a string that will store the file name or NULL if
- *               that information isn't available. (Allocated by this function)
+ * @param fb     Pointer to a file bundle object that will store the file
+ *               information. Set to NULL on error. (Allocated by this function)
  *
- * @return Size of the entire file being transferred or 0 if the information
- *         isn't available.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-uint32_t gl_server_packet_file_info(const obex_packet_t *packet, char **fname) {
+gl_err_t *gl_server_packet_file_info(const obex_packet_t *packet,
+									 file_bundle_t **fb) {
 	const obex_header_t *header;
+	char *fname;
+
+	/* Create the file bundle. */
+	*fb = file_bundle_new_empty();
+	if (*fb == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to create a file bundle for packet file information"));
+	}
 
 	/* Get the file name. */
 	header = obex_packet_header_find(packet, OBEX_HEADER_NAME);
 	if ((header == NULL) || (header->value.wstring.text == NULL)) {
-		*fname = NULL;
+		fname = strdup("Unnamed");
 	} else {
-		*fname = utf16_wcstombs(header->value.wstring.text);
+		fname = utf16_wcstombs(header->value.wstring.text);
 	}
+
+	/* Set the file name of the bundle. */
+	if (!file_bundle_set_name(*fb, fname)) {
+		file_bundle_free(*fb);
+		free(fname);
+
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to set bundle name from packet file information"));
+	}
+
+	/* Free up temporary resources. */
+	free(fname);
+	fname = NULL;
 
 	/* Get the file size. */
 	header = obex_packet_header_find(packet, OBEX_HEADER_LENGTH);
-	if (header == NULL)
-		return 0;
+	(*fb)->size = (header) ? header->value.word32 : 0;
 
-	return header->value.word32;
-}
-
-/**
- * Gets the server object handle.
- *
- * @return Server object handle.
- */
-server_t *gl_server_get(void) {
-	return m_server;
+	return NULL;
 }
 
 /**
  * Sets the Started event callback function.
  *
- * @param func Started event callback function.
+ * @param handle Server handle object.
+ * @param func   Started event callback function.
  */
-void gl_server_evt_start_set(gl_server_evt_start_func func) {
-	evt_server_start_cb_func = func;
+void gl_server_evt_start_set(server_handle_t *handle,
+							 gl_server_evt_start_func func) {
+	handle->events.started = func;
 }
 
 /**
  * Sets the Connection Accepted event callback function.
  *
- * @param func Connection Accepted event callback function.
+ * @param handle Server handle object.
+ * @param func   Connection Accepted event callback function.
  */
-void gl_server_conn_evt_accept_set(gl_server_conn_evt_accept_func func) {
-	evt_server_conn_accept_cb_func = func;
+void gl_server_conn_evt_accept_set(server_handle_t *handle,
+								   gl_server_conn_evt_accept_func func) {
+	handle->events.conn_accepted = func;
 }
 
 /**
  * Sets the Connection Closed event callback function.
  *
- * @param func Connection Closed event callback function.
+ * @param handle Server handle object.
+ * @param func   Connection Closed event callback function.
  */
-void gl_server_conn_evt_close_set(gl_server_conn_evt_close_func func) {
-	evt_server_conn_close_cb_func = func;
+void gl_server_conn_evt_close_set(server_handle_t *handle,
+								  gl_server_conn_evt_close_func func) {
+	handle->events.conn_closed = func;
 }
 
 /**
  * Sets the Stopped event callback function.
  *
- * @param func Stopped event callback function.
+ * @param handle Server handle object.
+ * @param func   Stopped event callback function.
  */
-void gl_server_evt_stop_set(gl_server_evt_stop_func func) {
-	evt_server_stop_cb_func = func;
+void gl_server_evt_stop_set(server_handle_t *handle,
+							gl_server_evt_stop_func func) {
+	handle->events.stopped = func;
 }
 
 /**
  * Sets the Client Connection Requested event callback function.
  *
- * @param func Client Connection Requested event callback function.
+ * @param handle Server handle object.
+ * @param func   Client Connection Requested event callback function.
  */
-void gl_server_evt_client_conn_req_set(
-		gl_server_evt_client_conn_req_func func) {
-	evt_server_client_conn_req_cb_func = func;
+void gl_server_evt_client_conn_req_set(server_handle_t *handle,
+									gl_server_evt_client_conn_req_func func) {
+	handle->events.transfer_requested = func;
 }
 
 /**
  * Sets the File Download Progress event callback function.
  *
- * @param func File Download Progress event callback function.
+ * @param handle Server handle object.
+ * @param func   File Download Progress event callback function.
  */
-void gl_server_conn_evt_download_progress_set(
-		gl_server_conn_evt_download_progress_func func) {
-	evt_server_conn_download_progress_cb_func = func;
+void gl_server_conn_evt_download_progress_set(server_handle_t *handle,
+							gl_server_conn_evt_download_progress_func func) {
+	handle->events.transfer_progress = func;
 }
 
 /**
  * Sets the File Downloaded Successfully event callback function.
  *
- * @param func File Downloaded Successfully event callback function.
+ * @param handle Server handle object.
+ * @param func   File Downloaded Successfully event callback function.
  */
-void gl_server_conn_evt_download_success_set(
-		gl_server_conn_evt_download_success_func func) {
-	evt_server_conn_download_success_cb_func = func;
+void gl_server_conn_evt_download_success_set(server_handle_t *handle,
+								gl_server_conn_evt_download_success_func func) {
+	handle->events.transfer_success = func;
 }
