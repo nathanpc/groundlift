@@ -79,7 +79,20 @@ typedef void (*gl_client_evt_put_succeed_func)(const char *fname);
  * @param name Hostname of the peer.
  * @param addr IP address information of the peer.
  */
-typedef void (*gl_client_evt_discovery_peer_func)(const char *name, const struct sockaddr *addr);
+typedef void (*gl_client_evt_discovery_peer_func)(const char *name,
+												  const struct sockaddr *addr);
+
+/**
+ * Peer discovery client object.
+ */
+typedef struct {
+	pthread_t *thread;
+	sock_bundle_t sock;
+
+	struct {
+		gl_client_evt_discovery_peer_func discovered_peer;
+	} events;
+} discovery_client_t;
 
 /* Initialization and destruction. */
 gl_err_t *gl_client_init(const char *addr, uint16_t port);
@@ -96,11 +109,11 @@ gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted);
 gl_err_t *gl_client_send_put_file(const char *fname);
 
 /* Discovery service. */
-gl_err_t *gl_client_discover_peers(uint16_t port);
-gl_err_t *gl_client_discovery_thread_join(void);
-
-/* Getters and setters. */
-tcp_client_t *gl_client_get(void);
+discovery_client_t *gl_client_discovery_new(void);
+gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port);
+gl_err_t *gl_client_discover_peers(discovery_client_t *handle);
+gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle);
+gl_err_t *gl_client_discovery_free(discovery_client_t *handle);
 
 /* Callbacks */
 void gl_client_evt_conn_set(gl_client_evt_conn_func func);
@@ -108,7 +121,8 @@ void gl_client_evt_disconn_set(gl_client_evt_disconn_func func);
 void gl_client_evt_conn_req_resp_set(gl_client_evt_conn_req_resp_func func);
 void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func);
 void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func);
-void gl_client_evt_discovery_peer_set(gl_client_evt_discovery_peer_func func);
+void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
+									  gl_client_evt_discovery_peer_func func);
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,10 @@
 #include "client.h"
 
 #include <groundlift/defaults.h>
+#include <groundlift/client.h>
+
+/* Private variables. */
+static discovery_client_t *discovery_client;
 
 /* Client event handlers. */
 void event_connected(const tcp_client_t *client);
@@ -70,22 +74,31 @@ cleanup:
 gl_err_t *client_list_peers(void) {
 	gl_err_t *err;
 
-	/* Setup event handlers. */
-	gl_client_evt_discovery_peer_set(event_peer_discovered);
+	/* Construct the discovery client handle object and setup everything. */
+	discovery_client = gl_client_discovery_new();
+	gl_client_evt_discovery_peer_set(discovery_client, event_peer_discovered);
+	err = gl_client_discovery_setup(discovery_client, UDPSERVER_PORT);
+	if (err)
+		goto cleanup;
 
 	/* Send discovery broadcast and listen to replies. */
 	printf("Sending discovery broadcast...\n");
-	err = gl_client_discover_peers(UDPSERVER_PORT);
+	err = gl_client_discover_peers(discovery_client);
 	if (err)
-		return err;
+		goto cleanup;
 
 	/* Wait for the discovery thread to return. */
-	err = gl_client_discovery_thread_join();
+	err = gl_client_discovery_thread_join(discovery_client);
 	if (err)
-		return err;
+		goto cleanup;
 	printf("Finished trying to discover peers.\n");
 
-	return NULL;
+cleanup:
+	/* Clean things up. */
+	gl_client_discovery_free(discovery_client);
+	discovery_client = NULL;
+
+	return err;
 }
 
 /**

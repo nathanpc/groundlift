@@ -21,7 +21,6 @@ static tcp_client_t *m_client;
 static pthread_mutex_t *m_client_mutex;
 static pthread_mutex_t *m_client_send_mutex;
 static pthread_t *m_client_thread;
-static pthread_t *m_discovery_thread;
 
 /* Function callbacks. */
 static gl_client_evt_conn_func evt_conn_cb_func;
@@ -29,11 +28,10 @@ static gl_client_evt_disconn_func evt_disconn_cb_func;
 static gl_client_evt_conn_req_resp_func evt_conn_req_resp_cb_func;
 static gl_client_evt_put_progress_func evt_put_progress_cb_func;
 static gl_client_evt_put_succeed_func evt_put_succeed_cb_func;
-static gl_client_evt_discovery_peer_func evt_discovery_peer_cb_func;
 
 /* Private methods. */
 void *client_thread_func(void *fname);
-void *peer_discovery_thread_func(void *port);
+void *peer_discovery_thread_func(void *handle_ptr);
 
 /**
  * Initializes everything related to the client to a known clean state.
@@ -53,7 +51,6 @@ gl_err_t *gl_client_init(const char *addr, uint16_t port) {
 	evt_conn_req_resp_cb_func = NULL;
 	evt_put_progress_cb_func = NULL;
 	evt_put_succeed_cb_func = NULL;
-	evt_discovery_peer_cb_func = NULL;
 
 	/* Initialize our mutexes. */
 	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -168,42 +165,101 @@ gl_err_t *gl_client_thread_join(void) {
 }
 
 /**
- * Sends a peer discovery broadcast.
+ * Allocates a brand new discovery client object handle and populates it with
+ * some sane defaults.
  *
- * @param port UDP port to listen on for discovery packets.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @return Newly allocated discovery client object handle or NULL if an error
+ *         occurred.
+ *
+ * @see gl_client_discovery_free
+ */
+discovery_client_t *gl_client_discovery_new(void) {
+	discovery_client_t *handle;
+
+	/* Allocate some memory for our handle. */
+	handle = (discovery_client_t *)malloc(sizeof(discovery_client_t));
+	if (handle == NULL)
+		return NULL;
+
+	/* Set some sane defaults. */
+	handle->sock.sockfd = -1;
+	handle->thread = NULL;
+	handle->events.discovered_peer = NULL;
+
+	return handle;
+}
+
+/**
+ * Sets up the socket for the peer discovery operation.
+ *
+ * @param handle Peer discovery client handle object.
+ * @param port   UDP port to send to/listen on for discovery packets.
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_discover_peers(uint16_t port) {
-	gl_err_t *err;
-	int ret;
-	uint16_t *ptr_port;
+gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
+	tcp_err_t tcp_err;
 
-	/* Allocate the port value pointer and set it. (Free'd inside thread) */
-	ptr_port = malloc(sizeof(uint16_t));
-	*ptr_port = port;
+	/* Sanity check. */
+	if (handle == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_INVALID_HANDLE,
+							EMSG("Invalid handle object"));
+	}
 
 	/*
 	 * TODO: Use INADDR_BROADCAST as fallback, but in modern platforms go
 	 *       through network interfaces and broadcast using the subnet mask.
+	 *       Create another function to handle this modern scenario and leave
+	 *       this function for the fallback.
 	 */
+
+	/* Initialize the discovery packet broadcaster. */
+	tcp_err = udp_discovery_init(&handle->sock, false, INADDR_BROADCAST, port,
+								 UDP_TIMEOUT_MS);
+	if (tcp_err) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Failed to initialize the client's discovery socket"));
+	}
+
+	return NULL;
+}
+
+/**
+ * Sends a peer discovery broadcast.
+ *
+ * @param handle Peer discovery client handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_client_discover_peers(discovery_client_t *handle) {
+	gl_err_t *err;
+	int ret;
 
 	/* Join the previous thread first. */
 	err = NULL;
-	if (m_discovery_thread != NULL) {
+	if (handle->thread != NULL) {
 		printf("Previous discovery thread still running. Waiting...\n");
-		err = gl_client_discovery_thread_join();
+		err = gl_client_discovery_thread_join(handle);
 		if (err)
 			return err;
 	}
 
-	/* Create the client thread. */
-	m_discovery_thread = (pthread_t *)malloc(sizeof(pthread_t));
-	ret = pthread_create(m_discovery_thread, NULL, peer_discovery_thread_func,
-						 (void *)ptr_port);
+	/* Allocate some memory for our new thread. */
+	handle->thread = (pthread_t *)malloc(sizeof(pthread_t));
+	if (handle->thread == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to allocate the peer discovery thread handle"));
+	}
+
+	/* Create a new discovery thread. */
+	ret = pthread_create(handle->thread, NULL, peer_discovery_thread_func,
+						 (void *)handle);
 	if (ret) {
-		m_discovery_thread = NULL;
+		handle->thread = NULL;
 		err = gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to create the client's peer discovery thread"));
 	}
@@ -214,19 +270,51 @@ gl_err_t *gl_client_discover_peers(uint16_t port) {
 /**
  * Waits for the peer discovery thread to return.
  *
- * @return NULL if the operation was successful.
+ * @param handle Peer discovery client handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_discovery_thread_join(void) {
+gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle) {
 	gl_err_t *err;
 
 	/* Do we even need to do something? */
-	if (m_discovery_thread == NULL)
+	if (handle->thread == NULL)
 		return NULL;
 
 	/* Join the thread back into us. */
-	pthread_join(*m_discovery_thread, (void **)&err);
-	free(m_discovery_thread);
-	m_discovery_thread = NULL;
+	pthread_join(*handle->thread, (void **)&err);
+	free(handle->thread);
+	handle->thread = NULL;
+
+	return err;
+}
+
+/**
+ * Frees up any resources allocated by the peer discovery service.
+ *
+ * @param handle Peer discovery client handle object to be free'd.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ */
+gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
+	gl_err_t *err;
+
+	/* Do we even have to do anything? */
+	if (handle == NULL)
+		return NULL;
+
+	/* Close the connection if needed. */
+	socket_close(handle->sock.sockfd);
+	handle->sock.sockfd = -1;
+
+	/* Join the thread if needed. */
+	err = gl_client_discovery_thread_join(handle);
+
+	/* Free ourselves. */
+	free(handle);
+	handle = NULL;
 
 	return err;
 }
@@ -488,7 +576,7 @@ void *client_thread_func(void *fname) {
 	running = false;
 
 	/* Check if the file exists. */
-	if (!file_exists(fname)) {
+	if (!file_exists((const char *)fname)) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
 							EMSG("File to be sent doesn't exist"));
 	}
@@ -522,7 +610,7 @@ void *client_thread_func(void *fname) {
 	/* Send the OBEX connection request and trigger an event upon reply. */
 	gl_err = gl_client_send_conn_req((const char *)fname, &running);
 	if (evt_conn_req_resp_cb_func != NULL)
-		evt_conn_req_resp_cb_func(fname, running);
+		evt_conn_req_resp_cb_func((const char *)fname, running);
 	if (!running || (gl_err != NULL))
 		goto disconnect;
 
@@ -544,29 +632,20 @@ disconnect:
  * Thread function that handles everything related to peer discovery.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param port UDP port to listen on for discovery packets.
+ * @param handle_ptr Peer discovery client handle object.
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
  */
-void *peer_discovery_thread_func(void *port) {
-	sock_bundle_t sock;
+void *peer_discovery_thread_func(void *handle_ptr) {
+	discovery_client_t *handle;
 	obex_packet_t *packet;
 	obex_opcodes_t op;
-	tcp_err_t tcp_err;
 	gl_err_t *err;
 
 	/* Initialize some variables. */
+	handle = (discovery_client_t *)handle_ptr;
 	err = NULL;
-
-	/* Initialize the discovery packet broadcaster. */
-	tcp_err = udp_discovery_init(&sock, false, INADDR_BROADCAST,
-								 *((uint16_t *)port), UDP_TIMEOUT_MS);
-	free(port);
-	if (tcp_err) {
-		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-			EMSG("Failed to initialize the client's discovery transmitter"));
-	}
 
 	/* Build up the discovery packet. */
 	packet = obex_packet_new_get("DISCOVER", true);
@@ -576,14 +655,15 @@ void *peer_discovery_thread_func(void *port) {
 	}
 
 	/* Send discovery broadcast. */
-	err = obex_net_packet_sendto(sock, packet);
+	err = obex_net_packet_sendto(handle->sock, packet);
 	obex_packet_free(packet);
 	if (err)
 		return (void *)err;
 
 	/* Listen for replies. */
 	op = OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
-	while ((packet = obex_net_packet_recvfrom(&sock, &op, false)) != NULL) {
+	while ((packet = obex_net_packet_recvfrom(&handle->sock, &op, false))
+		   != NULL) {
 		const obex_header_t *header;
 
 		/* Check if we got an invalid packet. */
@@ -595,16 +675,17 @@ void *peer_discovery_thread_func(void *port) {
 		if (header == NULL) {
 			/* Free up resources. */
 			obex_packet_free(packet);
-			socket_close(sock.sockfd);
+			socket_close(handle->sock.sockfd);
+			handle->sock.sockfd = -1;
 
 			return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_HEADER_NOT_FOUND,
 				EMSG("Discovered peer replied without a hostname"));
 		}
 
 		/* Trigger the discovered peer event handler. */
-		if (evt_discovery_peer_cb_func) {
-			evt_discovery_peer_cb_func(header->value.string.text,
-									   (const struct sockaddr *)&sock.addr_in);
+		if (handle->events.discovered_peer) {
+			handle->events.discovered_peer(header->value.string.text,
+				(const struct sockaddr *)&handle->sock.addr_in);
 		}
 
 		/* Free up resources. */
@@ -612,18 +693,10 @@ void *peer_discovery_thread_func(void *port) {
 	}
 
 	/* Close our UDP socket. */
-	socket_close(sock.sockfd);
+	socket_close(handle->sock.sockfd);
+	handle->sock.sockfd = -1;
 
 	return (void *)err;
-}
-
-/**
- * Gets the client object handle.
- *
- * @return Client object handle.
- */
-tcp_client_t *gl_client_get(void) {
-	return m_client;
 }
 
 /**
@@ -672,10 +745,11 @@ void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func) {
 }
 
 /**
- * Sets the Discovered Peer event callback function.
+ * Sets the Send File Operation Succeeded event callback function.
  *
- * @param func Discovered Peer event callback function.
+ * @param func Send File Operation Succeeded event callback function.
  */
-void gl_client_evt_discovery_peer_set(gl_client_evt_discovery_peer_func func) {
-	evt_discovery_peer_cb_func = func;
+void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
+									  gl_client_evt_discovery_peer_func func) {
+	handle->events.discovered_peer = func;
 }
