@@ -9,15 +9,17 @@
 
 #include <groundlift/defaults.h>
 #include <groundlift/client.h>
+#include "groundlift/error.h"
 
-/* Private variables. */
-static discovery_client_t *discovery_client;
+/* Public variables. */
+client_handle_t *m_client;
+discovery_client_t *m_discovery_client;
 
 /* Client event handlers. */
 void event_connected(const tcp_client_t *client);
-void event_conn_req_resp(const char *fname, bool accepted);
+void event_conn_req_resp(const file_bundle_t *fb, bool accepted);
 void event_send_progress(const gl_client_progress_t *progress);
-void event_send_success(const char *fname);
+void event_send_success(const file_bundle_t *fb);
 void event_disconnected(const tcp_client_t *client);
 void event_peer_discovered(const char *name, const struct sockaddr *addr);
 
@@ -31,28 +33,35 @@ void event_peer_discovered(const char *name, const struct sockaddr *addr);
  * @return An error report if something unexpected happened or NULL if the
  *         operation was successful.
  */
-gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
+gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 	gl_err_t *err = NULL;
 
-	/* Initialize the client. */
-	err = gl_client_init(ip, port);
+	/* Construct the client handle object. */
+	m_client = gl_client_new();
+	if (m_client == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the client handle object."));
+	}
+
+	/* Setup event handlers. */
+	gl_client_evt_conn_set(m_client, event_connected);
+	gl_client_evt_conn_req_resp_set(m_client, event_conn_req_resp);
+	gl_client_evt_put_progress_set(m_client, event_send_progress);
+	gl_client_evt_put_succeed_set(m_client, event_send_success);
+	gl_client_evt_disconn_set(m_client, event_disconnected);
+
+	/* Setup the client. */
+	err = gl_client_setup(m_client, ip, port, fname);
 	if (err)
 		goto cleanup;
 
-	/* Setup event handlers. */
-	gl_client_evt_conn_set(event_connected);
-	gl_client_evt_conn_req_resp_set(event_conn_req_resp);
-	gl_client_evt_put_progress_set(event_send_progress);
-	gl_client_evt_put_succeed_set(event_send_success);
-	gl_client_evt_disconn_set(event_disconnected);
-
 	/* Connect to the server. */
-	err = gl_client_connect(fname);
+	err = gl_client_connect(m_client);
 	if (err)
 		goto cleanup;
 
 	/* Wait for it to return. */
-	err = gl_client_thread_join();
+	err = gl_client_thread_join(m_client);
 	if (err) {
 		fprintf(stderr, "Client thread returned with errors.\n");
 		goto cleanup;
@@ -60,7 +69,8 @@ gl_err_t *client_send(const char *ip, uint16_t port, char *fname) {
 
 cleanup:
 	/* Free up any resources. */
-	gl_client_free();
+	gl_client_free(m_client);
+	m_client = NULL;
 
 	return err;
 }
@@ -74,29 +84,35 @@ cleanup:
 gl_err_t *client_list_peers(void) {
 	gl_err_t *err;
 
-	/* Construct the discovery client handle object and setup everything. */
-	discovery_client = gl_client_discovery_new();
-	gl_client_evt_discovery_peer_set(discovery_client, event_peer_discovered);
-	err = gl_client_discovery_setup(discovery_client, UDPSERVER_PORT);
+	/* Construct the discovery client handle object. */
+	m_discovery_client = gl_client_discovery_new();
+	if (m_discovery_client != NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the discovery client handle object.\n"));
+	}
+
+	/* Setup event handlers and the discovery socket. */
+	gl_client_evt_discovery_peer_set(m_discovery_client, event_peer_discovered);
+	err = gl_client_discovery_setup(m_discovery_client, UDPSERVER_PORT);
 	if (err)
 		goto cleanup;
 
 	/* Send discovery broadcast and listen to replies. */
 	printf("Sending discovery broadcast...\n");
-	err = gl_client_discover_peers(discovery_client);
+	err = gl_client_discover_peers(m_discovery_client);
 	if (err)
 		goto cleanup;
 
 	/* Wait for the discovery thread to return. */
-	err = gl_client_discovery_thread_join(discovery_client);
+	err = gl_client_discovery_thread_join(m_discovery_client);
 	if (err)
 		goto cleanup;
 	printf("Finished trying to discover peers.\n");
 
 cleanup:
 	/* Clean things up. */
-	gl_client_discovery_free(discovery_client);
-	discovery_client = NULL;
+	gl_client_discovery_free(m_discovery_client);
+	m_discovery_client = NULL;
 
 	return err;
 }
@@ -121,14 +137,14 @@ void event_connected(const tcp_client_t *client) {
 /**
  * Handles the client's connection request response event.
  *
- * @param fname    Name of the file that was uploaded.
+ * @param fb       File bundle that was uploaded.
  * @param accepted Has the connection been accepted by the server?
  */
-void event_conn_req_resp(const char *fname, bool accepted) {
+void event_conn_req_resp(const file_bundle_t *fb, bool accepted) {
 	if (accepted) {
-		printf("Server accepted receiving %s\n", fname);
+		printf("Server accepted receiving %s\n", fb->base);
 	} else {
-		printf("Server refused receiving %s\n", fname);
+		printf("Server refused receiving %s\n", fb->base);
 	}
 }
 
@@ -145,10 +161,10 @@ void event_send_progress(const gl_client_progress_t *progress) {
 /**
  * Handles the client's file upload succeeded event.
  *
- * @param fname Name of the file that was uploaded.
+ * @param fb File bundle that was uploaded.
  */
-void event_send_success(const char *fname) {
-	printf("Finished sending %s\n", fname);
+void event_send_success(const file_bundle_t *fb) {
+	printf("Finished sending %s\n", fb->base);
 }
 
 /**

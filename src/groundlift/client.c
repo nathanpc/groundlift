@@ -9,58 +9,104 @@
 
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <string.h>
 
 #include "defaults.h"
-#include "error.h"
-#include "fileutils.h"
-#include "obex.h"
-#include "sockets.h"
-
-/* Private variables. */
-static tcp_client_t *m_client;
-static pthread_mutex_t *m_client_mutex;
-static pthread_mutex_t *m_client_send_mutex;
-static pthread_t *m_client_thread;
-
-/* Function callbacks. */
-static gl_client_evt_conn_func evt_conn_cb_func;
-static gl_client_evt_disconn_func evt_disconn_cb_func;
-static gl_client_evt_conn_req_resp_func evt_conn_req_resp_cb_func;
-static gl_client_evt_put_progress_func evt_put_progress_cb_func;
-static gl_client_evt_put_succeed_func evt_put_succeed_cb_func;
 
 /* Private methods. */
-void *client_thread_func(void *fname);
+gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet);
+gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted);
+gl_err_t *gl_client_send_put_file(client_handle_t *handle);
+void *client_thread_func(void *handle_ptr);
 void *peer_discovery_thread_func(void *handle_ptr);
+
+/**
+ * Allocates a brand new client handle object and populates it with some sane
+ * defaults.
+ *
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @return Newly allocated client handle object or NULL if an error occurred.
+ *
+ * @see gl_client_setup
+ * @see gl_client_free
+ */
+client_handle_t *gl_client_new(void) {
+	client_handle_t *handle;
+
+	/* Allocate some memory for our handle object. */
+	handle = (client_handle_t *)malloc(sizeof(client_handle_t));
+	if (handle == NULL)
+		return NULL;
+
+	/* Set some sane defaults. */
+	handle->client = NULL;
+	handle->thread = NULL;
+	handle->fb.name = NULL;
+	handle->fb.base = NULL;
+	handle->fb.size = 0;
+	handle->running = false;
+	handle->mutexes.client = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(handle->mutexes.client, NULL);
+	handle->mutexes.send = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(handle->mutexes.send, NULL);
+	handle->events.connected = NULL;
+	handle->events.disconnected = NULL;
+	handle->events.request_response = NULL;
+	handle->events.put_progress = NULL;
+	handle->events.put_succeeded = NULL;
+
+	return handle;
+}
 
 /**
  * Initializes everything related to the client to a known clean state.
  *
- * @param addr Address to connect to.
- * @param port Port to connect to.
+ * @param handle Client's handle object.
+ * @param addr   Address to connect to.
+ * @param port   Port to connect to.
+ * @param fname  Path to a file to be sent to the server.
  *
- * @return NULL if the operation was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_client_connect
  */
-gl_err_t *gl_client_init(const char *addr, uint16_t port) {
-	/* Ensure we have everything in a known clean state. */
-	m_client_thread = (pthread_t *)malloc(sizeof(pthread_t));
-	evt_conn_cb_func = NULL;
-	evt_disconn_cb_func = NULL;
-	evt_conn_req_resp_cb_func = NULL;
-	evt_put_progress_cb_func = NULL;
-	evt_put_succeed_cb_func = NULL;
+gl_err_t *gl_client_setup(client_handle_t *handle, const char *addr,
+						  uint16_t port, const char *fname) {
+	int64_t fsize;
 
-	/* Initialize our mutexes. */
-	m_client_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(m_client_mutex, NULL);
-	m_client_send_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(m_client_send_mutex, NULL);
+	/* Check if the file exists. */
+	if (!file_exists(fname)) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+							EMSG("File to be sent doesn't exist"));
+	}
 
-	/* Get a server handle. */
-	m_client = tcp_client_new(addr, port);
-	if (m_client == NULL) {
+	/* Get the size of the file for transferring. */
+	fsize = file_size(fname);
+	if (fsize < 0L) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE,
+							EMSG("Failed to get the length of the file"));
+	}
+	handle->fb.size = (uint64_t)fsize;
+
+	/* Set the file path to be transferred. */
+	handle->fb.name = strdup(fname);
+	if (handle->fb.name == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+							EMSG("Failed to duplicate the file name string"));
+	}
+
+	/* Determine the file's basename. */
+	handle->fb.base = path_basename(handle->fb.name);
+	if (handle->fb.base == NULL) {
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+							EMSG("Failed to get the file basename"));
+	}
+
+	/* Get a client handle. */
+	handle->client = tcp_client_new(addr, port);
+	if (handle->client == NULL) {
 		return gl_error_new(ERR_TYPE_GL, GL_ERR_SOCKET,
 							EMSG("Failed to initialize the client socket"));
 	}
@@ -72,48 +118,81 @@ gl_err_t *gl_client_init(const char *addr, uint16_t port) {
  * Frees up any resources allocated by the client. Shutting down the connection
  * prior to calling this function isn't required.
  *
+ * @param handle Client's handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
  * @see gl_client_disconnect
  */
-void gl_client_free(void) {
+gl_err_t *gl_client_free(client_handle_t *handle) {
+	gl_err_t *err;
+
+	/* Do we even have any work to do? */
+	if (handle == NULL)
+		return NULL;
+
+	/* Free the file name string. */
+	if (handle->fb.name) {
+		free(handle->fb.name);
+		handle->fb.name = NULL;
+	}
+
 	/* Disconnect the client and free up any allocated resources. */
-	gl_client_disconnect();
-	tcp_client_free(m_client);
-	m_client = NULL;
+	err = gl_client_disconnect(handle);
+	if (err)
+		gl_error_print(err);
+	tcp_client_free(handle->client);
+	handle->client = NULL;
 
 	/* Join the client thread. */
-	gl_client_thread_join();
+	err = gl_client_thread_join(handle);
 
 	/* Free our client send mutex. */
-	if (m_client_send_mutex) {
-		free(m_client_send_mutex);
-		m_client_send_mutex = NULL;
+	if (handle->mutexes.send) {
+		free(handle->mutexes.send);
+		handle->mutexes.send = NULL;
 	}
 
 	/* Free our client mutex. */
-	if (m_client_mutex) {
-		free(m_client_mutex);
-		m_client_mutex = NULL;
+	if (handle->mutexes.client) {
+		free(handle->mutexes.client);
+		handle->mutexes.client = NULL;
 	}
+
+	/* Free ourselves. */
+	free(handle);
+	handle = NULL;
+
+	return err;
 }
 
 /**
  * Connects the client to a server.
  *
- * @param fname Path to a file to be sent to the server.
+ * @param handle Client's handle object.
  *
- * @return NULL if the operation was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_client_loop
  * @see gl_client_disconnect
  */
-gl_err_t *gl_client_connect(char *fname) {
+gl_err_t *gl_client_connect(client_handle_t *handle) {
 	int ret;
 
+	/* Allocate some memory for our thread. */
+	handle->thread = (pthread_t *)malloc(sizeof(pthread_t));
+	if (handle->thread == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
+			EMSG("Failed to allocate the client connection thread"));
+	}
+
 	/* Create the client thread. */
-	ret = pthread_create(m_client_thread, NULL, client_thread_func,
-		(void *)fname);
+	ret = pthread_create(handle->thread, NULL, client_thread_func,
+						 (void *)handle);
 	if (ret) {
-		m_client_thread = NULL;
+		handle->thread = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to create the client connection thread"));
 	}
@@ -124,55 +203,68 @@ gl_err_t *gl_client_connect(char *fname) {
 /**
  * Disconnects the client if needed.
  *
- * @return TRUE if the operation was successful.
+ * @param handle Client's handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  *
  * @see gl_client_loop
  * @see gl_client_connect
  */
-bool gl_client_disconnect(void) {
+gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 	tcp_err_t err;
 
 	/* Do we even need to shut it down? */
-	if (m_client == NULL)
-		return true;
+	if (handle->client == NULL)
+		return NULL;
 
 	/* Shut the connection down. */
-	pthread_mutex_lock(m_client_mutex);
-	err = tcp_client_shutdown(m_client);
-	pthread_mutex_unlock(m_client_mutex);
+	pthread_mutex_lock(handle->mutexes.client);
+	err = tcp_client_shutdown(handle->client);
+	pthread_mutex_unlock(handle->mutexes.client);
 
-	return err == SOCK_OK;
+	/* Check for socket errors. */
+	if (err > SOCK_OK) {
+		return gl_error_new(ERR_TYPE_TCP, (int8_t)err,
+			EMSG("Failed to properly shutdown the client socket"));
+	}
+
+	return NULL;
 }
 
 /**
  * Waits for the client thread to return.
  *
- * @return NULL if the operation was successful.
+ * @param handle Client's handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_thread_join(void) {
+gl_err_t *gl_client_thread_join(client_handle_t *handle) {
 	gl_err_t *err;
 
 	/* Do we even need to do something? */
-	if (m_client_thread == NULL)
+	if (handle->thread == NULL)
 		return NULL;
 
 	/* Join the thread back into us. */
-	pthread_join(*m_client_thread, (void **)&err);
-	free(m_client_thread);
-	m_client_thread = NULL;
+	pthread_join(*handle->thread, (void **)&err);
+	free(handle->thread);
+	handle->thread = NULL;
 
 	return err;
 }
 
 /**
- * Allocates a brand new discovery client object handle and populates it with
+ * Allocates a brand new discovery client handle object and populates it with
  * some sane defaults.
  *
  * @warning This function allocates memory that must be free'd by you.
  *
- * @return Newly allocated discovery client object handle or NULL if an error
+ * @return Newly allocated discovery client handle object or NULL if an error
  *         occurred.
  *
+ * @see gl_client_discovery_setup
  * @see gl_client_discovery_free
  */
 discovery_client_t *gl_client_discovery_new(void) {
@@ -199,6 +291,8 @@ discovery_client_t *gl_client_discovery_new(void) {
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
+ *
+ * @see gl_client_discover_peers
  */
 gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
 	tcp_err_t tcp_err;
@@ -234,6 +328,8 @@ gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
+ *
+ * @see gl_client_discovery_thread_join
  */
 gl_err_t *gl_client_discover_peers(discovery_client_t *handle) {
 	gl_err_t *err;
@@ -322,18 +418,20 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
 /**
  * Sends an OBEX packet to the server.
  *
+ * @param handle Client's handle object.
  * @param packet OBEX packet object.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_send_packet(obex_packet_t *packet) {
+gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet) {
 	gl_err_t *err;
 
-	pthread_mutex_lock(m_client_mutex);
-	pthread_mutex_lock(m_client_send_mutex);
-	err = obex_net_packet_send(m_client->sockfd, packet);
-	pthread_mutex_unlock(m_client_send_mutex);
-	pthread_mutex_unlock(m_client_mutex);
+	pthread_mutex_lock(handle->mutexes.client);
+	pthread_mutex_lock(handle->mutexes.send);
+	err = obex_net_packet_send(handle->client->sockfd, packet);
+	pthread_mutex_unlock(handle->mutexes.send);
+	pthread_mutex_unlock(handle->mutexes.client);
 
 	return err;
 }
@@ -341,44 +439,34 @@ gl_err_t *gl_client_send_packet(obex_packet_t *packet) {
 /**
  * Handles a connection request.
  *
- * @param fname    Path to the file to be sent.
+ * @param handle   Client's handle object.
  * @param accepted Pointer to a boolean that will store a flag of whether the
  *                 connection request was accepted.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted) {
+gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *packet;
-	char *bname;
-	int64_t fsize;
 
 	/* Initialize variables. */
 	err = NULL;
 
-	/* Get the size of the full file for transferring. */
-	fsize = file_size(fname);
-	if (fsize < 0L) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE, EMSG("Failed to get the "
-			"length of the file for upload"));
-	}
-
+	/* TODO: Properly handle files with a size larger than 32-bits. */
 	/* Create the OBEX packet. */
-	bname = path_basename(fname);
-	packet = obex_packet_new_connect(bname, (uint32_t *)&fsize);
-	if (bname)
-		free(bname);
+	packet = obex_packet_new_connect(handle->fb.base, (uint32_t *)&handle->fb.size);
 
 	/* Send the packet. */
-	err = gl_client_send_packet(packet);
+	err = gl_client_send_packet(handle, packet);
 	if (err)
 		goto cleanup;
 
 	/* Read the response packet. */
 	obex_packet_free(packet);
-	pthread_mutex_lock(m_client_mutex);
-	packet = obex_net_packet_recv(m_client->sockfd, true);
-	pthread_mutex_unlock(m_client_mutex);
+	pthread_mutex_lock(handle->mutexes.client);
+	packet = obex_net_packet_recv(handle->client->sockfd, true);
+	pthread_mutex_unlock(handle->mutexes.client);
 	if ((packet == NULL) || (packet == obex_invalid_packet)) {
 		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 			EMSG("Failed to receive or decode the received packet"));
@@ -389,8 +477,8 @@ gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted) {
 	*accepted = packet->opcode == OBEX_SET_FINAL_BIT(OBEX_RESPONSE_SUCCESS);
 
 	/* Set our packet length if needed. */
-	if (packet->params[2].value.uint16 < m_client->packet_len)
-		m_client->packet_len = packet->params[2].value.uint16;
+	if (packet->params[2].value.uint16 < handle->client->packet_len)
+		handle->client->packet_len = packet->params[2].value.uint16;
 
 cleanup:
 	/* Free up any resources. */
@@ -402,55 +490,45 @@ cleanup:
 /**
  * Handles the send operation of a file.
  *
- * @param fname Path to a file to be sent.
+ * @param handle Client's handle object.
  *
- * @return An error object if an error occurred or NULL if it was successful.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-gl_err_t *gl_client_send_put_file(const char *fname) {
+gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 	gl_err_t *err;
 	gl_client_progress_t progress;
-	char *bname;
 	FILE *fh;
-	int64_t fsize;
 	uint16_t csize;
 	uint32_t chunks;
 	uint32_t cc;
 
 	/* Set some defaults. */
 	err = NULL;
-	bname = NULL;
-
-	/* Get the size of the full file for transferring. */
-	fsize = file_size(fname);
-	if (fsize < 0L) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FSIZE, EMSG("Failed to get the "
-			"length of the file for upload"));
-	}
 
 	/* Calculate the size of each file chunk. */
 	csize = OBEX_MAX_FILE_CHUNK;
-	if (m_client->packet_len < OBEX_MAX_FILE_CHUNK)
-		csize = m_client->packet_len; /* TODO: Properly take into account the negotiated packet size. */
-	chunks = (uint32_t)(fsize / csize);
-	if ((csize * chunks) < fsize)
+	if (handle->client->packet_len < OBEX_MAX_FILE_CHUNK)
+		csize = handle->client->packet_len; /* TODO: Properly take into account the negotiated packet size. */
+	chunks = (uint32_t)(handle->fb.size / csize);
+	if ((csize * chunks) < handle->fb.size)
 		chunks++;
 
 #ifdef DEBUG
-	printf("file size %ld csize %u chunks %u\n", fsize, csize, chunks);
+	printf("file size %ld csize %u chunks %u\n", handle->fsize, csize, chunks);
 #endif
 
 	/* Open the file. */
-	fh = file_open(fname, "rb");
+	fh = file_open(handle->fb.name, "rb");
 	if (fh == NULL) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN, EMSG("Failed to open "
-			"the file for upload"));
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
+							EMSG("Failed to open the file for upload"));
 	}
 
 	/* Get the basename of the file and populate the information structure. */
-	bname = path_basename(fname);
-	progress.fname = fname;
-	progress.bname = bname;
-	progress.fsize = (uint64_t)fsize;
+	progress.fname = handle->fb.name;
+	progress.bname = handle->fb.base;
+	progress.fsize = handle->fb.size;
 	progress.csize = csize;
 	progress.chunks = chunks;
 	progress.sent_chunk = 0;
@@ -468,16 +546,18 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		/* Read a chunk of the file. */
 		len = file_read(fh, &buf, csize);
 		if (len < 0L) {
-			err = gl_error_new(ERR_TYPE_GL, GL_ERR_FREAD, EMSG("Failed to read "
-				"a part of the file for upload"));
+			err = gl_error_new(ERR_TYPE_GL, GL_ERR_FREAD,
+				EMSG("Failed to read a part of the file for upload"));
 			break;
 		}
 
 		/* Create the OBEX packet object. */
 		if (cc == 0) {
-			packet = obex_packet_new_put(bname, (uint32_t *)&fsize, last_chunk);
+			packet = obex_packet_new_put(handle->fb.base,
+										 (uint32_t *)&handle->fb.size,
+										 last_chunk);
 		} else {
-			packet = obex_packet_new_put(bname, NULL, last_chunk);
+			packet = obex_packet_new_put(handle->fb.base, NULL, last_chunk);
 		}
 
 		/* Check if the packet object was created. */
@@ -493,21 +573,21 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 		obex_packet_body_set(packet, (uint16_t)len, buf, last_chunk);
 
 		/* Send the packet. */
-		err = obex_net_packet_send(m_client->sockfd, packet);
+		err = obex_net_packet_send(handle->client->sockfd, packet);
 		obex_packet_free(packet);
 		if (err)
 			break;
 
 		/* Update the progress of the transfer via an event. */
-		if (evt_put_progress_cb_func != NULL) {
+		if (handle->events.put_progress != NULL) {
 			progress.sent_chunk = cc + 1;
-			evt_put_progress_cb_func(&progress);
+			handle->events.put_progress(&progress);
 		}
 
 		/* Read the response packet. */
-		pthread_mutex_lock(m_client_mutex);
-		packet = obex_net_packet_recv(m_client->sockfd, false);
-		pthread_mutex_unlock(m_client_mutex);
+		pthread_mutex_lock(handle->mutexes.client);
+		packet = obex_net_packet_recv(handle->client->sockfd, false);
+		pthread_mutex_unlock(handle->mutexes.client);
 		if ((packet == NULL) || (packet == obex_invalid_packet)) {
 			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 				EMSG("Failed to receive or decode the received packet"));
@@ -540,19 +620,15 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
 			break;
 	}
 
-	/* Free our resources. */
-	if (bname)
-		free(bname);
-
 	/* Close the file. */
 	if (!file_close(fh)) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FCLOSE, EMSG("Failed to close "
-			"the file that was uploaded"));
+		return gl_error_new(ERR_TYPE_GL, GL_ERR_FCLOSE,
+							EMSG("Failed to close the file that was uploaded"));
 	}
 
 	/* Trigger the put succeeded event. */
-	if (evt_put_succeed_cb_func != NULL)
-		evt_put_succeed_cb_func(fname);
+	if (handle->events.put_succeeded != NULL)
+		handle->events.put_succeeded(&handle->fb);
 
 	return err;
 }
@@ -561,34 +637,29 @@ gl_err_t *gl_client_send_put_file(const char *fname) {
  * Client's thread function.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param fname Path to a file to be sent.
+ * @param handle_ptr Client's handle object.
  *
- * @return Pointer to a gl_err_t with the last error code. This pointer must be
- *         free'd by you.
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
  */
-void *client_thread_func(void *fname) {
+void *client_thread_func(void *handle_ptr) {
+	client_handle_t *handle;
 	tcp_err_t tcp_err;
 	gl_err_t *gl_err;
-	bool running;
 
 	/* Ignore the argument passed. */
 	gl_err = NULL;
-	running = false;
+	handle = (client_handle_t *)handle_ptr;
+	handle->running = false;
 
-	/* Check if the file exists. */
-	if (!file_exists((const char *)fname)) {
-		return gl_error_new(ERR_TYPE_GL, GL_ERR_FOPEN,
-							EMSG("File to be sent doesn't exist"));
-	}
-
-	/* Get a client handle. */
-	if (m_client == NULL) {
+	/* Sanity check. */
+	if (handle->client == NULL) {
 		return gl_error_new(ERR_TYPE_TCP, TCP_ERR_UNKNOWN,
-							EMSG("Client handle is NULL"));
+							EMSG("Client socket isn't setup"));
 	}
 
 	/* Connect our client to a server. */
-	tcp_err = tcp_client_connect(m_client);
+	tcp_err = tcp_client_connect(handle->client);
 	switch (tcp_err) {
 		case SOCK_OK:
 			break;
@@ -604,26 +675,26 @@ void *client_thread_func(void *fname) {
 	}
 
 	/* Trigger the connected event callback. */
-	if (evt_conn_cb_func != NULL)
-		evt_conn_cb_func(m_client);
+	if (handle->events.connected != NULL)
+		handle->events.connected(handle->client);
 
 	/* Send the OBEX connection request and trigger an event upon reply. */
-	gl_err = gl_client_send_conn_req((const char *)fname, &running);
-	if (evt_conn_req_resp_cb_func != NULL)
-		evt_conn_req_resp_cb_func((const char *)fname, running);
-	if (!running || (gl_err != NULL))
+	gl_err = gl_client_send_conn_req(handle, &handle->running);
+	if (handle->events.request_response != NULL)
+		handle->events.request_response(&handle->fb, handle->running);
+	if (!handle->running || (gl_err != NULL))
 		goto disconnect;
 
 	/* Send the file to the server. */
-	gl_err = gl_client_send_put_file((const char *)fname);
-	if (!running || (gl_err != NULL))
+	gl_err = gl_client_send_put_file(handle);
+	if (!handle->running || (gl_err != NULL))
 		goto disconnect;
 
 disconnect:
 	/* Disconnect from server, free up any resources, and trigger callback. */
-	gl_client_disconnect();
-	if (evt_disconn_cb_func != NULL)
-		evt_disconn_cb_func(m_client);
+	gl_client_disconnect(handle);
+	if (handle->events.disconnected != NULL)
+		handle->events.disconnected(handle->client);
 
 	return (void *)gl_err;
 }
@@ -702,52 +773,63 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 /**
  * Sets the Connected event callback function.
  *
- * @param func Connected event callback function.
+ * @param handle Client's handle object.
+ * @param func   Connected event callback function.
  */
-void gl_client_evt_conn_set(gl_client_evt_conn_func func) {
-	evt_conn_cb_func = func;
+void gl_client_evt_conn_set(client_handle_t *handle,
+							gl_client_evt_conn_func func) {
+	handle->events.connected = func;
 }
 
 /**
  * Sets the Disconnected event callback function.
  *
- * @param func Disconnected event callback function.
+ * @param handle Client's handle object.
+ * @param func   Disconnected event callback function.
  */
-void gl_client_evt_disconn_set(gl_client_evt_disconn_func func) {
-	evt_disconn_cb_func = func;
+void gl_client_evt_disconn_set(client_handle_t *handle,
+							   gl_client_evt_disconn_func func) {
+	handle->events.disconnected = func;
 }
 
 /**
  * Sets the Connection Request Reply event callback function.
  *
- * @param func Connection Request Reply event callback function.
+ * @param handle Client's handle object.
+ * @param func   Connection Request Reply event callback function.
  */
-void gl_client_evt_conn_req_resp_set(gl_client_evt_conn_req_resp_func func) {
-	evt_conn_req_resp_cb_func = func;
+void gl_client_evt_conn_req_resp_set(client_handle_t *handle,
+									 gl_client_evt_conn_req_resp_func func) {
+	handle->events.request_response = func;
 }
 
 /**
  * Sets the Send File Operation Progress event callback function.
  *
- * @param func Send File Operation Succeeded event callback function.
+ * @param handle Client's handle object.
+ * @param func   Send File Operation Succeeded event callback function.
  */
-void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func) {
-	evt_put_progress_cb_func = func;
+void gl_client_evt_put_progress_set(client_handle_t *handle,
+									gl_client_evt_put_progress_func func) {
+	handle->events.put_progress = func;
 }
 
 /**
  * Sets the Send File Operation Succeeded event callback function.
  *
- * @param func Send File Operation Succeeded event callback function.
+ * @param handle Client's handle object.
+ * @param func   Send File Operation Succeeded event callback function.
  */
-void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func) {
-	evt_put_succeed_cb_func = func;
+void gl_client_evt_put_succeed_set(client_handle_t *handle,
+								   gl_client_evt_put_succeed_func func) {
+	handle->events.put_succeeded = func;
 }
 
 /**
  * Sets the Send File Operation Succeeded event callback function.
  *
- * @param func Send File Operation Succeeded event callback function.
+ * @param handle Client's handle object.
+ * @param func   Send File Operation Succeeded event callback function.
  */
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
 									  gl_client_evt_discovery_peer_func func) {

@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 
 	/* Free up any resources. */
 	gl_server_free();
-	gl_client_free();
+	gl_client_free(m_client);
 	gl_error_free(err);
 	conf_free();
 
@@ -81,7 +81,7 @@ void sigint_handler(int sig) {
 	printf("Got a Ctrl-C\n");
 
 	/* Disconnect the client. */
-	gl_client_disconnect();
+	gl_client_disconnect(m_client);
 
 	/* Stop the server. */
 	gl_server_stop();

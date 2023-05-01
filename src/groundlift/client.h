@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "error.h"
+#include "fileutils.h"
 #include "obex.h"
 #include "sockets.h"
 
@@ -53,25 +54,27 @@ typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client);
  * Client connection request reply received event callback function pointer type
  * definition.
  *
- * @param fname    Name of the file that was uploaded.
+ * @param fb       File bundle that was uploaded.
  * @param accepted Has the connection request been accepted?
  */
-typedef void (*gl_client_evt_conn_req_resp_func)(const char *fname, bool accepted);
+typedef void (*gl_client_evt_conn_req_resp_func)(const file_bundle_t *fb,
+												 bool accepted);
 
 /**
  * Client file upload progress event callback function pointer type definition.
  *
  * @param progress Structure containing all the information about the progress.
  */
-typedef void (*gl_client_evt_put_progress_func)(const gl_client_progress_t *progress);
+typedef void (*gl_client_evt_put_progress_func)(
+	const gl_client_progress_t *progress);
 
 /**
  * Client file upload succeeded event callback function pointer type
  * definition.
  *
- * @param fname Name of the file that was uploaded.
+ * @param fb File bundle that was uploaded.
  */
-typedef void (*gl_client_evt_put_succeed_func)(const char *fname);
+typedef void (*gl_client_evt_put_succeed_func)(const file_bundle_t *fb);
 
 /**
  * Discovered peers event callback function pointer type definition.
@@ -83,30 +86,54 @@ typedef void (*gl_client_evt_discovery_peer_func)(const char *name,
 												  const struct sockaddr *addr);
 
 /**
- * Peer discovery client object.
+ * Client handle object.
+ */
+typedef struct {
+	tcp_client_t *client;
+	pthread_t *thread;
+
+	file_bundle_t fb;
+	bool running;
+
+	/* Mutexes */
+	struct {
+		pthread_mutex_t *client;
+		pthread_mutex_t *send;
+	} mutexes;
+
+	/* Event handlers. */
+	struct {
+		gl_client_evt_conn_func connected;
+		gl_client_evt_disconn_func disconnected;
+		gl_client_evt_conn_req_resp_func request_response;
+		gl_client_evt_put_progress_func put_progress;
+		gl_client_evt_put_succeed_func put_succeeded;
+	} events;
+} client_handle_t;
+
+/**
+ * Peer discovery client handle object.
  */
 typedef struct {
 	pthread_t *thread;
 	sock_bundle_t sock;
 
+	/* Event handlers. */
 	struct {
 		gl_client_evt_discovery_peer_func discovered_peer;
 	} events;
 } discovery_client_t;
 
 /* Initialization and destruction. */
-gl_err_t *gl_client_init(const char *addr, uint16_t port);
-void gl_client_free(void);
+client_handle_t *gl_client_new(void);
+gl_err_t *gl_client_setup(client_handle_t *handle, const char *addr,
+						  uint16_t port, const char *fname);
+gl_err_t *gl_client_free(client_handle_t *handle);
 
 /* Client connection lifecycle. */
-gl_err_t *gl_client_connect(char *fname);
-bool gl_client_disconnect(void);
-gl_err_t *gl_client_thread_join(void);
-
-/* Client interactions. */
-gl_err_t *gl_client_send_packet(obex_packet_t *packet);
-gl_err_t *gl_client_send_conn_req(const char *fname, bool *accepted);
-gl_err_t *gl_client_send_put_file(const char *fname);
+gl_err_t *gl_client_connect(client_handle_t *handle);
+gl_err_t *gl_client_disconnect(client_handle_t *handle);
+gl_err_t *gl_client_thread_join(client_handle_t *handle);
 
 /* Discovery service. */
 discovery_client_t *gl_client_discovery_new(void);
@@ -115,12 +142,17 @@ gl_err_t *gl_client_discover_peers(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_free(discovery_client_t *handle);
 
-/* Callbacks */
-void gl_client_evt_conn_set(gl_client_evt_conn_func func);
-void gl_client_evt_disconn_set(gl_client_evt_disconn_func func);
-void gl_client_evt_conn_req_resp_set(gl_client_evt_conn_req_resp_func func);
-void gl_client_evt_put_progress_set(gl_client_evt_put_progress_func func);
-void gl_client_evt_put_succeed_set(gl_client_evt_put_succeed_func func);
+/* Event handler setters. */
+void gl_client_evt_conn_set(client_handle_t *handle,
+							gl_client_evt_conn_func func);
+void gl_client_evt_disconn_set(client_handle_t *handle,
+							   gl_client_evt_disconn_func func);
+void gl_client_evt_conn_req_resp_set(client_handle_t *handle,
+									 gl_client_evt_conn_req_resp_func func);
+void gl_client_evt_put_progress_set(client_handle_t *handle,
+									gl_client_evt_put_progress_func func);
+void gl_client_evt_put_succeed_set(client_handle_t *handle,
+								   gl_client_evt_put_succeed_func func);
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
 									  gl_client_evt_discovery_peer_func func);
 
