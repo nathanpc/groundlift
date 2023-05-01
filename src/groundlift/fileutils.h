@@ -35,6 +35,7 @@ typedef struct {
 /* File Bundles */
 file_bundle_t *file_bundle_new_empty(void);
 file_bundle_t *file_bundle_new(const char *fname);
+bool file_bundle_set_name(file_bundle_t *fb, const char *fname);
 void file_bundle_free(file_bundle_t *fb);
 
 /* File Operations */

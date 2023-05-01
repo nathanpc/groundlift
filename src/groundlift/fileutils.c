@@ -51,7 +51,7 @@ file_bundle_t *file_bundle_new(const char *fname) {
 	sfsize_t fsize;
 
 	/* Allocate our file bundle. */
-	fb = (file_bundle_t *)malloc(sizeof(file_bundle_t));
+	fb = file_bundle_new_empty();
 	if (fb == NULL)
 		return NULL;
 
@@ -65,26 +65,45 @@ file_bundle_t *file_bundle_new(const char *fname) {
 	}
 	fb->size = (fsize_t)fsize;
 
-	/* Set the file path. */
-	fb->name = strdup(fname);
-	if (fb->name == NULL) {
-		fprintf(stderr, "Failed to duplicate %s file name string.\n", fname);
+	/* Populate file names. */
+	if (!file_bundle_set_name(fb, fname)) {
 		free(fb);
-
-		return NULL;
-	}
-
-	/* Determine the file's basename. */
-	fb->base = path_basename(fb->name);
-	if (fb->base == NULL) {
-		fprintf(stderr, "Failed to get %s basename.\n", fname);
-		free(fb->name);
-		free(fb);
-
 		return NULL;
 	}
 
 	return fb;
+}
+
+/**
+ * Sets the file name, and infer basename, of a file bundle. Reallocating the
+ * internal strings if necessary.
+ *
+ * @param fb    File bundle object to be populated.
+ * @param fname Path to a file.
+ *
+ * @return TRUE if the file bundle object population was successful.
+ */
+bool file_bundle_set_name(file_bundle_t *fb, const char *fname) {
+	/* Set the file path. */
+	if (fb->name)
+		free(fb->name);
+	fb->name = strdup(fname);
+	if (fb->name == NULL) {
+		fprintf(stderr, "Failed to duplicate %s file name string.\n", fname);
+		return false;
+	}
+
+	/* Determine the file's basename. */
+	if (fb->base)
+		free(fb->base);
+	fb->base = path_basename(fb->name);
+	if (fb->base == NULL) {
+		fprintf(stderr, "Failed to get %s basename.\n", fname);
+		free(fb->name);
+		fb->name = NULL;
+
+		return false;
+	}
 }
 
 /**
