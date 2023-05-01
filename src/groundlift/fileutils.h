@@ -17,6 +17,15 @@
 extern "C" {
 #endif
 
+/**
+ * Compilation of all of the common properties of a file.
+ */
+typedef struct {
+	char *name;
+	char *base;
+	uint64_t size;
+} file_bundle_t;
+
 /* File Operations */
 FILE *file_open(const char *fname, const char *mode);
 ssize_t file_read(FILE *fh, void **buf, size_t len);
