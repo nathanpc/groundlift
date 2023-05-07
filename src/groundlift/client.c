@@ -8,11 +8,12 @@
 #include "client.h"
 
 #include <arpa/inet.h>
-#include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "defaults.h"
 #include "error.h"
+#include "utils/threads.h"
 
 /* Private methods. */
 gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet);
@@ -45,10 +46,8 @@ client_handle_t *gl_client_new(void) {
 	handle->thread = NULL;
 	handle->fb = NULL;
 	handle->running = false;
-	handle->mutexes.client = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(handle->mutexes.client, NULL);
-	handle->mutexes.send = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(handle->mutexes.send, NULL);
+	handle->mutexes.client = thread_mutex_new();
+	handle->mutexes.send = thread_mutex_new();
 	handle->events.connected = NULL;
 	handle->events.disconnected = NULL;
 	handle->events.request_response = NULL;
@@ -130,17 +129,9 @@ gl_err_t *gl_client_free(client_handle_t *handle) {
 	/* Join the client thread. */
 	err = gl_client_thread_join(handle);
 
-	/* Free our client send mutex. */
-	if (handle->mutexes.send) {
-		free(handle->mutexes.send);
-		handle->mutexes.send = NULL;
-	}
-
-	/* Free our client mutex. */
-	if (handle->mutexes.client) {
-		free(handle->mutexes.client);
-		handle->mutexes.client = NULL;
-	}
+	/* Free our client mutexes. */
+	thread_mutex_free(&handle->mutexes.send);
+	thread_mutex_free(&handle->mutexes.client);
 
 	/* Free ourselves. */
 	free(handle);
@@ -161,18 +152,17 @@ gl_err_t *gl_client_free(client_handle_t *handle) {
  * @see gl_client_disconnect
  */
 gl_err_t *gl_client_connect(client_handle_t *handle) {
-	int ret;
+	thread_err_t ret;
 
 	/* Allocate some memory for our thread. */
-	handle->thread = (pthread_t *)malloc(sizeof(pthread_t));
+	handle->thread = thread_new();
 	if (handle->thread == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to allocate the client connection thread"));
 	}
 
 	/* Create the client thread. */
-	ret = pthread_create(handle->thread, NULL, client_thread_func,
-						 (void *)handle);
+	ret = thread_create(handle->thread, client_thread_func, (void *)handle);
 	if (ret) {
 		handle->thread = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
@@ -201,9 +191,9 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 		return NULL;
 
 	/* Shut the connection down. */
-	pthread_mutex_lock(handle->mutexes.client);
+	thread_mutex_lock(handle->mutexes.client);
 	err = tcp_client_shutdown(handle->client);
-	pthread_mutex_unlock(handle->mutexes.client);
+	thread_mutex_unlock(handle->mutexes.client);
 
 	/* Check for socket errors. */
 	if (err > SOCK_OK) {
@@ -225,14 +215,10 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 gl_err_t *gl_client_thread_join(client_handle_t *handle) {
 	gl_err_t *err;
 
-	/* Do we even need to do something? */
-	if (handle->thread == NULL)
-		return NULL;
-
 	/* Join the thread back into us. */
-	pthread_join(*handle->thread, (void **)&err);
-	free(handle->thread);
-	handle->thread = NULL;
+	if (thread_join(&handle->thread, (void **)&err) > THREAD_OK) {
+		perror("gl_client_thread_join@thread_join");
+	}
 
 	return err;
 }
@@ -260,8 +246,7 @@ discovery_client_t *gl_client_discovery_new(void) {
 	/* Set some sane defaults. */
 	handle->sock.sockfd = -1;
 	handle->thread = NULL;
-	handle->mutexes.client = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(handle->mutexes.client, NULL);
+	handle->mutexes.client = thread_mutex_new();
 	handle->events.discovered_peer = NULL;
 
 	return handle;
@@ -329,15 +314,15 @@ gl_err_t *gl_client_discover_peers(discovery_client_t *handle) {
 	}
 
 	/* Allocate some memory for our new thread. */
-	handle->thread = (pthread_t *)malloc(sizeof(pthread_t));
+	handle->thread = thread_new();
 	if (handle->thread == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to allocate the peer discovery thread handle"));
 	}
 
 	/* Create a new discovery thread. */
-	ret = pthread_create(handle->thread, NULL, peer_discovery_thread_func,
-						 (void *)handle);
+	ret = thread_create(handle->thread, peer_discovery_thread_func,
+						(void *)handle);
 	if (ret) {
 		handle->thread = NULL;
 		err = gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
@@ -363,10 +348,10 @@ gl_err_t *gl_client_discovery_abort(discovery_client_t *handle) {
 		return NULL;
 
 	/* Close the socket. */
-	pthread_mutex_lock(handle->mutexes.client);
+	thread_mutex_lock(handle->mutexes.client);
 	tcp_err = socket_shutdown(handle->sock.sockfd);
 	handle->sock.sockfd = -1;
-	pthread_mutex_unlock(handle->mutexes.client);
+	thread_mutex_unlock(handle->mutexes.client);
 
 	/* Check for errors. */
 	if (tcp_err > SOCK_OK) {
@@ -388,14 +373,10 @@ gl_err_t *gl_client_discovery_abort(discovery_client_t *handle) {
 gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle) {
 	gl_err_t *err;
 
-	/* Do we even need to do something? */
-	if (handle->thread == NULL)
-		return NULL;
-
 	/* Join the thread back into us. */
-	pthread_join(*handle->thread, (void **)&err);
-	free(handle->thread);
-	handle->thread = NULL;
+	if (thread_join(&handle->thread, (void **)&err) > THREAD_OK) {
+		perror("gl_client_discovery_thread_join@thread_join");
+	}
 
 	return err;
 }
@@ -424,10 +405,7 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
 	err = gl_client_discovery_thread_join(handle);
 
 	/* Free our client mutex. */
-	if (handle->mutexes.client) {
-		free(handle->mutexes.client);
-		handle->mutexes.client = NULL;
-	}
+	thread_mutex_free(&handle->mutexes.client);
 
 	/* Free ourselves. */
 	free(handle);
@@ -448,11 +426,11 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
 gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet) {
 	gl_err_t *err;
 
-	pthread_mutex_lock(handle->mutexes.client);
-	pthread_mutex_lock(handle->mutexes.send);
+	thread_mutex_lock(handle->mutexes.client);
+	thread_mutex_lock(handle->mutexes.send);
 	err = obex_net_packet_send(handle->client->sockfd, packet);
-	pthread_mutex_unlock(handle->mutexes.send);
-	pthread_mutex_unlock(handle->mutexes.client);
+	thread_mutex_unlock(handle->mutexes.send);
+	thread_mutex_unlock(handle->mutexes.client);
 
 	return err;
 }
@@ -485,9 +463,9 @@ gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted) {
 
 	/* Read the response packet. */
 	obex_packet_free(packet);
-	pthread_mutex_lock(handle->mutexes.client);
+	thread_mutex_lock(handle->mutexes.client);
 	packet = obex_net_packet_recv(handle->client->sockfd, NULL, true);
-	pthread_mutex_unlock(handle->mutexes.client);
+	thread_mutex_unlock(handle->mutexes.client);
 	if ((packet == NULL) || (packet == obex_invalid_packet)) {
 		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 			EMSG("Failed to receive or decode the received packet"));
@@ -606,9 +584,9 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 		}
 
 		/* Read the response packet. */
-		pthread_mutex_lock(handle->mutexes.client);
+		thread_mutex_lock(handle->mutexes.client);
 		packet = obex_net_packet_recv(handle->client->sockfd, NULL, false);
-		pthread_mutex_unlock(handle->mutexes.client);
+		thread_mutex_unlock(handle->mutexes.client);
 		if ((packet == NULL) || (packet == obex_invalid_packet)) {
 			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 				EMSG("Failed to receive or decode the received packet"));
@@ -767,10 +745,10 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 		if (header == NULL) {
 			/* Free up resources. */
 			obex_packet_free(packet);
-			pthread_mutex_lock(handle->mutexes.client);
+			thread_mutex_lock(handle->mutexes.client);
 			socket_close(handle->sock.sockfd);
 			handle->sock.sockfd = -1;
-			pthread_mutex_unlock(handle->mutexes.client);
+			thread_mutex_unlock(handle->mutexes.client);
 
 			return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_HEADER_NOT_FOUND,
 				EMSG("Discovered peer replied without a hostname"));

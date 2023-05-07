@@ -7,7 +7,6 @@
 
 #include "server.h"
 
-#include <pthread.h>
 #include <string.h>
 #include <utils/filesystem.h>
 #include <utils/utf16.h>
@@ -15,6 +14,7 @@
 #include "conf.h"
 #include "defaults.h"
 #include "error.h"
+#include "utils/threads.h"
 
 /* Private methods. */
 obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
@@ -56,10 +56,8 @@ server_handle_t *gl_server_new(void) {
 	handle->expected_opcodes = 0;
 	handle->threads.main = NULL;
 	handle->threads.discovery = NULL;
-	handle->mutexes.server = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(handle->mutexes.server, NULL);
-	handle->mutexes.conn = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(handle->mutexes.conn, NULL);
+	handle->mutexes.server = thread_mutex_new();
+	handle->mutexes.conn = thread_mutex_new();
 	handle->events.started = NULL;
 	handle->events.conn_accepted = NULL;
 	handle->events.conn_closed = NULL;
@@ -128,17 +126,9 @@ gl_err_t *gl_server_free(server_handle_t *handle) {
 	/* Join the server thread. */
 	err = gl_server_thread_join(handle);
 
-	/* Free our server mutex. */
-	if (handle->mutexes.server) {
-		free(handle->mutexes.server);
-		handle->mutexes.server = NULL;
-	}
-
-	/* Free our connection mutex. */
-	if (handle->mutexes.conn) {
-		free(handle->mutexes.conn);
-		handle->mutexes.conn = NULL;
-	}
+	/* Free our mutexes. */
+	thread_mutex_free(&handle->mutexes.server);
+	thread_mutex_free(&handle->mutexes.conn);
 
 	return err;
 }
@@ -164,15 +154,15 @@ gl_err_t *gl_server_start(server_handle_t *handle) {
 	}
 
 	/* Allocate some memory for our main server thread. */
-	handle->threads.main = (pthread_t *)malloc(sizeof(pthread_t));
+	handle->threads.main = thread_new();
 	if (handle->threads.main == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to allocate the server thread"));
 	}
 
 	/* Create the server thread. */
-	ret = pthread_create(handle->threads.main, NULL, server_thread_func,
-						 (void *)handle);
+	ret = thread_create(handle->threads.main, server_thread_func,
+						(void *)handle);
 	if (ret) {
 		handle->threads.main = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
@@ -238,16 +228,16 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 		return NULL;
 
 	/* Destroy any active connections. */
-	pthread_mutex_lock(handle->mutexes.conn);
+	thread_mutex_lock(handle->mutexes.conn);
 	err = gl_server_conn_destroy(handle);
 	if (err)
 		gl_error_print(err);
-	pthread_mutex_unlock(handle->mutexes.conn);
+	thread_mutex_unlock(handle->mutexes.conn);
 
 	/* Shut the thing down. */
-	pthread_mutex_lock(handle->mutexes.server);
+	thread_mutex_lock(handle->mutexes.server);
 	tcp_err = sockets_server_shutdown(handle->server);
-	pthread_mutex_unlock(handle->mutexes.server);
+	thread_mutex_unlock(handle->mutexes.server);
 
 	/* Check for errors. */
 	err = NULL;
@@ -271,13 +261,13 @@ gl_err_t *gl_server_thread_join(server_handle_t *handle) {
 	gl_err_t *err;
 
 	/* Do we even need to do something? */
-	if (handle->threads.main == NULL)
+	if (handle == NULL)
 		return NULL;
 
 	/* Join the thread back into us. */
-	pthread_join(*handle->threads.main, (void **)&err);
-	free(handle->threads.main);
-	handle->threads.main = NULL;
+	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
+		perror("gl_server_thread_join@thread_join");
+	}
 
 	return err;
 }
@@ -305,16 +295,16 @@ gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port) {
 	}
 
 	/* Allocate our thread object. */
-	handle->threads.discovery = (pthread_t *)malloc(sizeof(pthread_t));
+	handle->threads.discovery = thread_new();
 	if (handle->threads.discovery == NULL) {
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
 			EMSG("Failed to allocate the server thread"));
 	}
 
 	/* Initialize discovery service. */
-	pthread_mutex_lock(handle->mutexes.server);
+	thread_mutex_lock(handle->mutexes.server);
 	err = udp_discovery_init(&handle->server->udp, true, INADDR_ANY, port, 0);
-	pthread_mutex_unlock(handle->mutexes.server);
+	thread_mutex_unlock(handle->mutexes.server);
 	if (err) {
 		free(handle->threads.discovery);
 		handle->threads.discovery = NULL;
@@ -324,8 +314,8 @@ gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port) {
 	}
 
 	/* Create the server thread. */
-	ret = pthread_create(handle->threads.discovery, NULL, discovery_thread_func,
-						 (void *)handle);
+	ret = thread_create(handle->threads.discovery, discovery_thread_func,
+						(void *)handle);
 	if (ret) {
 		handle->threads.discovery = NULL;
 		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_THREAD,
@@ -347,13 +337,13 @@ gl_err_t *gl_server_discovery_thread_join(server_handle_t *handle) {
 	gl_err_t *err;
 
 	/* Do we even need to do something? */
-	if ((handle == NULL) || (handle->threads.discovery == NULL))
+	if (handle == NULL)
 		return NULL;
 
 	/* Join the thread back into us. */
-	pthread_join(*handle->threads.discovery, (void **)&err);
-	free(handle->threads.discovery);
-	handle->threads.discovery = NULL;
+	if (thread_join(&handle->threads.discovery, (void **)&err) > THREAD_OK) {
+		perror("gl_server_discovery_thread_join@thread_join");
+	}
 
 	return err;
 }
@@ -371,9 +361,9 @@ gl_err_t *gl_server_send_packet(server_handle_t *handle,
 								obex_packet_t *packet) {
 	gl_err_t *err;
 
-	pthread_mutex_lock(handle->mutexes.conn);
+	thread_mutex_lock(handle->mutexes.conn);
 	err = obex_net_packet_send(handle->conn->sockfd, packet);
-	pthread_mutex_unlock(handle->mutexes.conn);
+	thread_mutex_unlock(handle->mutexes.conn);
 
 	return err;
 }
@@ -407,10 +397,10 @@ gl_err_t *gl_server_handle_conn_req(server_handle_t *handle,
 		*accepted = handle->events.transfer_requested(fb);
 
 	/* Set our packet length if needed. */
-	pthread_mutex_lock(handle->mutexes.conn);
+	thread_mutex_lock(handle->mutexes.conn);
 	if (packet->params[2].value.uint16 < handle->conn->packet_len)
 		handle->conn->packet_len = packet->params[2].value.uint16;
-	pthread_mutex_unlock(handle->mutexes.conn);
+	thread_mutex_unlock(handle->mutexes.conn);
 
 	/* Initialize reply packet. */
 	if (*accepted) {
@@ -608,9 +598,9 @@ void *server_thread_func(void *handle_ptr) {
 	gl_err = NULL;
 
 	/* Start the server and listen for incoming connections. */
-	pthread_mutex_lock(handle->mutexes.server);
+	thread_mutex_lock(handle->mutexes.server);
 	tcp_err = sockets_server_start(handle->server);
-	pthread_mutex_unlock(handle->mutexes.server);
+	thread_mutex_unlock(handle->mutexes.server);
 	switch (tcp_err) {
 		case SOCK_OK:
 			break;
@@ -706,9 +696,9 @@ void *server_thread_func(void *handle_ptr) {
 
 		/* Close the connection and free up any resources. */
 		obex_packet_free(packet);
-		pthread_mutex_lock(handle->mutexes.conn);
+		thread_mutex_lock(handle->mutexes.conn);
 		gl_server_conn_destroy(handle);
-		pthread_mutex_unlock(handle->mutexes.conn);
+		thread_mutex_unlock(handle->mutexes.conn);
 
 		/* Trigger the connection closed event. */
 		if (handle->events.conn_closed != NULL)

@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <utils/filesystem.h>
+#include <utils/threads.h>
 
 #include "error.h"
 #include "obex.h"
@@ -98,14 +99,14 @@ typedef struct {
 
 	/* Threads */
 	struct {
-		pthread_t *main;
-		pthread_t *discovery;
+		thread_t main;
+		thread_t discovery;
 	} threads;
 
 	/* Mutexes */
 	struct {
-		pthread_mutex_t *server;
-		pthread_mutex_t *conn;
+		thread_mutex_t server;
+		thread_mutex_t conn;
 	} mutexes;
 
 	/* Event handlers. */

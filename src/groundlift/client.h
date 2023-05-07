@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <utils/filesystem.h>
+#include <utils/threads.h>
 
 #include "error.h"
 #include "obex.h"
@@ -88,15 +89,15 @@ typedef void (*gl_client_evt_discovery_peer_func)(const char *name,
  */
 typedef struct {
 	tcp_client_t *client;
-	pthread_t *thread;
+	thread_t thread;
 
 	file_bundle_t *fb;
 	bool running;
 
 	/* Mutexes */
 	struct {
-		pthread_mutex_t *client;
-		pthread_mutex_t *send;
+		thread_mutex_t client;
+		thread_mutex_t send;
 	} mutexes;
 
 	/* Event handlers. */
@@ -113,12 +114,12 @@ typedef struct {
  * Peer discovery client handle object.
  */
 typedef struct {
-	pthread_t *thread;
+	thread_t thread;
 	sock_bundle_t sock;
 
 	/* Mutexes */
 	struct {
-		pthread_mutex_t *client;
+		thread_mutex_t client;
 	} mutexes;
 
 	/* Event handlers. */
