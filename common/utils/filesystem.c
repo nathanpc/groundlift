@@ -1,11 +1,11 @@
 /**
- * fileutils.c
- * Some utility and helper macros to deal with files.
+ * filesystem.c
+ * Some utility and helper macros to deal with the filesystem.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include "fileutils.h"
+#include "filesystem.h"
 
 #include <libgen.h>
 #include <pwd.h>
@@ -14,8 +14,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#include "defaults.h"
 
 /**
  * Creates an empty file bundle.

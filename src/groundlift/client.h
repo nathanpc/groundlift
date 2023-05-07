@@ -11,9 +11,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <utils/filesystem.h>
 
 #include "error.h"
-#include "fileutils.h"
 #include "obex.h"
 #include "sockets.h"
 

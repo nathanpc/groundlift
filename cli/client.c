@@ -9,7 +9,7 @@
 
 #include <groundlift/defaults.h>
 #include <groundlift/client.h>
-#include "groundlift/error.h"
+#include <groundlift/error.h>
 
 /* Public variables. */
 client_handle_t *g_client;

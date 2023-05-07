@@ -17,7 +17,8 @@ set(CMAKE_C_STANDARD 90)
 # Setup some standard compilation flgas across the board.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -pedantic -Wno-psabi")
 
-# Add the groundlift library subdirectory.
+# Add the groundlift library and utilities subdirectory.
+add_subdirectory(common)
 add_subdirectory(src)
 
 # Add the included server/client command-line utility.

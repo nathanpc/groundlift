@@ -48,19 +48,6 @@ extern "C" {
 #define OBEX_MAX_FILE_CHUNK 8000
 #endif /* OBEX_MAX_FILE_CHUNK */
 
-/* Ensure we know the size of a wchar_t in this platform. */
-#ifndef _SIZEOF_WCHAR
-	#ifdef _WIN32
-		#define _SIZEOF_WCHAR 2
-	#elif defined(__SIZEOF_WCHAR_T__)
-		#define _SIZEOF_WCHAR __SIZEOF_WCHAR_T__
-	#else
-		#error _SIZEOF_WCHAR was not defined. Use the script under \
-		scripts/wchar-size.sh to determine its size and define the macro in your \
-		build system.
-	#endif
-#endif /* _SIZEOF_WCHAR */
-
 /* Ensure we know the maximum length that the machine's hostname can be. */
 #ifndef HOST_NAME_MAX
 	#ifdef _WIN32
@@ -71,15 +58,6 @@ extern "C" {
 		#define HOST_NAME_MAX 64
 	#endif /* _WIN32 */
 #endif /* HOST_NAME_MAX */
-
-/* Character used for separating paths in the current environment. */
-#ifndef PATH_SEPARATOR
-	#ifdef _WIN32
-		#define PATH_SEPARATOR '\\'
-	#else
-		#define PATH_SEPARATOR '/'
-	#endif
-#endif /* PATH_SEPARATOR */
 
 #ifdef __cplusplus
 }

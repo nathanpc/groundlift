@@ -1,13 +1,13 @@
 /**
- * utf16utils.h
+ * utf16.h
  * UTF-16 string utilities for better interoperability with the OBEX spec and
  * between Windows and UTF-8 platforms.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _GL_UTF16UTILS_H
-#define _GL_UTF16UTILS_H
+#ifndef _GL_UTILS_UTF16_H
+#define _GL_UTILS_UTF16_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,6 +17,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Ensure we know the size of a wchar_t in this platform. */
+#ifndef _SIZEOF_WCHAR
+	#ifdef _WIN32
+		#define _SIZEOF_WCHAR 2
+	#elif defined(__SIZEOF_WCHAR_T__)
+		#define _SIZEOF_WCHAR __SIZEOF_WCHAR_T__
+	#else
+		#error _SIZEOF_WCHAR was not defined. Use the script under \
+		scripts/wchar-size.sh to determine its size and define the macro in your \
+		build system.
+	#endif
+#endif /* _SIZEOF_WCHAR */
 
 /* UTF-16 mangled inside a 32-bit wchar_t. */
 void utf16_wchar32_fix(wchar_t *str);
@@ -31,4 +44,4 @@ char *utf16_wcstombs(const wchar_t *wstr);
 }
 #endif
 
-#endif /* _GL_UTF16UTILS_H */
+#endif /* _GL_UTILS_UTF16_H */

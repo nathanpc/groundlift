@@ -10,9 +10,9 @@
 #include <limits.h>
 #include <string.h>
 #include <unistd.h>
+#include <utils/filesystem.h>
 
 #include "defaults.h"
-#include "fileutils.h"
 
 /* Private variables. */
 static gl_conf_t conf;

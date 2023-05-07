@@ -1,17 +1,15 @@
 /**
- * utf16utils.c
+ * utf16.c
  * UTF-16 string utilities for better interoperability with the OBEX spec and
  * between Windows and UTF-8 platforms.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include "utf16utils.h"
+#include "utf16.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-#include "defaults.h"
 
 /**
  * Fixes a UTF-16 that was caught up inside a 32-bit wchar_t and rearranges the

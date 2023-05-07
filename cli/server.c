@@ -8,7 +8,7 @@
 #include "server.h"
 
 #include <groundlift/defaults.h>
-#include "groundlift/fileutils.h"
+#include <utils/filesystem.h>
 
 /* Public variables. */
 server_handle_t *g_server;

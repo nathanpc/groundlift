@@ -1,12 +1,12 @@
 /**
- * fileutils.h
- * Some utility and helper macros to deal with files.
+ * filesystem.h
+ * Some utility and helper macros to deal with the filesystem.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _GL_FILEUTILS_H
-#define _GL_FILEUTILS_H
+#ifndef _GL_UTILS_FILESYSTEM_H
+#define _GL_UTILS_FILESYSTEM_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -16,6 +16,17 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * Character used for separating paths in the current environment.
+ */
+#ifndef PATH_SEPARATOR
+	#ifdef _WIN32
+		#define PATH_SEPARATOR '\\'
+	#else
+		#define PATH_SEPARATOR '/'
+	#endif
+#endif /* PATH_SEPARATOR */
 
 /**
  * System-agnostic representation of the size of a file.
@@ -63,4 +74,4 @@ char *path_build_download(const char *dir, const char *fname);
 }
 #endif
 
-#endif /* _GL_FILEUTILS_H */
+#endif /* _GL_UTILS_FILESYSTEM_H */

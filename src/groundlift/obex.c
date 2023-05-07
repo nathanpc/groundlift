@@ -11,12 +11,12 @@
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <string.h>
+#include <utils/bits.h>
+#include <utils/utf16.h>
 
-#include "bitutils.h"
 #include "conf.h"
 #include "defaults.h"
 #include "sockets.h"
-#include "utf16utils.h"
 
 /* Public variables. */
 obex_packet_t *obex_invalid_packet;

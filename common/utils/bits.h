@@ -1,12 +1,12 @@
 /**
- * bitutils.h
+ * bits.h
  * Some utility and helper macros to shuffle around in bit land.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _GL_BITUTILS_H
-#define _GL_BITUTILS_H
+#ifndef _GL_UTILS_BITS_H
+#define _GL_UTILS_BITS_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -90,4 +90,4 @@ extern "C" {
 }
 #endif
 
-#endif /* _GL_BITUTILS_H */
+#endif /* _GL_UTILS_BITS_H */

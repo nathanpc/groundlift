@@ -13,7 +13,6 @@
 
 #include "defaults.h"
 #include "error.h"
-#include "fileutils.h"
 
 /* Private methods. */
 gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet);

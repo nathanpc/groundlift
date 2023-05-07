@@ -9,12 +9,12 @@
 
 #include <pthread.h>
 #include <string.h>
+#include <utils/filesystem.h>
+#include <utils/utf16.h>
 
 #include "conf.h"
 #include "defaults.h"
 #include "error.h"
-#include "fileutils.h"
-#include "utf16utils.h"
 
 /* Private methods. */
 obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
