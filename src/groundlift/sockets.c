@@ -756,9 +756,13 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 	if (bytes_recv == -1) {
-		/* Check if it was just a timeout. */
+		/* Check if the error was expected. */
 		if (errno == EAGAIN) {
+			/* Timeout occurred. */
 			return SOCK_EVT_TIMEOUT;
+		} else if (errno == EBADF) {
+			/* Connection being abruptly shut down. */
+			return SOCK_EVT_CONN_SHUTDOWN;
 		}
 
 		/* Looks like it was a proper error. */

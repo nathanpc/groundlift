@@ -261,6 +261,8 @@ discovery_client_t *gl_client_discovery_new(void) {
 	/* Set some sane defaults. */
 	handle->sock.sockfd = -1;
 	handle->thread = NULL;
+	handle->mutexes.client = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(handle->mutexes.client, NULL);
 	handle->events.discovered_peer = NULL;
 
 	return handle;
@@ -362,8 +364,10 @@ gl_err_t *gl_client_discovery_abort(discovery_client_t *handle) {
 		return NULL;
 
 	/* Close the socket. */
+	pthread_mutex_lock(handle->mutexes.client);
 	tcp_err = socket_shutdown(handle->sock.sockfd);
 	handle->sock.sockfd = -1;
+	pthread_mutex_unlock(handle->mutexes.client);
 
 	/* Check for errors. */
 	if (tcp_err > SOCK_OK) {
@@ -419,6 +423,12 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle) {
 
 	/* Join the thread if needed. */
 	err = gl_client_discovery_thread_join(handle);
+
+	/* Free our client mutex. */
+	if (handle->mutexes.client) {
+		free(handle->mutexes.client);
+		handle->mutexes.client = NULL;
+	}
 
 	/* Free ourselves. */
 	free(handle);
@@ -760,8 +770,10 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 		if (header == NULL) {
 			/* Free up resources. */
 			obex_packet_free(packet);
+			pthread_mutex_lock(handle->mutexes.client);
 			socket_close(handle->sock.sockfd);
 			handle->sock.sockfd = -1;
+			pthread_mutex_unlock(handle->mutexes.client);
 
 			return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_HEADER_NOT_FOUND,
 				EMSG("Discovered peer replied without a hostname"));
@@ -778,8 +790,7 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 	}
 
 	/* Close our UDP socket. */
-	socket_close(handle->sock.sockfd);
-	handle->sock.sockfd = -1;
+	err = gl_client_discovery_abort(handle);
 
 	return (void *)err;
 }

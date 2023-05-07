@@ -116,6 +116,11 @@ typedef struct {
 	pthread_t *thread;
 	sock_bundle_t sock;
 
+	/* Mutexes */
+	struct {
+		pthread_mutex_t *client;
+	} mutexes;
+
 	/* Event handlers. */
 	struct {
 		gl_client_evt_discovery_peer_func discovered_peer;
