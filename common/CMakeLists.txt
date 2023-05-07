@@ -13,10 +13,10 @@ add_library(glcommon
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 if(THREADS_HAVE_PTHREAD_ARG)
-	target_compile_options(groundlift PUBLIC "-pthread")
+	target_compile_options(glcommon PUBLIC "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
-	target_link_libraries(groundlift PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
+	target_link_libraries(glcommon PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
 # Ensure everyone linking against us include our directory.
