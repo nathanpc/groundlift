@@ -94,6 +94,7 @@ typedef enum {
 typedef struct {
 	server_t *server;
 	server_conn_t *conn;
+	obex_opcodes_t expected_opcodes;
 
 	/* Threads */
 	struct {

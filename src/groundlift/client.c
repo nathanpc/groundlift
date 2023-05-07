@@ -487,8 +487,7 @@ gl_err_t *gl_client_send_conn_req(client_handle_t *handle, bool *accepted) {
 	/* Read the response packet. */
 	obex_packet_free(packet);
 	pthread_mutex_lock(handle->mutexes.client);
-	/* TODO: Filter out invalid packets. */
-	packet = obex_net_packet_recv(handle->client->sockfd, true);
+	packet = obex_net_packet_recv(handle->client->sockfd, NULL, true);
 	pthread_mutex_unlock(handle->mutexes.client);
 	if ((packet == NULL) || (packet == obex_invalid_packet)) {
 		err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
@@ -609,8 +608,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 		/* Read the response packet. */
 		pthread_mutex_lock(handle->mutexes.client);
-		/* TODO: Filter out invalid packets. */
-		packet = obex_net_packet_recv(handle->client->sockfd, false);
+		packet = obex_net_packet_recv(handle->client->sockfd, NULL, false);
 		pthread_mutex_unlock(handle->mutexes.client);
 		if ((packet == NULL) || (packet == obex_invalid_packet)) {
 			err = gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
@@ -651,7 +649,7 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 	}
 
 	/* Trigger the put succeeded event. */
-	if (handle->events.put_succeeded != NULL)
+	if ((err == NULL) && (handle->events.put_succeeded != NULL))
 		handle->events.put_succeeded(handle->fb);
 
 	return err;

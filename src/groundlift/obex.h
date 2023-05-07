@@ -228,7 +228,9 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len,
 /* Networking */
 gl_err_t *obex_net_packet_send(int sockfd, obex_packet_t *packet);
 gl_err_t *obex_net_packet_sendto(sock_bundle_t sock, obex_packet_t *packet);
-obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params);
+obex_packet_t *obex_net_packet_recv(int sockfd,
+									const obex_opcodes_t *expected,
+									bool has_params);
 obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
 										const obex_opcodes_t *expected,
 										bool has_params);

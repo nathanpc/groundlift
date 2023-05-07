@@ -17,6 +17,8 @@
 #include "utf16utils.h"
 
 /* Private methods. */
+obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
+										   conn_state_t state);
 gl_err_t *gl_server_packet_file_info(const obex_packet_t *packet,
 									 file_bundle_t **fb);
 gl_err_t *gl_server_send_packet(server_handle_t *handle, obex_packet_t *packet);
@@ -51,6 +53,7 @@ server_handle_t *gl_server_new(void) {
 	/* Set some sane defaults. */
 	handle->server = NULL;
 	handle->conn = NULL;
+	handle->expected_opcodes = 0;
 	handle->threads.main = NULL;
 	handle->threads.discovery = NULL;
 	handle->mutexes.server = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
@@ -443,9 +446,13 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 	gl_server_conn_progress_t progress;
 	obex_packet_t *packet;
 	obex_packet_t *resp;
+	obex_opcodes_t expected;
 	file_bundle_t *fb;
 	char *fpath;
 	FILE *fh;
+
+	/* Initialize some variables. */
+	expected = OBEX_OPCODE_PUT;
 
 	/* Get the file name and size. */
 	err = gl_server_packet_file_info(init_packet, &fb);
@@ -526,9 +533,12 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 	}
 
 	/* Receive the rest of the file. */
-	/* TODO: Filter out invalid packets. */
-	while ((packet = obex_net_packet_recv(handle->conn->sockfd, false))
-		   != NULL) {
+	while ((packet = obex_net_packet_recv(
+				handle->conn->sockfd, &expected, false)) != NULL) {
+		/* Check if we got an invalid packet. */
+		if (packet == obex_invalid_packet)
+			break;
+
 		/* Write the chunk of data to the file. */
 		progress.recv_bytes += packet->body_length;
 		if (file_write(fh, packet->body, packet->body_length) < 0) {
@@ -643,9 +653,19 @@ void *server_thread_func(void *handle_ptr) {
 		state = CONN_STATE_CREATED;
 		running = true;
 		has_params = true;
-		/* TODO: Filter out invalid packets. */
 		while (((packet = obex_net_packet_recv(handle->conn->sockfd,
-			   has_params)) != NULL) && running) {
+				 gl_server_expected_opcodes(handle, state),
+				 has_params)) != NULL) && running) {
+			/* Check if we got an invalid packet. */
+			if (packet == obex_invalid_packet) {
+				gl_err = gl_error_new(ERR_TYPE_GL, GL_ERR_INVALID_STATE_OPCODE,
+					EMSG("Invalid opcode for the current connection state"));
+				gl_error_print(gl_err);
+				gl_error_free(gl_err);
+
+				continue;
+			}
+
 			/* Handle operations for the different states. */
 			switch (state) {
 				case CONN_STATE_CREATED:
@@ -657,12 +677,6 @@ void *server_thread_func(void *handle_ptr) {
 							state = CONN_STATE_RECV_FILES;
 							has_params = false;
 						}
-					} else {
-						/* Invalid opcode for this state. */
-						gl_err = gl_error_new(ERR_TYPE_GL,
-							GL_ERR_INVALID_STATE_OPCODE,
-							EMSG("Invalid opcode for created state"));
-						running = false;
 					}
 					break;
 				case CONN_STATE_RECV_FILES:
@@ -672,12 +686,6 @@ void *server_thread_func(void *handle_ptr) {
 						/* Received a chunk of a file. */
 						gl_err = gl_server_handle_put_req(
 							handle, packet, &running, &state);
-					} else {
-						/* Invalid opcode for this state. */
-						gl_err = gl_error_new(ERR_TYPE_GL,
-							GL_ERR_INVALID_STATE_OPCODE,
-							EMSG("Invalid opcode for file receiving state"));
-						running = false;
 					}
 					break;
 				case CONN_STATE_ERROR:
@@ -788,6 +796,36 @@ void *discovery_thread_func(void *handle_ptr) {
 	}
 
 	return (void *)gl_err;
+}
+
+/**
+ * Gets the expected opcodes for a given connection state.
+ *
+ * @param handle Server handle object.
+ * @param state Connection state.
+ *
+ * @return Expected opcodes for the connection state.
+ */
+obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
+										   conn_state_t state) {
+	/* Set the internal expected opcode variable accordingly. */
+	switch (state) {
+		case CONN_STATE_CREATED:
+			handle->expected_opcodes = OBEX_OPCODE_CONNECT;
+			break;
+		case CONN_STATE_RECV_FILES:
+			handle->expected_opcodes = OBEX_OPCODE_PUT;
+			break;
+		default:
+			handle->expected_opcodes = 0;
+			break;
+	}
+
+	/* Handle the "catch all" expected value. */
+	if (handle->expected_opcodes == 0)
+		return NULL;
+
+	return &handle->expected_opcodes;
 }
 
 /**

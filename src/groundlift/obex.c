@@ -94,6 +94,10 @@ obex_packet_t *obex_packet_new(obex_opcodes_t opcode, bool set_final) {
 void obex_packet_free(obex_packet_t *packet) {
 	uint16_t i;
 
+	/* Check if we are trying to free the invalid packet. */
+	if (packet == obex_invalid_packet)
+		return;
+
 	/* Do we even have a packet to free? */
 	if (packet == NULL)
 		return;
@@ -978,11 +982,15 @@ cleanup:
  * @warning This function allocates memory that must be free'd by you!
  *
  * @param sockfd     Socket to read our packet from.
+ * @param expected   Opcode that we are expected to receive (final bit ignored)
+ *                   or NULL if we want to receive everything.
  * @param has_params Does this packet contain parameters?
  *
  * @return Decoded packet object or NULL if the received packet was invalid.
  */
-obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
+obex_packet_t *obex_net_packet_recv(int sockfd,
+									const obex_opcodes_t *expected,
+									bool has_params) {
 	size_t len;
 	size_t plen;
 	tcp_err_t tcp_err;
@@ -994,7 +1002,14 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
 
 	/* Receive the packet's opcode and length. */
 	tcp_err = tcp_socket_recv(sockfd, peek_buf, 3, &len, true);
-	if ((tcp_err >= SOCK_OK) && (len != 3)) {
+	if ((tcp_err == SOCK_OK) && (expected)) {
+		if ((OBEX_IGNORE_FINAL_BIT(peek_buf[0]) !=
+			 OBEX_IGNORE_FINAL_BIT(*expected))) {
+			fprintf(stderr, "obex_net_packet_recv: Opcode (0x%02X) not what "
+					"was expected (0x%02X).\n", peek_buf[0], *expected);
+			return obex_invalid_packet;
+		}
+	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
 		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
 				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return obex_invalid_packet;
@@ -1044,7 +1059,7 @@ obex_packet_t *obex_net_packet_recv(int sockfd, bool has_params) {
  * @warning This function allocates memory that must be free'd by you!
  *
  * @param sock       UDP socket bundle to read our packet from.
- * @param expected   Opcode that we are expected to receive (fails if different)
+ * @param expected   Opcode that we are expected to receive (final bit ignored)
  *                   or NULL if we want to receive everything.
  * @param has_params Does this packet contain parameters?
  *
@@ -1067,10 +1082,13 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
 	len = 0;
 	tcp_err = udp_socket_recv(sock->sockfd, peek_buf, 3,
 		(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &len, true);
-	if ((tcp_err == SOCK_OK) && (expected) && (peek_buf[0] != *expected)) {
-		fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not what "
-				"was expected (0x%02X).\n", peek_buf[0], *expected);
-		return obex_invalid_packet;
+	if ((tcp_err == SOCK_OK) && (expected)) {
+		if ((OBEX_IGNORE_FINAL_BIT(peek_buf[0]) !=
+			 OBEX_IGNORE_FINAL_BIT(*expected))) {
+			fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not "
+					"what was expected (0x%02X).\n", peek_buf[0], *expected);
+			return obex_invalid_packet;
+		}
 	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
 		fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive OBEX "
 				"packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
