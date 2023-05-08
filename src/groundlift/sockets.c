@@ -7,15 +7,26 @@
 
 #include "sockets.h"
 
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <utils/utf16.h>
+#else
 #include <sys/errno.h>
 #include <sys/time.h>
 #include <unistd.h>
+#endif /* _WIN32 */
 
 #include "defaults.h"
+#include "error.h"
+
+/* Cross-platform shim for socket error codes. */
+#ifdef _WIN32
+#define sockerrno WSAGetLastError()
+#else
+#define sockerrno errno
+#endif /* _WIN32 */
 
 /**
  * Creates a brand new server handle object.
@@ -142,26 +153,32 @@ void tcp_client_free(tcp_client_t *client) {
  * @see sockets_server_stop
  */
 tcp_err_t sockets_server_start(server_t *server) {
+#ifdef _WIN32
+	char reuse;
+#else
 	int reuse;
+#endif /* _WIN32 */
 
 	/* Create a new TCP socket file descriptor. */
 	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (server->tcp.sockfd == -1) {
-		perror("sockets_server_start@socket");
+		log_sockerrno("sockets_server_start@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEADDR)");
+				   sizeof(reuse)) == -1) {
+		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEADDR)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(int)) == -1) {
-		perror("sockets_server_start@setsockopt(SO_REUSEPORT)");
+				   sizeof(reuse)) == -1) {
+		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEPORT)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
@@ -169,13 +186,13 @@ tcp_err_t sockets_server_start(server_t *server) {
 	/* Bind ourselves to the TCP address. */
 	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
 			 server->tcp.addr_in_size) == -1) {
-		perror("sockets_server_start@bind");
+		log_sockerrno("sockets_server_start@bind", sockerrno);
 		return SOCK_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
 	if (listen(server->tcp.sockfd, TCPSERVER_BACKLOG) == -1) {
-		perror("sockets_server_start@listen");
+		log_sockerrno("sockets_server_start@listen", sockerrno);
 		return TCP_ERR_ELISTEN;
 	}
 
@@ -263,11 +280,14 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 							 in_addr_t in_addr, uint16_t port,
 							 uint32_t timeout_ms) {
 	unsigned char loop;
+#ifdef _WIN32
+	char reuse;
+	char perm;
+#else
 	int reuse;
 	int perm;
-#ifndef _WIN32
 	struct timeval tv;
-#endif
+#endif /* _WIN32 */
 
 	/* Setup the socket bundle. */
 	sock->sockfd = -1;
@@ -276,7 +296,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Create a new UDP socket file descriptor. */
 	sock->sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock->sockfd == -1) {
-		perror("udp_discovery_init@socket");
+		log_sockerrno("udp_discovery_init@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
@@ -284,13 +304,15 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	reuse = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(int)) == -1) {
-		perror("udp_discovery_init@setsockopt(SO_REUSEADDR)");
+		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEADDR)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(int)) == -1) {
-		perror("udp_discovery_init@setsockopt(SO_REUSEPORT)");
+		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEPORT)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
@@ -299,7 +321,8 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	perm = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
 				   sizeof(int)) == -1) {
-		perror("udp_discovery_init@setsockopt(SO_BROADCAST)");
+		log_sockerrno("udp_discovery_init@setsockopt(SO_BROADCAST)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 
@@ -308,7 +331,8 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 #ifdef IP_MULTICAST_LOOP
 	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
 				   sizeof(unsigned char)) == -1) {
-		perror("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)");
+		log_sockerrno("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)",
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
@@ -318,7 +342,8 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 #ifdef _WIN32
 		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO,
 					(const char *)&timeout_ms, sizeof(DWORD)) == -1) {
-			perror("udp_discovery_init@setsockopt(SO_RCVTIMEO)");
+			log_sockerrno("udp_discovery_init@setsockopt(SO_RCVTIMEO)",
+						  sockerrno);
 			return SOCK_ERR_ESETSOCKOPT;
 		}
 #else
@@ -327,7 +352,8 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 
 		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
 					sizeof(struct timeval)) == -1) {
-			perror("udp_discovery_init@setsockopt(SO_RCVTIMEO)");
+			log_sockerrno("udp_discovery_init@setsockopt(SO_RCVTIMEO)",
+						  sockerrno);
 			return SOCK_ERR_ESETSOCKOPT;
 		}
 #endif
@@ -336,7 +362,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Bind ourselves to the UDP address. */
 	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,
 			 sock->addr_in_size) == -1)) {
-		perror("udp_discovery_init@bind");
+		log_sockerrno("udp_discovery_init@bind", sockerrno);
 		return SOCK_ERR_EBIND;
 	}
 
@@ -381,8 +407,12 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 		}
 
 		/* Check if the error is worth displaying. */
+#ifdef _WIN32
+		if ((sockerrno != WSAEBADF) && (sockerrno != WSAECONNABORTED))
+#else
 		if ((errno != EBADF) && (errno != ECONNABORTED))
-			perror("tcp_server_conn_accept@accept");
+#endif /* _WIN32 */
+			log_sockerrno("tcp_server_conn_accept@accept", sockerrno);
 	}
 
 	return conn;
@@ -401,14 +431,14 @@ tcp_err_t tcp_client_connect(tcp_client_t *client) {
 	/* Create a new socket file descriptor. */
 	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (client->sockfd == -1) {
-		perror("tcp_client_connect@socket");
+		log_sockerrno("tcp_client_connect@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Connect ourselves to the address. */
 	if (connect(client->sockfd, (struct sockaddr *)&client->addr_in,
 			 client->addr_in_size) == -1) {
-		perror("tcp_client_connect@connect");
+		log_sockerrno("tcp_client_connect@connect", sockerrno);
 		return TCP_ERR_ECONNECT;
 	}
 
@@ -568,16 +598,16 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 /**
  * Sets up a socket address structure.
  *
- * @param addr    Pointer to a socket address structure to be populated.
- * @param in_addr IP address to connect/bind to already in the internal
- *                structure's format.
- * @param port    Port to bind/connect to.
+ * @param addr   Pointer to a socket address structure to be populated.
+ * @param inaddr IP address to connect/bind to already in the internal
+ *               structure's format.
+ * @param port   Port to bind/connect to.
  *
  * @return Size of the socket address structure.
  *
  * @see sockets_server_new
  */
-socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr,
+socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
 							  uint16_t port) {
 	socklen_t addr_size;
 
@@ -586,7 +616,11 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr,
 	memset(addr, 0, addr_size);
 	addr->sin_family = AF_INET;
 	addr->sin_port = htons(port);
-	addr->sin_addr.s_addr = in_addr;
+#ifdef _WIN32
+	addr->sin_addr.S_un.S_addr = inaddr.S_un.S_addr;
+#else
+	addr->sin_addr.s_addr = inaddr;
+#endif /* _WIN32 */
 
 	return addr_size;
 }
@@ -605,10 +639,15 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t in_addr,
  */
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
 					   uint16_t port) {
-	if (ipaddr == NULL)
-		return socket_setup_inaddr(addr, INADDR_ANY, port);
+	in_addr_t inaddr;
 
-	return socket_setup_inaddr(addr, inet_addr(ipaddr), port);
+#ifdef _WIN32
+	inaddr.S_un.S_addr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
+#else
+	inaddr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
+#endif /* _WIN32 */
+
+	return socket_setup_inaddr(addr, inaddr, port);
 }
 
 /**
@@ -632,7 +671,7 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
 	/* Try to send some information through a socket. */
 	bytes_sent = send(sockfd, buf, len, 0);
 	if (bytes_sent == -1) {
-		perror("tcp_socket_send@send");
+		log_sockerrno("tcp_socket_send@send", sockerrno);
 		return SOCK_ERR_ESEND;
 	}
 
@@ -667,7 +706,7 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
 	/* Try to send some information through a socket. */
 	bytes_sent = sendto(sockfd, buf, len, 0, sock_addr, sock_len);
 	if (bytes_sent == -1) {
-		perror("udp_socket_send@sendto");
+		log_sockerrno("udp_socket_send@sendto", sockerrno);
 		return SOCK_ERR_ESEND;
 	}
 
@@ -706,10 +745,14 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
 	if (bytes_recv == -1) {
 		/* Check if it's just the connection being abruptly shut down. */
+#ifdef _WIN32
+		if (sockerrno == WSAEBADF)
+#else
 		if (errno == EBADF)
+#endif /* _WIN32 */
 			return SOCK_EVT_CONN_SHUTDOWN;
 
-		perror("tcp_socket_recv@recv");
+		log_sockerrno("tcp_socket_recv@recv", sockerrno);
 		return SOCK_ERR_ERECV;
 	}
 
@@ -757,16 +800,24 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 						  sock_addr, sock_len);
 	if (bytes_recv == -1) {
 		/* Check if the error was expected. */
+#ifdef _WIN32
+		if (sockerrno == WSAEWOULDBLOCK) {
+#else
 		if (errno == EAGAIN) {
+#endif /* _WIN32 */
 			/* Timeout occurred. */
 			return SOCK_EVT_TIMEOUT;
+#ifdef _WIN32
+		} else if (sockerrno == WSAEBADF) {
+#else
 		} else if (errno == EBADF) {
+#endif /* _WIN32 */
 			/* Connection being abruptly shut down. */
 			return SOCK_EVT_CONN_SHUTDOWN;
 		}
 
 		/* Looks like it was a proper error. */
-		perror("udp_socket_recv@recvfrom");
+		log_sockerrno("udp_socket_recv@recvfrom", sockerrno);
 		return SOCK_ERR_ERECV;
 	}
 
@@ -805,7 +856,7 @@ tcp_err_t socket_close(int sockfd) {
 
 	/* Check for errors. */
 	if (ret == -1) {
-		perror("socket_close@close");
+		log_sockerrno("socket_close@close", sockerrno);
 		return SOCK_ERR_ECLOSE;
 	}
 
@@ -832,25 +883,25 @@ tcp_err_t socket_shutdown(int sockfd) {
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
 	if ((ret == -1) && (errno != WSAENOTCONN)) {
-		perror("socket_shutdown@shutdown");
-		return TCP_ERR_ESHUTDOWN;
+		log_sockerrno("socket_shutdown@shutdown", sockerrno);
+		return SOCK_ERR_ESHUTDOWN;
 	}
 
 	ret = closesocket(sockfd);
 	if (ret == -1) {
-		perror("socket_shutdown@closesocket");
-		return TCP_ERR_ECLOSE;
+		log_sockerrno("socket_shutdown@closesocket", sockerrno);
+		return SOCK_ERR_ECLOSE;
 	}
 #else
 	ret = shutdown(sockfd, SHUT_RDWR);
 	if ((ret == -1) && (errno != ENOTCONN) && (errno != EINVAL)) {
-		perror("socket_shutdown@shutdown");
+		log_sockerrno("socket_shutdown@shutdown", sockerrno);
 		return SOCK_ERR_ESHUTDOWN;
 	}
 
 	ret = close(sockfd);
 	if (ret == -1) {
-		perror("socket_shutdown@close");
+		log_sockerrno("socket_shutdown@close", sockerrno);
 		return SOCK_ERR_ECLOSE;
 	}
 #endif /* _WIN32 */
@@ -871,26 +922,47 @@ tcp_err_t socket_shutdown(int sockfd) {
  * @return TRUE if the conversion was successful.
  *         FALSE if an error occurred and we couldn't convert the IP address.
  */
-bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
+bool socket_itos(char **buf, struct sockaddr *sock_addr) {
+#ifdef _WIN32
+	TCHAR tmp[INET6_ADDRSTRLEN];
+	DWORD dwLen;
+
+	dwLen = INET6_ADDRSTRLEN;
+#else
 	char tmp[INET6_ADDRSTRLEN];
+#endif /* _WIN32 */
 
 	/* Determine which type of IP address we are dealing with. */
 	switch (sock_addr->sa_family) {
 		case AF_INET:
+#ifdef _WIN32
+			WSAAddressToString(sock_addr, sizeof(struct sockaddr_in), NULL,
+							   tmp, &dwLen);
+#else
 			inet_ntop(AF_INET,
 					  &(((const struct sockaddr_in *)sock_addr)->sin_addr),
 					  tmp, INET_ADDRSTRLEN);
+#endif /* _WIN32 */
 			break;
 		case AF_INET6:
+#ifdef _WIN32
+			WSAAddressToString(sock_addr, sizeof(struct sockaddr_in6), NULL,
+							   tmp, &dwLen);
+#else
 			inet_ntop(AF_INET6,
 					  &(((const struct sockaddr_in6 *)sock_addr)->sin6_addr),
 					  tmp, INET6_ADDRSTRLEN);
+#endif /* _WIN32 */
 			break;
 		default:
 			*buf = NULL;
 			return false;
 	}
 
+#ifdef _WIN32
+	/* Convert our string to UTF-8 assigning it to the return value. */
+	*buf = utf16_wcstombs(tmp);
+#else
 	/* Allocate space for our return string. */
 	*buf = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
 	if (*buf == NULL) {
@@ -900,6 +972,8 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 
 	/* Copy our IP address over and return. */
 	strcpy(*buf, tmp);
+#endif /* _WIN32 */
+
 	return true;
 }
 
@@ -919,7 +993,7 @@ char *tcp_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&server->tcp.addr_in))
+	if (!socket_itos(&buf, (struct sockaddr *)&server->tcp.addr_in))
 		return NULL;
 
 	return buf;
@@ -941,7 +1015,7 @@ char *udp_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&server->udp.addr_in))
+	if (!socket_itos(&buf, (struct sockaddr *)&server->udp.addr_in))
 		return NULL;
 
 	return buf;
@@ -961,7 +1035,7 @@ char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&conn->addr))
+	if (!socket_itos(&buf, (struct sockaddr *)&conn->addr))
 		return NULL;
 
 	return buf;
@@ -981,7 +1055,7 @@ char *tcp_client_get_ipstr(const tcp_client_t *client) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
+	if (!socket_itos(&buf, (struct sockaddr *)&client->addr_in))
 		return NULL;
 
 	return buf;

@@ -101,6 +101,9 @@ gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg);
 /* Debugging */
 void gl_error_print(gl_err_t *err);
 
+/* Logging */
+void log_sockerrno(const char *msg, int err);
+
 #ifdef __cplusplus
 }
 #endif

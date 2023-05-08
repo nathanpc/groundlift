@@ -13,10 +13,16 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
+#ifdef _WIN32
+
 /* snprintf should be _snprintf. */
 #ifndef snprintf
 	#define snprintf _snprintf
 #endif /* snprintf */
+
+#endif /* _WIN32 */
 
 #ifdef __cplusplus
 }

@@ -3,7 +3,7 @@ Microsoft Developer Studio Workspace File, Format Version 6.00
 
 ###############################################################################
 
-Project: "Commons"=".\Commons\Commons.dsp" - Package Owner=<4>
+Project: "Commons"=.\Commons\Commons.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -11,6 +11,21 @@ Package=<5>
 
 Package=<4>
 {{{
+}}}
+
+###############################################################################
+
+Project: "GroundLift"=.\GroundLift\GroundLift.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name Commons
+    End Project Dependency
 }}}
 
 ###############################################################################

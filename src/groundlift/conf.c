@@ -7,9 +7,13 @@
 
 #include "conf.h"
 
+#ifdef _WIN32
+#include <winsock.h>
+#else
+#include <unistd.h>
+#endif /* _WIN32 */
 #include <limits.h>
 #include <string.h>
-#include <unistd.h>
 #include <utils/filesystem.h>
 
 #include "defaults.h"

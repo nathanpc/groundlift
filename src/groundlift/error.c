@@ -162,3 +162,20 @@ void gl_error_print(gl_err_t *err) {
 	fprintf(stderr, "%s (err type %d code %d)\n", err->msg, err->type,
 			err->error.generic);
 }
+
+/**
+ * Logs any system errors that set the errno variable whenever dealing with
+ * sockets.
+ *
+ * @param msg Error message to be associated with the error message determined
+ *            by the errno value.
+ * @param err errno or equivalent error code value. (Ignored on POSIX systems)
+ */
+void log_sockerrno(const char *msg, int err) {
+#ifdef _WIN32
+	fprintf(stderr, "%s: wsaerror %d\n", msg, err);
+	/* TODO: Use FormatMessage to properly append a meaninful description. */
+#else
+	perror(msg);
+#endif /* _WIN32 */
+}
