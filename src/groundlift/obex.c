@@ -7,8 +7,15 @@
 
 #include "obex.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdshim.h>
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#endif /* _WIN32 */
 #include <stdlib.h>
 #include <string.h>
 #include <utils/bits.h>
@@ -617,7 +624,7 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 		p = memcpy_n(p, &hi, 1);
 
 		/* Header length */
-		n = htons(packet->body_length + 3);
+		n = htons((uint16_t)(packet->body_length + 3));
 		p = memcpy_n(p, &n, sizeof(uint16_t));
 
 		/* Body contents. */

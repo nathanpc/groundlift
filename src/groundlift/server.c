@@ -287,6 +287,7 @@ gl_err_t *gl_server_thread_join(server_handle_t *handle) {
 gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port) {
 	tcp_err_t err;
 	int ret;
+	in_addr_t inaddr;
 
 	/* Check if we already have the discovery thread running. */
 	if (handle->threads.discovery != NULL) {
@@ -301,9 +302,16 @@ gl_err_t *gl_server_discovery_start(server_handle_t *handle, uint16_t port) {
 			EMSG("Failed to allocate the server thread"));
 	}
 
+	/* Set the address to bind ourselves to. */
+#ifdef _WIN32
+	inaddr.S_un.S_addr = INADDR_ANY;
+#else
+	inaddr = INADDR_ANY;
+#endif /* _WIN32 */
+
 	/* Initialize discovery service. */
 	thread_mutex_lock(handle->mutexes.server);
-	err = udp_discovery_init(&handle->server->udp, true, INADDR_ANY, port, 0);
+	err = udp_discovery_init(&handle->server->udp, true, inaddr, port, 0);
 	thread_mutex_unlock(handle->mutexes.server);
 	if (err) {
 		free(handle->threads.discovery);

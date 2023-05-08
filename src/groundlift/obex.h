@@ -41,7 +41,7 @@ extern "C" {
  *
  * @param opcode Opcode to have its final bit set.
  */
-#define OBEX_SET_FINAL_BIT(opcode) ((opcode) | (1 << 7))
+#define OBEX_SET_FINAL_BIT(opcode) (uint8_t)((opcode) | (1 << 7))
 
 /**
  * Checks wether the opcode has the Final Bit Flag set.
