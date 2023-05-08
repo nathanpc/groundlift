@@ -105,7 +105,7 @@ thread_err_t thread_join(thread_t *thread, void **value_ptr) {
 	err = THREAD_OK;
 #else
 	/* Join the thread. */
-	err = (thread_err_t)pthread_join(&(*thread)->hnd, value_ptr);
+	err = (thread_err_t)pthread_join((*thread)->hnd, value_ptr);
 #endif /* _WIN32 */
 
 	/* Free the thread handle pointer. */
