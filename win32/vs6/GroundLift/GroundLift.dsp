@@ -64,8 +64,8 @@ LIB32=link.exe -lib
 # PROP Output_Dir "Debug"
 # PROP Intermediate_Dir "Debug"
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ  /c
-# ADD CPP /nologo /MT /W3 /Gm /GX /ZI /Od /I "..\..\..\common\win32" /I "..\..\..\common" /D "_DEBUG" /D "WIN32_LEAN_AND_MEAN" /D "WIN32" /D "UNICODE" /D "_UNICODE" /D "_LIB" /FD /GZ  /c
+# ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
+# ADD CPP /nologo /MDd /W3 /Gm /GX /ZI /Od /I "..\..\..\common\win32" /I "..\..\..\common" /D "_DEBUG" /D "WIN32_LEAN_AND_MEAN" /D "WIN32" /D "UNICODE" /D "_UNICODE" /D "_LIB" /FR /FD /GZ /c
 # SUBTRACT CPP /YX
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
 # ADD RSC /l 0x809 /d "_DEBUG"
@@ -87,11 +87,23 @@ LIB32=link.exe -lib
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
+SOURCE=..\..\..\src\groundlift\client.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\src\groundlift\conf.c
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\..\src\groundlift\error.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\src\groundlift\obex.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\src\groundlift\server.c
 # End Source File
 # Begin Source File
 
@@ -103,11 +115,23 @@ SOURCE=..\..\..\src\groundlift\sockets.c
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
+SOURCE=..\..\..\src\groundlift\client.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\src\groundlift\conf.h
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\..\src\groundlift\error.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\src\groundlift\obex.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\src\groundlift\server.h
 # End Source File
 # Begin Source File
 

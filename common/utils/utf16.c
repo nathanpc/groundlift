@@ -127,8 +127,7 @@ wchar_t *utf16_mbstowcs(const char *str) {
 	int nLen;
 
 	/* Get required buffer size and allocate some memory for it. */
-	nLen = MultiByteToWideChar(GL_CODEPAGE, MB_PRECOMPOSED | MB_USEGLYPHCHARS,
-		str, -1, NULL, 0);
+	nLen = MultiByteToWideChar(GL_CODEPAGE, 0, str, -1, NULL, 0);
 	if (nLen == 0)
 		goto failure;
 	wstr = (wchar_t *)malloc(nLen * sizeof(wchar_t));
@@ -136,8 +135,7 @@ wchar_t *utf16_mbstowcs(const char *str) {
 		return NULL;
 
 	/* Perform the conversion. */
-	nLen = MultiByteToWideChar(GL_CODEPAGE, MB_PRECOMPOSED | MB_USEGLYPHCHARS,
-		str, -1, wstr, nLen);
+	nLen = MultiByteToWideChar(GL_CODEPAGE, 0, str, -1, wstr, nLen);
 	if (nLen == 0) {
 failure:
 		MessageBox(NULL, _T("Failed to convert UTF-8 string to UTF-16."),
@@ -181,8 +179,7 @@ char *utf16_wcstombs(const wchar_t *wstr) {
 	int nLen;
 
 	/* Get required buffer size and allocate some memory for it. */
-	nLen = WideCharToMultiByte(GL_CODEPAGE, WC_COMPOSITECHECK | WC_SEPCHARS |
-		WC_DEFAULTCHAR, wstr, -1, NULL, 0, NULL, NULL);
+	nLen = WideCharToMultiByte(GL_CODEPAGE, 0, wstr, -1, NULL, 0, NULL, NULL);
 	if (nLen == 0)
 		goto failure;
 	str = (char *)malloc(nLen * sizeof(char));
@@ -190,13 +187,12 @@ char *utf16_wcstombs(const wchar_t *wstr) {
 		return NULL;
 
 	/* Perform the conversion. */
-	nLen = WideCharToMultiByte(GL_CODEPAGE, WC_COMPOSITECHECK | WC_SEPCHARS |
-		WC_DEFAULTCHAR, wstr, -1, str, nLen, NULL, NULL);
+	nLen = WideCharToMultiByte(GL_CODEPAGE, 0, wstr, -1, str, nLen, NULL,
+							   NULL);
 	if (nLen == 0) {
 failure:
 		MessageBox(NULL, _T("Failed to convert UTF-16 string to UTF-8."),
 			_T("String Conversion Failure"), MB_ICONERROR | MB_OK);
-		free(str);
 
 		return NULL;
 	}

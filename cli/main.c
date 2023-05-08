@@ -7,13 +7,15 @@
 
 #include <groundlift/conf.h>
 #include <groundlift/defaults.h>
-#include <groundlift/obex.h>
-#include <netinet/in.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif /* _WIN32 */
 
 #include "client.h"
 #include "server.h"
@@ -32,10 +34,23 @@ void sigint_handler(int sig);
 int main(int argc, char **argv) {
 	gl_err_t *err;
 	int ret;
+#ifdef _WIN32
+	WORD wVersionRequested;
+	WSADATA wsaData;
+#endif /* _WIN32 */
 
 	/* Setup our defaults. */
 	ret = 0;
 	err = NULL;
+
+#ifdef _WIN32
+	/* Initialize the Winsock stuff. */
+	wVersionRequested = MAKEWORD(2, 2);
+	if ((ret = WSAStartup(wVersionRequested, &wsaData)) != 0) {
+		printf("WSAStartup failed with error %d\n", ret);
+		return 1;
+	}
+#endif /* _WIN32 */
 
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
@@ -68,6 +83,11 @@ int main(int argc, char **argv) {
 	gl_client_free(g_client);
 	gl_error_free(err);
 	conf_free();
+
+#ifdef _WIN32
+	/* Clean up the Winsock stuff. */
+	WSACleanup();
+#endif /* _WIN32 */
 
 	return ret;
 }

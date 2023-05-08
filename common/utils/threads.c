@@ -11,7 +11,7 @@
 
 #ifdef _WIN32
 /* Thread function wrapper for Windows. */
-void thread_func_wrapper(void *arg);
+unsigned __stdcall thread_func_wrapper(void *arg);
 #endif /* _WIN32 */
 
 /**
@@ -57,8 +57,8 @@ thread_err_t thread_create(thread_t thread, thread_proc_t proc, void *arg) {
 	thread->proc_arg = arg;
 
 	/* Create the new thread. */
-	thread->hnd = (HANDLE)_beginthreadex(thread_func_wrapper, 0,
-		(void *)thread, NULL, 0, NULL);
+	thread->hnd = (HANDLE)_beginthreadex(NULL, 0, &thread_func_wrapper,
+										 (void *)thread, 0, NULL);
 	if (thread->hnd == (HANDLE)-1)
 		return THREAD_ERR_UNKNOWN;
 
@@ -103,14 +103,15 @@ thread_err_t thread_join(thread_t *thread, void **value_ptr) {
 	}
 
 	err = THREAD_OK;
+	*thread = NULL;
 #else
 	/* Join the thread. */
 	err = (thread_err_t)pthread_join((*thread)->hnd, value_ptr);
-#endif /* _WIN32 */
 
 	/* Free the thread handle pointer. */
 	free(*thread);
 	*thread = NULL;
+#endif /* _WIN32 */
 
 	return err;
 }
@@ -209,8 +210,10 @@ thread_err_t thread_mutex_free(thread_mutex_t *mutex) {
  * procedure.
  *
  * @param arg Thread handle object.
+ *
+ * @return Thread return code.
  */
-void thread_func_wrapper(void *arg) {
+unsigned __stdcall thread_func_wrapper(void *arg) {
 	thread_t thread;
 
 	/* Get the thread handle object from the passed argument. */
@@ -223,5 +226,7 @@ void thread_func_wrapper(void *arg) {
 
 	/* Ensure that the thread resources are free'd. */
 	_endthreadex(0);
+
+	return 0;
 }
 #endif /* _WIN32 */
