@@ -7,13 +7,20 @@
 
 #include "filesystem.h"
 
+#ifdef _WIN32
+#include <shlobj.h>
+#include <shlwapi.h>
+#include <stdshim.h>
+#include "utf16.h"
+#else
 #include <libgen.h>
 #include <pwd.h>
+#include <unistd.h>
+#endif /* _WIN32 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 /**
  * Creates an empty file bundle.
@@ -306,7 +313,7 @@ bool dir_exists(const char *path) {
 		return false;
 
 	/* Convert the file path to UTF-16. */
-	szPath = utf16_mbstowcs(fname);
+	szPath = utf16_mbstowcs(path);
 	if (szPath == NULL)
 		return false;
 
@@ -338,13 +345,23 @@ bool dir_exists(const char *path) {
  *         downloads folder.
  */
 char *dir_defaults_downloads(void) {
-	char *home_path;
 	char *path;
 
 	/* Get the path to the home directory. */
 #ifdef _WIN32
-	#error Not yet implemented.
+	TCHAR szPath[MAX_PATH + 1];
+
+	/* Get the desktop folder. */
+	if (!SHGetSpecialFolderPath(HWND_DESKTOP, szPath, CSIDL_DESKTOPDIRECTORY,
+		 FALSE)) {
+		/* Looks like we've failed to get the directory. Fallback to C:\. */
+		return strdup("C:\\");
+	}
+
+	/* Convert the path from UTF-16 to UTF-8. */
+	path = utf16_wcstombs(szPath);
 #else
+	char *home_path;
 	const char *tmp_path;
 
 	/* Try to get the home directory path in any way possible. */
@@ -354,13 +371,13 @@ char *dir_defaults_downloads(void) {
 
 	/* Store the path to our home directory. */
 	home_path = strdup(tmp_path);
-#endif /* _WIN32 */
 
 	/* Check if a canonical path exists otherwise switch to using the home. */
 	path_concat(&path, home_path, "Downloads", NULL);
 	if (!dir_exists(path))
 		path = strdup(home_path);
 	free(home_path);
+#endif /* _WIN32 */
 
 	return path;
 }
@@ -439,6 +456,19 @@ size_t path_concat(char **buf, ...) {
  */
 char *path_basename(const char *path) {
 	char *bname;
+
+#ifdef _WIN32
+	LPTSTR szPath;
+	LPTSTR szBaseName;
+
+	/* Convert the path to UTF-16 and get its basename. */
+	szPath = utf16_mbstowcs(path);
+	szBaseName = PathFindFileName(szPath);
+
+	/* Convert the basename to UTF-8 and free our temporary string. */
+	bname = utf16_wcstombs(szBaseName);
+	free(szPath);
+#else
 	char *tmp;
 
 	/* Duplicate the path just to comply with the POSIX implementation. */
@@ -447,6 +477,7 @@ char *path_basename(const char *path) {
 	/* Get the basename and free the temporary resources. */
 	bname = strdup(basename(tmp));
 	free(tmp);
+#endif /* _WIN32 */
 
 	return bname;
 }

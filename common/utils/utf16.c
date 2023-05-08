@@ -10,6 +10,19 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <tchar.h>
+#endif /* _WIN32 */
+
+#ifdef _WIN32
+/* Codepage to be used for the conversions. */
+	#ifdef CP_UTF8
+		#define GL_CODEPAGE CP_UTF8
+	#else
+		#define GL_CODEPAGE CP_OEMCP
+	#endif /* CP_UTF8 */
+#endif /* _WIN32 */
 
 /**
  * Fixes a UTF-16 that was caught up inside a 32-bit wchar_t and rearranges the
@@ -111,7 +124,28 @@ wchar_t *utf16_mbstowcs(const char *str) {
 	wchar_t *wstr;
 
 #ifdef _WIN32
-	#error Not yet implemented.
+	int nLen;
+
+	/* Get required buffer size and allocate some memory for it. */
+	nLen = MultiByteToWideChar(GL_CODEPAGE, MB_PRECOMPOSED | MB_USEGLYPHCHARS,
+		str, -1, NULL, 0);
+	if (nLen == 0)
+		goto failure;
+	wstr = (wchar_t *)malloc(nLen * sizeof(wchar_t));
+	if (wstr == NULL)
+		return NULL;
+
+	/* Perform the conversion. */
+	nLen = MultiByteToWideChar(GL_CODEPAGE, MB_PRECOMPOSED | MB_USEGLYPHCHARS,
+		str, -1, wstr, nLen);
+	if (nLen == 0) {
+failure:
+		MessageBox(NULL, _T("Failed to convert UTF-8 string to UTF-16."),
+			_T("String Conversion Failure"), MB_ICONERROR | MB_OK);
+		free(wstr);
+
+		return NULL;
+	}
 #else
 	size_t len;
 
@@ -144,7 +178,28 @@ char *utf16_wcstombs(const wchar_t *wstr) {
 	char *str;
 
 #ifdef _WIN32
-	#error Not yet implemented.
+	int nLen;
+
+	/* Get required buffer size and allocate some memory for it. */
+	nLen = WideCharToMultiByte(GL_CODEPAGE, WC_COMPOSITECHECK | WC_SEPCHARS |
+		WC_DEFAULTCHAR, wstr, -1, NULL, 0, NULL, NULL);
+	if (nLen == 0)
+		goto failure;
+	str = (char *)malloc(nLen * sizeof(char));
+	if (str == NULL)
+		return NULL;
+
+	/* Perform the conversion. */
+	nLen = WideCharToMultiByte(GL_CODEPAGE, WC_COMPOSITECHECK | WC_SEPCHARS |
+		WC_DEFAULTCHAR, wstr, -1, str, nLen, NULL, NULL);
+	if (nLen == 0) {
+failure:
+		MessageBox(NULL, _T("Failed to convert UTF-16 string to UTF-8."),
+			_T("String Conversion Failure"), MB_ICONERROR | MB_OK);
+		free(str);
+
+		return NULL;
+	}
 #else
 	size_t len;
 

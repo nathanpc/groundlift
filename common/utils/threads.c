@@ -9,6 +9,11 @@
 
 #include <stdlib.h>
 
+#ifdef _WIN32
+/* Thread function wrapper for Windows. */
+void thread_func_wrapper(void *arg);
+#endif /* _WIN32 */
+
 /**
  * Allocates and initializes a brand new thread object.
  *
@@ -19,10 +24,16 @@
 thread_t thread_new(void) {
 	thread_t thread;
 
-#ifdef _WIN32
-#error Not yet implemented.
-#else
+	/* Allocate some memory for our handle object */
 	thread = (thread_t)malloc(sizeof(thread_t));
+
+	/* Ensure that we start with a known invalid state. */
+#ifdef _WIN32
+	thread->hnd = (HANDLE)-1;
+	thread->running = false;
+	thread->proc = NULL;
+	thread->proc_arg = NULL;
+	thread->retval = NULL;
 #endif /* _WIN32 */
 
 	return thread;
@@ -41,9 +52,19 @@ thread_t thread_new(void) {
  */
 thread_err_t thread_create(thread_t thread, thread_proc_t proc, void *arg) {
 #ifdef _WIN32
-#error Not yet implemented.
+	/* Setup our thread object. */
+	thread->proc = proc;
+	thread->proc_arg = arg;
+
+	/* Create the new thread. */
+	thread->hnd = (HANDLE)_beginthreadex(thread_func_wrapper, 0,
+		(void *)thread, NULL, 0, NULL);
+	if (thread->hnd == (HANDLE)-1)
+		return THREAD_ERR_UNKNOWN;
+
+	return THREAD_OK;
 #else
-	return (thread_err_t)pthread_create(thread, NULL, proc, arg);
+	return (thread_err_t)pthread_create(&thread->hnd, NULL, proc, arg);
 #endif /* _WIN32 */
 }
 
@@ -70,15 +91,26 @@ thread_err_t thread_join(thread_t *thread, void **value_ptr) {
 	}
 
 #ifdef _WIN32
-#error Not yet implemented.
+	/* Wait for the thread to procedure to return. */
+	WaitForSingleObject((*thread)->hnd, INFINITE);
+	CloseHandle((*thread)->hnd);
+
+	/* Get our return value or free it. */
+	if (value_ptr) {
+		*value_ptr = (*thread)->retval;
+	} else {
+		free((*thread)->retval);
+	}
+
+	err = THREAD_OK;
 #else
 	/* Join the thread. */
-	err = (thread_err_t)pthread_join(**thread, value_ptr);
+	err = (thread_err_t)pthread_join(&(*thread)->hnd, value_ptr);
+#endif /* _WIN32 */
 
 	/* Free the thread handle pointer. */
 	free(*thread);
 	*thread = NULL;
-#endif /* _WIN32 */
 
 	return err;
 }
@@ -94,7 +126,8 @@ thread_mutex_t thread_mutex_new(void) {
 	thread_mutex_t mutex;
 
 #ifdef _WIN32
-#error Not yet implemented.
+	mutex = (thread_mutex_t)malloc(sizeof(CRITICAL_SECTION));
+	InitializeCriticalSection(mutex);
 #else
 	mutex = (thread_mutex_t)malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(mutex, NULL);
@@ -114,7 +147,8 @@ thread_mutex_t thread_mutex_new(void) {
  */
 thread_err_t thread_mutex_lock(thread_mutex_t mutex) {
 #ifdef _WIN32
-#error Not yet implemented.
+	EnterCriticalSection(mutex);
+	return THREAD_OK;
 #else
 	return (thread_err_t)pthread_mutex_lock(mutex);
 #endif /* _WIN32 */
@@ -131,7 +165,8 @@ thread_err_t thread_mutex_lock(thread_mutex_t mutex) {
  */
 thread_err_t thread_mutex_unlock(thread_mutex_t mutex) {
 #ifdef _WIN32
-#error Not yet implemented.
+	LeaveCriticalSection(mutex);
+	return THREAD_OK;
 #else
 	return (thread_err_t)pthread_mutex_unlock(mutex);
 #endif /* _WIN32 */
@@ -147,17 +182,46 @@ thread_err_t thread_mutex_unlock(thread_mutex_t mutex) {
  * @see thread_mutex_new
  */
 thread_err_t thread_mutex_free(thread_mutex_t *mutex) {
+	thread_err_t err;
+
 	/* Do we even have anything to do? */
 	if ((mutex == NULL) || (*mutex == NULL))
 		return THREAD_OK;
 
+	/* Destroy the mutex. */
 #ifdef _WIN32
-#error Not yet implemented.
+	DeleteCriticalSection(*mutex);
+	err = THREAD_OK;
 #else
-	/* Free our mutex. */
+	err = (thread_err_t)pthread_mutex_destroy(*mutex);
+#endif /* _WIN32 */
+
+	/* Free our resources. */
 	free(*mutex);
 	*mutex = NULL;
 
-	return THREAD_OK;
-#endif /* _WIN32 */
+	return err;
 }
+
+#ifdef _WIN32
+/**
+ * Wrapper function to allow Windows threads to return a value from the thread
+ * procedure.
+ *
+ * @param arg Thread handle object.
+ */
+void thread_func_wrapper(void *arg) {
+	thread_t thread;
+
+	/* Get the thread handle object from the passed argument. */
+	thread = (thread_t)arg;
+
+	/* Call the intended thread procedure. */
+	thread->running = true;
+	thread->retval = thread->proc(thread->proc_arg);
+	thread->running = false;
+
+	/* Ensure that the thread resources are free'd. */
+	_endthreadex(0);
+}
+#endif /* _WIN32 */

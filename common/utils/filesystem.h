@@ -29,6 +29,15 @@ extern "C" {
 #endif /* PATH_SEPARATOR */
 
 /**
+ * Invalid file attributes definition. Used to detect if a file exists.
+ */
+#ifndef INVALID_FILE_ATTRIBUTES
+	#ifdef _WIN32
+		#define INVALID_FILE_ATTRIBUTES -1
+	#endif /* _WIN32 */
+#endif /* INVALID_FILE_ATTRIBUTES */
+
+/**
  * System-agnostic representation of the size of a file.
  */
 typedef uint64_t fsize_t;

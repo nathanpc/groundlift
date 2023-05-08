@@ -29,25 +29,40 @@ typedef enum {
 } thread_err_t;
 
 /**
+ * Cross-platform thread procedure signature declaration.
+ */
+typedef void* (*thread_proc_t)(void *arg);
+
+/**
  * Cross-platform thread handle.
  */
 #ifdef _WIN32
+typedef struct {
+	HANDLE hnd;
+	bool running;
+
+	thread_proc_t proc;
+	void *proc_arg;
+	void *retval;
+} thread_handle_t;
+
+typedef thread_handle_t* thread_t;
 #else
-typedef pthread_t* thread_t;
+typedef struct {
+	pthread_t hnd;
+} thread_handle_t;
+
+typedef thread_handle_t* thread_t;
 #endif /* _WIN32 */
 
 /**
  * Cross-platform thread mutex handle.
  */
 #ifdef _WIN32
+typedef LPCRITICAL_SECTION thread_mutex_t;
 #else
 typedef pthread_mutex_t* thread_mutex_t;
 #endif /* _WIN32 */
-
-/**
- * Cross-platform thread procedure signature declaration.
- */
-typedef void* (*thread_proc_t)(void *arg);
 
 /* Threads */
 thread_t thread_new(void);
