@@ -17,10 +17,9 @@ extern "C" {
 #ifndef ssize_t
 	#ifdef _WIN32
 		#include <windows.h>
-		typedef INT_PTR ssize_t;
+		typedef LONG_PTR ssize_t;
 	#endif /* _WIN32 */
 #endif /* ssize_t */
-
 
 #ifdef __cplusplus
 }

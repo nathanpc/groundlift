@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdshim.h>
 
 /**
  * Creates a brand new error reporting object.

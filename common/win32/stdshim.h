@@ -13,14 +13,22 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-
 #ifdef _WIN32
 
-/* snprintf should be _snprintf. */
-#ifndef snprintf
-	#define snprintf _snprintf
-#endif /* snprintf */
+#include <windows.h>
+#include <stdint.h>
+
+#if _MSC_VER < 1930
+	/* snprintf should be _snprintf. */
+	#ifndef snprintf
+		#define snprintf _snprintf
+	#endif /* snprintf */
+#endif
+
+/* strdup should be _strdup. */
+#ifndef strdup
+	#define strdup _strdup
+#endif /* strdup */
 
 #endif /* _WIN32 */
 

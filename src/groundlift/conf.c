@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 #include <winsock.h>
+#include <stdshim.h>
 #else
 #include <unistd.h>
 #endif /* _WIN32 */

@@ -127,6 +127,7 @@ wchar_t *utf16_mbstowcs(const char *str) {
 	int nLen;
 
 	/* Get required buffer size and allocate some memory for it. */
+	wstr = NULL;
 	nLen = MultiByteToWideChar(GL_CODEPAGE, 0, str, -1, NULL, 0);
 	if (nLen == 0)
 		goto failure;
@@ -140,7 +141,8 @@ wchar_t *utf16_mbstowcs(const char *str) {
 failure:
 		MessageBox(NULL, _T("Failed to convert UTF-8 string to UTF-16."),
 			_T("String Conversion Failure"), MB_ICONERROR | MB_OK);
-		free(wstr);
+		if (wstr)
+			free(wstr);
 
 		return NULL;
 	}
