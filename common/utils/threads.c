@@ -25,7 +25,9 @@ thread_t thread_new(void) {
 	thread_t thread;
 
 	/* Allocate some memory for our handle object */
-	thread = (thread_t)malloc(sizeof(thread_t));
+	thread = (thread_handle_t *)malloc(sizeof(thread_handle_t));
+	if (thread == NULL)
+		return NULL;
 
 	/* Ensure that we start with a known invalid state. */
 #ifdef _WIN32
@@ -103,15 +105,14 @@ thread_err_t thread_join(thread_t *thread, void **value_ptr) {
 	}
 
 	err = THREAD_OK;
-	*thread = NULL;
 #else
 	/* Join the thread. */
 	err = (thread_err_t)pthread_join((*thread)->hnd, value_ptr);
+#endif /* _WIN32 */
 
 	/* Free the thread handle pointer. */
 	free(*thread);
 	*thread = NULL;
-#endif /* _WIN32 */
 
 	return err;
 }
@@ -126,11 +127,18 @@ thread_err_t thread_join(thread_t *thread, void **value_ptr) {
 thread_mutex_t thread_mutex_new(void) {
 	thread_mutex_t mutex;
 
+	/* Allocate and initialize our mutex. */
 #ifdef _WIN32
 	mutex = (thread_mutex_t)malloc(sizeof(CRITICAL_SECTION));
+	if (mutex == NULL)
+		return NULL;
+
 	InitializeCriticalSection(mutex);
 #else
 	mutex = (thread_mutex_t)malloc(sizeof(pthread_mutex_t));
+	if (mutex == NULL)
+		return NULL;
+
 	pthread_mutex_init(mutex, NULL);
 #endif /* _WIN32 */
 
