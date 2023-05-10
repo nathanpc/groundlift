@@ -30,7 +30,7 @@ extern "C" {
 /* Shim things that Microsoft forgot to include in their implementation. */
 
 #ifndef in_addr_t
-typedef struct in_addr in_addr_t;
+typedef unsigned long in_addr_t;
 #endif /* in_addr_t */
 
 #endif /* _WIN32 */

@@ -630,11 +630,7 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
 	memset(addr, 0, addr_size);
 	addr->sin_family = AF_INET;
 	addr->sin_port = htons(port);
-#ifdef _WIN32
-	addr->sin_addr.S_un.S_addr = inaddr.S_un.S_addr;
-#else
 	addr->sin_addr.s_addr = inaddr;
-#endif /* _WIN32 */
 
 	return addr_size;
 }
@@ -653,15 +649,8 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
  */
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
 					   uint16_t port) {
-	in_addr_t inaddr;
-
-#ifdef _WIN32
-	inaddr.S_un.S_addr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
-#else
-	inaddr = (ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr);
-#endif /* _WIN32 */
-
-	return socket_setup_inaddr(addr, inaddr, port);
+	return socket_setup_inaddr(addr,
+		(ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr), port);
 }
 
 /**

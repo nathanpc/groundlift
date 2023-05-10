@@ -272,7 +272,6 @@ discovery_client_t *gl_client_discovery_new(void) {
  */
 gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
 	tcp_err_t tcp_err;
-	in_addr_t inaddr;
 
 	/* Sanity check. */
 	if (handle == NULL) {
@@ -287,15 +286,8 @@ gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
 	 *       this function for the fallback.
 	 */
 
-	/* Set the address to bind ourselves to. */
-#ifdef _WIN32
-	inaddr.S_un.S_addr = INADDR_BROADCAST;
-#else
-	inaddr = INADDR_BROADCAST;
-#endif /* _WIN32 */
-
 	/* Initialize the discovery packet broadcaster. */
-	tcp_err = udp_discovery_init(&handle->sock, false, inaddr, port,
+	tcp_err = udp_discovery_init(&handle->sock, false, INADDR_BROADCAST, port,
 								 UDP_TIMEOUT_MS);
 	if (tcp_err) {
 		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
