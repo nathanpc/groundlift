@@ -21,6 +21,20 @@
 #include "defaults.h"
 #include "error.h"
 
+/* Cross-platform socket function return error code. */
+#ifndef SOCKET_ERROR
+	#define SOCKET_ERROR (-1)
+#endif /* !SOCKET_ERROR */
+
+/* Cross-platform representation of an invalid socket file descriptor. */
+#ifndef INVALID_SOCKET
+	#ifdef _WIN32
+		#define INVALID_SOCKET (SOCKET)(~0)
+	#else
+		#define INVALID_SOCKET (-1)
+	#endif /* _WIN32 */
+#endif /* !INVALID_SOCKET */
+
 /* Cross-platform shim for socket error codes. */
 #ifdef _WIN32
 #define sockerrno WSAGetLastError()
@@ -49,8 +63,8 @@ server_t *sockets_server_new(const char *addr, uint16_t port) {
 		return NULL;
 
 	/* Ensure we have a known invalid state for our socket file descriptors. */
-	server->tcp.sockfd = -1;
-	server->udp.sockfd = -1;
+	server->tcp.sockfd = INVALID_SOCKET;
+	server->udp.sockfd = INVALID_SOCKET;
 
 	/* Setup the socket address structure for binding. */
 	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, port);
@@ -79,7 +93,7 @@ tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
 		return NULL;
 
 	/* Ensure we have a known invalid state for our socket file descriptor. */
-	client->sockfd = -1;
+	client->sockfd = INVALID_SOCKET;
 	client->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Setup the socket address structure for connecting. */
@@ -161,7 +175,7 @@ tcp_err_t sockets_server_start(server_t *server) {
 
 	/* Create a new TCP socket file descriptor. */
 	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (server->tcp.sockfd == -1) {
+	if (server->tcp.sockfd == INVALID_SOCKET) {
 		log_sockerrno("sockets_server_start@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
@@ -169,14 +183,14 @@ tcp_err_t sockets_server_start(server_t *server) {
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(reuse)) == -1) {
+				   sizeof(char)) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEADDR)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(reuse)) == -1) {
+				   sizeof(int)) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEPORT)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -185,13 +199,13 @@ tcp_err_t sockets_server_start(server_t *server) {
 
 	/* Bind ourselves to the TCP address. */
 	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
-			 server->tcp.addr_in_size) == -1) {
+			 server->tcp.addr_in_size) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@bind", sockerrno);
 		return SOCK_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
-	if (listen(server->tcp.sockfd, TCPSERVER_BACKLOG) == -1) {
+	if (listen(server->tcp.sockfd, TCPSERVER_BACKLOG) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@listen", sockerrno);
 		return TCP_ERR_ELISTEN;
 	}
@@ -219,11 +233,11 @@ tcp_err_t sockets_server_stop(server_t *server) {
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = socket_close(server->udp.sockfd);
-	server->udp.sockfd = -1;
+	server->udp.sockfd = INVALID_SOCKET;
 	if (err > SOCK_OK)
 		fprintf(stderr, "sockets_server_stop: Failed to close UDP socket.\n");
 	err = socket_close(server->tcp.sockfd);
-	server->tcp.sockfd = -1;
+	server->tcp.sockfd = INVALID_SOCKET;
 
 	return err;
 }
@@ -250,11 +264,11 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = socket_shutdown(server->udp.sockfd);
-	server->udp.sockfd = -1;
+	server->udp.sockfd = INVALID_SOCKET;
 	if (err > SOCK_OK)
 		fprintf(stderr, "sockets_server_shutdown: UDP socket close failed.\n");
 	err = socket_shutdown(server->tcp.sockfd);
-	server->tcp.sockfd = -1;
+	server->tcp.sockfd = INVALID_SOCKET;
 
 	return err;
 }
@@ -290,12 +304,12 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 #endif /* _WIN32 */
 
 	/* Setup the socket bundle. */
-	sock->sockfd = -1;
+	sock->sockfd = INVALID_SOCKET;
 	sock->addr_in_size = socket_setup_inaddr(&sock->addr_in, in_addr, port);
 
 	/* Create a new UDP socket file descriptor. */
 	sock->sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock->sockfd == -1) {
+	if (sock->sockfd == INVALID_SOCKET) {
 		log_sockerrno("udp_discovery_init@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
@@ -303,14 +317,14 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(int)) == -1) {
+				   sizeof(char)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEADDR)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(int)) == -1) {
+				   sizeof(int)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEPORT)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -320,7 +334,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Ensure we can do UDP broadcasts. */
 	perm = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
-				   sizeof(int)) == -1) {
+				   sizeof(char)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_BROADCAST)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -330,7 +344,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	loop = 0;
 #ifdef IP_MULTICAST_LOOP
 	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
-				   sizeof(unsigned char)) == -1) {
+				   sizeof(unsigned char)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -341,7 +355,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	if (timeout_ms > 0) {
 #ifdef _WIN32
 		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-					(const char *)&timeout_ms, sizeof(DWORD)) == -1) {
+				(const char *)&timeout_ms, sizeof(DWORD)) == SOCKET_ERROR) {
 			log_sockerrno("udp_discovery_init@setsockopt(SO_RCVTIMEO)",
 						  sockerrno);
 			return SOCK_ERR_ESETSOCKOPT;
@@ -351,7 +365,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 		tv.tv_usec = (timeout_ms % 1000) * 1000;
 
 		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
-					sizeof(struct timeval)) == -1) {
+					   sizeof(struct timeval)) == SOCKET_ERROR) {
 			log_sockerrno("udp_discovery_init@setsockopt(SO_RCVTIMEO)",
 						  sockerrno);
 			return SOCK_ERR_ESETSOCKOPT;
@@ -361,7 +375,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 
 	/* Bind ourselves to the UDP address. */
 	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,
-			 sock->addr_in_size) == -1)) {
+						sock->addr_in_size) == SOCKET_ERROR)) {
 		log_sockerrno("udp_discovery_init@bind", sockerrno);
 		return SOCK_ERR_EBIND;
 	}
@@ -384,7 +398,7 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	server_conn_t *conn;
 
 	/* Check if we even have a socket to accept things from. */
-	if (server->tcp.sockfd == -1)
+	if (server->tcp.sockfd == INVALID_SOCKET)
 		return NULL;
 
 	/* Allocate some memory for our handle object. */
@@ -399,9 +413,9 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 	conn->packet_len = OBEX_MAX_PACKET_SIZE;
 
 	/* Handle errors. */
-	if (conn->sockfd == -1) {
+	if (conn->sockfd == INVALID_SOCKET) {
 		/* Make sure we can handle a shutdown cleanly. */
-		if (server->tcp.sockfd == -1) {
+		if (server->tcp.sockfd == INVALID_SOCKET) {
 			free(conn);
 			return NULL;
 		}
@@ -430,14 +444,14 @@ server_conn_t *tcp_server_conn_accept(const server_t *server) {
 tcp_err_t tcp_client_connect(tcp_client_t *client) {
 	/* Create a new socket file descriptor. */
 	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (client->sockfd == -1) {
+	if (client->sockfd == INVALID_SOCKET) {
 		log_sockerrno("tcp_client_connect@socket", sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
 	/* Connect ourselves to the address. */
 	if (connect(client->sockfd, (struct sockaddr *)&client->addr_in,
-			 client->addr_in_size) == -1) {
+				client->addr_in_size) == SOCKET_ERROR) {
 		log_sockerrno("tcp_client_connect@connect", sockerrno);
 		return TCP_ERR_ECONNECT;
 	}
@@ -534,12 +548,12 @@ tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
-	if ((conn == NULL) || (conn->sockfd == -1))
+	if ((conn == NULL) || (conn->sockfd == INVALID_SOCKET))
 		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = socket_shutdown(conn->sockfd);
-	conn->sockfd = -1;
+	conn->sockfd = INVALID_SOCKET;
 
 	return err;
 }
@@ -558,12 +572,12 @@ tcp_err_t tcp_client_close(tcp_client_t *client) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
-	if ((client == NULL) || (client->sockfd == -1))
+	if ((client == NULL) || (client->sockfd == INVALID_SOCKET))
 		return SOCK_OK;
 
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = socket_close(client->sockfd);
-	client->sockfd = -1;
+	client->sockfd = INVALID_SOCKET;
 
 	return err;
 }
@@ -585,12 +599,12 @@ tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
 	tcp_err_t err;
 
 	/* Ensure we actually have something do to. */
-	if ((client == NULL) || (client->sockfd == -1))
+	if ((client == NULL) || (client->sockfd == INVALID_SOCKET))
 		return SOCK_OK;
 
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = socket_shutdown(client->sockfd);
-	client->sockfd = -1;
+	client->sockfd = INVALID_SOCKET;
 
 	return err;
 }
@@ -670,7 +684,7 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
 
 	/* Try to send some information through a socket. */
 	bytes_sent = send(sockfd, buf, len, 0);
-	if (bytes_sent == -1) {
+	if (bytes_sent == SOCKET_ERROR) {
 		log_sockerrno("tcp_socket_send@send", sockerrno);
 		return SOCK_ERR_ESEND;
 	}
@@ -705,7 +719,7 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
 
 	/* Try to send some information through a socket. */
 	bytes_sent = sendto(sockfd, buf, len, 0, sock_addr, sock_len);
-	if (bytes_sent == -1) {
+	if (bytes_sent == SOCKET_ERROR) {
 		log_sockerrno("udp_socket_send@sendto", sockerrno);
 		return SOCK_ERR_ESEND;
 	}
@@ -738,12 +752,12 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
-	if (sockfd == -1)
+	if (sockfd == INVALID_SOCKET)
 		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
 	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
-	if (bytes_recv == -1) {
+	if (bytes_recv == SOCKET_ERROR) {
 		/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
 		if (sockerrno == WSAEBADF)
@@ -792,14 +806,15 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
-	if (sockfd == -1)
+	if (sockfd == INVALID_SOCKET)
 		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 #ifdef _WIN32
-	if ((bytes_recv == -1) && !(peek && (sockerrno == WSAEMSGSIZE))) {
+	if ((bytes_recv == SOCKET_ERROR) &&
+			!(peek && (sockerrno == WSAEMSGSIZE))) {
 		/* Check if the error was expected. */
 		if (sockerrno == WSAEWOULDBLOCK) {
 			/* Timeout occurred. */
@@ -814,7 +829,7 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		return SOCK_ERR_ERECV;
 	}
 #else
-	if (bytes_recv == -1) {
+	if (bytes_recv == SOCKET_ERROR) {
 		/* Check if the error was expected. */
 		if (errno == EAGAIN) {
 			/* Timeout occurred. */
@@ -853,7 +868,7 @@ tcp_err_t socket_close(int sockfd) {
 	int ret;
 
 	/* Check if we are even needed. */
-	if (sockfd == -1)
+	if (sockfd == INVALID_SOCKET)
 		return SOCK_OK;
 
 	/* Close the socket file descriptor. */
@@ -864,7 +879,7 @@ tcp_err_t socket_close(int sockfd) {
 #endif /* _WIN32 */
 
 	/* Check for errors. */
-	if (ret == -1) {
+	if (ret == SOCKET_ERROR) {
 		log_sockerrno("socket_close@close", sockerrno);
 		return SOCK_ERR_ECLOSE;
 	}
@@ -885,31 +900,31 @@ tcp_err_t socket_shutdown(int sockfd) {
 	int ret;
 
 	/* Check if we are even needed. */
-	if (sockfd == -1)
+	if (sockfd == INVALID_SOCKET)
 		return SOCK_OK;
 
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
-	if ((ret == -1) && (sockerrno != WSAENOTCONN)) {
+	if ((ret == SOCKET_ERROR) && (sockerrno != WSAENOTCONN)) {
 		log_sockerrno("socket_shutdown@shutdown", sockerrno);
 		return SOCK_ERR_ESHUTDOWN;
 	}
 
 	ret = closesocket(sockfd);
-	if (ret == -1) {
+	if (ret == SOCKET_ERROR) {
 		log_sockerrno("socket_shutdown@closesocket", sockerrno);
 		return SOCK_ERR_ECLOSE;
 	}
 #else
 	ret = shutdown(sockfd, SHUT_RDWR);
-	if ((ret == -1) && (errno != ENOTCONN) && (errno != EINVAL)) {
+	if ((ret == SOCKET_ERROR) && (errno != ENOTCONN) && (errno != EINVAL)) {
 		log_sockerrno("socket_shutdown@shutdown", sockerrno);
 		return SOCK_ERR_ESHUTDOWN;
 	}
 
 	ret = close(sockfd);
-	if (ret == -1) {
+	if (ret == SOCKET_ERROR) {
 		log_sockerrno("socket_shutdown@close", sockerrno);
 		return SOCK_ERR_ECLOSE;
 	}
