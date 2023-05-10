@@ -296,7 +296,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	unsigned char loop;
 #ifdef _WIN32
 	char reuse;
-	char perm;
+	ULONG perm;
 #else
 	int reuse;
 	int perm;
@@ -813,10 +813,15 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 #ifdef _WIN32
-	if ((bytes_recv == SOCKET_ERROR) &&
-			!(peek && (sockerrno == WSAEMSGSIZE))) {
+	if (bytes_recv == SOCKET_ERROR) {
+		/* Check if it was just a message bigger than the peek'd length. */
+		if (peek && (sockerrno == WSAEMSGSIZE)) {
+			bytes_recv = buf_len;
+			goto recvnorm;
+		}
+
 		/* Check if the error was expected. */
-		if (sockerrno == WSAEWOULDBLOCK) {
+		if (sockerrno == WSAETIMEDOUT) {
 			/* Timeout occurred. */
 			return SOCK_EVT_TIMEOUT;
 		} else if (sockerrno == WSAEINTR) {
@@ -828,6 +833,7 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		log_sockerrno("udp_socket_recv@recvfrom", sockerrno);
 		return SOCK_ERR_ERECV;
 	}
+recvnorm:
 #else
 	if (bytes_recv == SOCKET_ERROR) {
 		/* Check if the error was expected. */
