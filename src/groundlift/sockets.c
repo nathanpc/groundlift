@@ -738,25 +738,54 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
  */
 tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 						  size_t *recv_len, bool peek) {
-	ssize_t bytes_recv;
+	size_t bytes_recv;
+	ssize_t len;
 
 	/* Check if we have a valid file descriptor. */
 	if (sockfd == INVALID_SOCKET)
 		return SOCK_EVT_CONN_CLOSED;
 
-	/* Try to read some information from a socket. */
-	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : MSG_WAITALL);
-	if (bytes_recv == SOCKET_ERROR) {
-		/* Check if it's just the connection being abruptly shut down. */
+	if (peek) {
+		/* Peek at the data in the queue. */
+		len = recv(sockfd, buf, buf_len, MSG_PEEK);
+		if (len == SOCKET_ERROR) {
+			/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
-		if (sockerrno == WSAEBADF)
+			if (sockerrno == WSAEBADF)
 #else
-		if (errno == EBADF)
+			if (errno == EBADF)
 #endif /* _WIN32 */
-			return SOCK_EVT_CONN_SHUTDOWN;
+				return SOCK_EVT_CONN_SHUTDOWN;
 
-		log_sockerrno("tcp_socket_recv@recv", sockerrno);
-		return SOCK_ERR_ERECV;
+			log_sockerrno("tcp_socket_recv@recv", sockerrno);
+			return SOCK_ERR_ERECV;
+		}
+
+		bytes_recv = len;
+	} else {
+		uint8_t *tmp;
+
+		tmp = (uint8_t *)buf;
+		bytes_recv = 0;
+		while (bytes_recv < buf_len) {
+			/* Try to read all the information from a socket. */
+			len = recv(sockfd, tmp, buf_len - bytes_recv, 0);
+			if (len == SOCKET_ERROR) {
+				/* Check if it's just the connection being abruptly shut down. */
+#ifdef _WIN32
+				if (sockerrno == WSAEBADF)
+#else
+				if (errno == EBADF)
+#endif /* _WIN32 */
+					return SOCK_EVT_CONN_SHUTDOWN;
+
+				log_sockerrno("tcp_socket_recv@recv", sockerrno);
+				return SOCK_ERR_ERECV;
+			}
+
+			bytes_recv += len;
+			tmp += len;
+		}
 	}
 
 	/* Return the number of bytes sent. */
