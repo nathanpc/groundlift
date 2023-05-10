@@ -756,7 +756,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
-	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0);
+	bytes_recv = recv(sockfd, buf, buf_len, (peek) ? MSG_PEEK : MSG_WAITALL);
 	if (bytes_recv == SOCKET_ERROR) {
 		/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
