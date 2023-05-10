@@ -165,34 +165,3 @@ void gl_error_print(gl_err_t *err) {
 	fprintf(stderr, "%s (err type %d code %d)\n", err->msg, err->type,
 			err->error.generic);
 }
-
-/**
- * Logs any system errors that set the errno variable whenever dealing with
- * sockets.
- *
- * @param msg Error message to be associated with the error message determined
- *            by the errno value.
- * @param err errno or equivalent error code value. (Ignored on POSIX systems)
- */
-void log_sockerrno(const char *msg, int err) {
-#ifdef _WIN32
-	LPTSTR szErrorMessage;
-
-	/* Get the descriptive error message from the system. */
-	if (!FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						   FORMAT_MESSAGE_FROM_SYSTEM,
-					   NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-					   &szErrorMessage, 0, NULL)) {
-		szErrorMessage = _tcsdup(_T("FormatMessage failed"));
-	}
-
-	/* Print the error message. */
-	fprintf(stderr, "%s: WSAError (%d) ", msg, err);
-	_tprintf(_T("%s\n"), szErrorMessage);
-
-	/* Free up any resources. */
-	LocalFree(szErrorMessage);
-#else
-	perror(msg);
-#endif /* _WIN32 */
-}

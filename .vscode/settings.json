@@ -24,6 +24,7 @@
 		"OBEX",
 		"SETPATH",
 		"sfsize",
+		"sockerrno",
 		"SOCKSERVERCLIENT",
 		"STRINGIZE",
 		"tcpserver",

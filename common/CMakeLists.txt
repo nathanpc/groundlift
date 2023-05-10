@@ -2,7 +2,8 @@
 set(GROUNDLIFT_COMMON_SOURCES
 	utils/utf16.c
 	utils/filesystem.c
-	utils/threads.c)
+	utils/threads.c
+	utils/logging.c)
 
 # Build the groundlift commons library.
 add_library(glcommon
