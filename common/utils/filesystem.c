@@ -284,7 +284,7 @@ bool file_exists(const char *fname) {
 
 	/* Get file attributes and return. */
 	dwAttrib = GetFileAttributes(szPath);
-	LocalFree(szPath);
+	free(szPath);
 	return (dwAttrib != INVALID_FILE_ATTRIBUTES) &&
 		   !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
 #else
@@ -319,7 +319,7 @@ bool dir_exists(const char *path) {
 
 	/* Get file attributes and return. */
 	dwAttrib = GetFileAttributes(szPath);
-	LocalFree(szPath);
+	free(szPath);
 	return (dwAttrib != INVALID_FILE_ATTRIBUTES) &&
 		   (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
 #else
