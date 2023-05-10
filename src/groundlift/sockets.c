@@ -798,20 +798,13 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 	/* Try to read some information from a socket. */
 	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
-	if (bytes_recv == -1) {
-		/* Check if the error was expected. */
 #ifdef _WIN32
+	if ((bytes_recv == -1) && !(peek && (sockerrno == WSAEMSGSIZE))) {
+		/* Check if the error was expected. */
 		if (sockerrno == WSAEWOULDBLOCK) {
-#else
-		if (errno == EAGAIN) {
-#endif /* _WIN32 */
 			/* Timeout occurred. */
 			return SOCK_EVT_TIMEOUT;
-#ifdef _WIN32
-		} else if (sockerrno == WSAEBADF) {
-#else
-		} else if (errno == EBADF) {
-#endif /* _WIN32 */
+		} else if (sockerrno == WSAEINTR) {
 			/* Connection being abruptly shut down. */
 			return SOCK_EVT_CONN_SHUTDOWN;
 		}
@@ -820,6 +813,22 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		log_sockerrno("udp_socket_recv@recvfrom", sockerrno);
 		return SOCK_ERR_ERECV;
 	}
+#else
+	if (bytes_recv == -1) {
+		/* Check if the error was expected. */
+		if (errno == EAGAIN) {
+			/* Timeout occurred. */
+			return SOCK_EVT_TIMEOUT;
+		} else if (errno == EBADF) {
+			/* Connection being abruptly shut down. */
+			return SOCK_EVT_CONN_SHUTDOWN;
+		}
+
+		/* Looks like it was a proper error. */
+		log_sockerrno("udp_socket_recv@recvfrom", sockerrno);
+		return SOCK_ERR_ERECV;
+	}
+#endif /* _WIN32 */
 
 	/* Return the number of bytes sent. */
 	if (recv_len != NULL)
@@ -882,7 +891,7 @@ tcp_err_t socket_shutdown(int sockfd) {
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
-	if ((ret == -1) && (errno != WSAENOTCONN)) {
+	if ((ret == -1) && (sockerrno != WSAENOTCONN)) {
 		log_sockerrno("socket_shutdown@shutdown", sockerrno);
 		return SOCK_ERR_ESHUTDOWN;
 	}
