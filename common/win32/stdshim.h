@@ -16,6 +16,7 @@ extern "C" {
 #ifdef _WIN32
 
 #include <windows.h>
+#include <tchar.h>
 #include <stdint.h>
 
 #if _MSC_VER < 1930

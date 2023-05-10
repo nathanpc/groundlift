@@ -10,7 +10,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
 #include <stdshim.h>
+#endif /* _WIN32 */
 
 /**
  * Creates a brand new error reporting object.
@@ -174,8 +176,22 @@ void gl_error_print(gl_err_t *err) {
  */
 void log_sockerrno(const char *msg, int err) {
 #ifdef _WIN32
-	fprintf(stderr, "%s: wsaerror %d\n", msg, err);
-	/* TODO: Use FormatMessage to properly append a meaninful description. */
+	LPTSTR szErrorMessage;
+
+	/* Get the descriptive error message from the system. */
+	if (!FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+						   FORMAT_MESSAGE_FROM_SYSTEM,
+					   NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+					   &szErrorMessage, 0, NULL)) {
+		szErrorMessage = _tcsdup(_T("FormatMessage failed"));
+	}
+
+	/* Print the error message. */
+	fprintf(stderr, "%s: WSAError (%d) ", msg, err);
+	_tprintf(_T("%s\n"), szErrorMessage);
+
+	/* Free up any resources. */
+	LocalFree(szErrorMessage);
 #else
 	perror(msg);
 #endif /* _WIN32 */
