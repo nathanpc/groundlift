@@ -183,14 +183,14 @@ tcp_err_t sockets_server_start(server_t *server) {
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(char)) == SOCKET_ERROR) {
+				   sizeof(reuse)) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEADDR)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(int)) == SOCKET_ERROR) {
+				   sizeof(reuse)) == SOCKET_ERROR) {
 		log_sockerrno("sockets_server_start@setsockopt(SO_REUSEPORT)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -317,14 +317,14 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
-				   sizeof(char)) == SOCKET_ERROR) {
+				   sizeof(reuse)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEADDR)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
-				   sizeof(int)) == SOCKET_ERROR) {
+				   sizeof(reuse)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_REUSEPORT)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -334,7 +334,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Ensure we can do UDP broadcasts. */
 	perm = 1;
 	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
-				   sizeof(char)) == SOCKET_ERROR) {
+				   sizeof(perm)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(SO_BROADCAST)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
@@ -344,7 +344,7 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	loop = 0;
 #ifdef IP_MULTICAST_LOOP
 	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
-				   sizeof(unsigned char)) == SOCKET_ERROR) {
+				   sizeof(loop)) == SOCKET_ERROR) {
 		log_sockerrno("udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)",
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
