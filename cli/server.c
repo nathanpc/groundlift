@@ -9,6 +9,7 @@
 
 #include <groundlift/defaults.h>
 #include <utils/filesystem.h>
+#include <utils/logging.h>
 
 /* Public variables. */
 server_handle_t *g_server;
@@ -57,35 +58,36 @@ gl_err_t *server_run(const char *ip, uint16_t port) {
 	/* Initialize the server. */
 	err = gl_server_setup(g_server, ip, port);
 	if (err) {
-		fprintf(stderr, "Server setup failed.\n");
+		log_printf(LOG_ERROR, "Server setup failed.\n");
 		goto cleanup;
 	}
 
 	/* Start the main server up. */
 	err = gl_server_start(g_server);
 	if (err) {
-		fprintf(stderr, "Server thread failed to start.\n");
+		log_printf(LOG_ERROR, "Server thread failed to start.\n");
 		goto cleanup;
 	}
 
 	/* Start the discovery server. */
 	err = gl_server_discovery_start(g_server, UDPSERVER_PORT);
 	if (err) {
-		fprintf(stderr, "Discovery server thread failed to start.\n");
+		log_printf(LOG_ERROR, "Discovery server thread failed to start.\n");
 		goto cleanup;
 	}
 
 	/* Wait for the discovery server thread to return. */
 	err = gl_server_discovery_thread_join(g_server);
 	if (err) {
-		fprintf(stderr, "Discovery server thread returned with errors.\n");
+		log_printf(LOG_ERROR,
+				   "Discovery server thread returned with errors.\n");
 		goto cleanup;
 	}
 
 	/* Wait for the main server thread to return. */
 	err = gl_server_thread_join(g_server);
 	if (err) {
-		fprintf(stderr, "Server thread returned with errors.\n");
+		log_printf(LOG_ERROR, "Server thread returned with errors.\n");
 		goto cleanup;
 	}
 

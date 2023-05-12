@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <utils/bits.h>
+#include <utils/logging.h>
 #include <utils/utf16.h>
 
 #include "conf.h"
@@ -165,8 +166,8 @@ bool obex_packet_param_add(obex_packet_t *packet, uint16_t value,
 			packet->params[packet->params_count].value.uint16 = value;
 			break;
 		default:
-			fprintf(stderr, "obex_packet_param_add: Invalid parameter size: "
-					"%u\n", size);
+			log_printf(LOG_ERROR,
+				"obex_packet_param_add: Invalid parameter size: %u\n", size);
 			return false;
 	}
 	packet->params_count++;
@@ -548,8 +549,9 @@ uint16_t obex_header_size(const obex_header_t *header) {
 		case OBEX_HEADER_ENCODING_WORD32:
 			return sizeof(int32_t) + 1;
 		default:
-			fprintf(stderr, "obex_header_size: Unknown header encoding: %u\n",
-					header->identifier.fields.encoding);
+			log_printf(
+				LOG_ERROR, "obex_header_size: Unknown header encoding: %u\n",
+				header->identifier.fields.encoding);
 			return 0;
 	}
 }
@@ -601,8 +603,9 @@ bool obex_packet_encode(obex_packet_t *packet, void **buf) {
 				p = memcpy_n(p, &n, sizeof(uint16_t));
 				break;
 			default:
-				fprintf(stderr, "obex_packet_encode: Invalid packet parameter "
-						"size: %u\n", param.size);
+				log_printf(LOG_ERROR,
+					"obex_packet_encode: Invalid packet parameter size: %u\n",
+					param.size);
 				free(*buf);
 				*buf = NULL;
 
@@ -701,8 +704,9 @@ void *obex_packet_encode_header_memcpy(const obex_header_t *header, void *buf) {
 			break;
 		}
 		default:
-			fprintf(stderr, "obex_packet_encode_header_memcpy: Unknown header "
-					"encoding: %u\n", header->identifier.fields.encoding);
+			log_printf(LOG_ERROR,
+					   "obex_packet_encode_header_memcpy: Unknown header "
+					   "encoding: %u\n", header->identifier.fields.encoding);
 			return 0;
 	}
 
@@ -763,8 +767,8 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len,
 				break;
 			default:
 				/* Unhandled opcode. */
-				fprintf(stderr, "obex_packet_decode: Invalid opcode 0x%02X "
-						"received with has_params flag.\n", packet->opcode);
+				log_printf(LOG_ERROR, "obex_packet_decode: Invalid opcode "
+					"0x%02X received with has_params flag.\n", packet->opcode);
 				obex_packet_free(packet);
 				return obex_invalid_packet;
 		}
@@ -809,8 +813,8 @@ obex_packet_t *obex_packet_decode(const void *buf, uint16_t len,
 				rlen += 4;
 				continue;
 			default:
-				fprintf(stderr, "obex_packet_decode: Invalid header identifier "
-						"encoding.\n");
+				log_printf(LOG_ERROR, "obex_packet_decode: Invalid header "
+						   "identifier encoding.\n");
 				obex_packet_free(packet);
 				return obex_invalid_packet;
 		}
@@ -1010,13 +1014,13 @@ obex_packet_t *obex_net_packet_recv(int sockfd,
 	if ((tcp_err == SOCK_OK) && (expected)) {
 		if ((OBEX_IGNORE_FINAL_BIT(peek_buf[0]) !=
 			 OBEX_IGNORE_FINAL_BIT(*expected))) {
-			fprintf(stderr, "obex_net_packet_recv: Opcode (0x%02X) not what "
-					"was expected (0x%02X).\n", peek_buf[0], *expected);
+			log_printf(LOG_ERROR, "obex_net_packet_recv: Opcode (0x%02X) not "
+					   "what was expected (0x%02X).\n", peek_buf[0], *expected);
 			return obex_invalid_packet;
 		}
 	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
-		fprintf(stderr, "obex_net_packet_recv: Failed to receive OBEX packet "
-				"peek. (tcp_err %d len %lu)\n", tcp_err, len);
+		log_printf(LOG_ERROR, "obex_net_packet_recv: Failed to receive OBEX "
+				   "packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return obex_invalid_packet;
 	} else if ((tcp_err == SOCK_EVT_CONN_CLOSED) ||
 			   (tcp_err == SOCK_EVT_CONN_SHUTDOWN)) {
@@ -1026,8 +1030,8 @@ obex_packet_t *obex_net_packet_recv(int sockfd,
 	/* Allocate memory to receive the entire packet. */
 	psize = BYTES_TO_USHORT(peek_buf[1], peek_buf[2]);
 	if (psize > OBEX_MAX_PACKET_SIZE) {
-		fprintf(stderr, "obex_net_packet_recv: Peek'd packet length %u is "
-				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
+		log_printf(LOG_ERROR, "obex_net_packet_recv: Peek'd packet length %u "
+			"is greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
 		return obex_invalid_packet;
 	}
 	buf = malloc(psize);
@@ -1035,9 +1039,9 @@ obex_packet_t *obex_net_packet_recv(int sockfd,
 	/* Read the full packet that was sent. */
 	tcp_err = tcp_socket_recv(sockfd, buf, psize, &len, false);
 	if (tcp_err != SOCK_OK) {
-		fprintf(stderr, "obex_net_packet_recv: Failed to receive full OBEX "
-				"packet. (tcp_err %d psize %u len %lu)\n",
-				tcp_err, psize, len);
+		log_printf(LOG_ERROR, "obex_net_packet_recv: Failed to receive full "
+			"OBEX packet. (tcp_err %d psize %u len %lu)\n",
+			tcp_err, psize, len);
 		free(buf);
 
 		return obex_invalid_packet;
@@ -1083,13 +1087,13 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
 	if ((tcp_err == SOCK_OK) && (expected)) {
 		if ((OBEX_IGNORE_FINAL_BIT(peek_buf[0]) !=
 			 OBEX_IGNORE_FINAL_BIT(*expected))) {
-			fprintf(stderr, "obex_net_packet_recvfrom: Opcode (0x%02X) not "
-					"what was expected (0x%02X).\n", peek_buf[0], *expected);
+			log_printf(LOG_ERROR, "obex_net_packet_recvfrom: Opcode (0x%02X) "
+				"not what was expected (0x%02X).\n", peek_buf[0], *expected);
 			return obex_invalid_packet;
 		}
 	} else if ((tcp_err >= SOCK_OK) && (len != 3)) {
-		fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive OBEX "
-				"packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
+		log_printf(LOG_ERROR, "obex_net_packet_recvfrom: Failed to receive "
+			"OBEX packet peek. (tcp_err %d len %lu)\n", tcp_err, len);
 		return obex_invalid_packet;
 	} else if (tcp_err < SOCK_OK) {
 		return NULL;
@@ -1098,8 +1102,9 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
 	/* Allocate memory to receive the entire packet. */
 	psize = BYTES_TO_USHORT(peek_buf[1], peek_buf[2]);
 	if (psize > OBEX_MAX_PACKET_SIZE) {
-		fprintf(stderr, "obex_net_packet_recvfrom: Peek'd packet length %u is "
-				"greater than the allowed %u.\n", psize, OBEX_MAX_PACKET_SIZE);
+		log_printf(LOG_ERROR, "obex_net_packet_recvfrom: Peek'd packet length "
+				   "%u is greater than the allowed %u.\n",
+				   psize, OBEX_MAX_PACKET_SIZE);
 		return obex_invalid_packet;
 	}
 	buf = malloc(psize);
@@ -1113,9 +1118,9 @@ obex_packet_t *obex_net_packet_recvfrom(sock_bundle_t *sock,
 			(struct sockaddr *)&sock->addr_in, &sock->addr_in_size, &plen,
 			false);
 		if (tcp_err != SOCK_OK) {
-			fprintf(stderr, "obex_net_packet_recvfrom: Failed to receive full "
-					"OBEX packet. (tcp_err %d psize %u plen %lu len %lu)\n",
-					tcp_err, psize, plen, len);
+			log_printf(LOG_ERROR, "obex_net_packet_recvfrom: Failed to receive "
+				"full OBEX packet. (tcp_err %d psize %u plen %lu len %lu)\n",
+				tcp_err, psize, plen, len);
 			free(buf);
 
 			return obex_invalid_packet;
@@ -1161,8 +1166,8 @@ obex_packet_t *obex_packet_new_connect(const char *fname,
 
 	/* Add the hostname header to the packet. */
 	if (!obex_packet_header_add_hostname(packet)) {
-		fprintf(stderr, "obex_packet_new_connect: Failed to append hostname "
-				"header to the packet.\n");
+		log_printf(LOG_ERROR, "obex_packet_new_connect: Failed to append "
+				   "hostname header to the packet.\n");
 		obex_packet_free(packet);
 
 		return NULL;
@@ -1276,8 +1281,8 @@ obex_packet_t *obex_packet_new_put(const char *fname, const uint32_t *fsize,
 
 	/* Add the hostname header to the packet. */
 	if (!obex_packet_header_add_hostname(packet)) {
-		fprintf(stderr, "obex_packet_new_put: Failed to append hostname header "
-				"to the packet.\n");
+		log_printf(LOG_ERROR, "obex_packet_new_put: Failed to append hostname "
+				   "header to the packet.\n");
 		obex_packet_free(packet);
 
 		return NULL;
@@ -1308,8 +1313,8 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
 	/* Convert the name to UTF-16. */
 	wname = utf16_mbstowcs(name);
 	if (wname == NULL) {
-		fprintf(stderr, "obex_packet_new_get: Failed to convert name '%s' to "
-				"UTF-16.\n", name);
+		log_printf(LOG_ERROR, "obex_packet_new_get: Failed to convert name "
+				   "'%s' to UTF-16.\n", name);
 		obex_packet_free(packet);
 
 		return NULL;
@@ -1318,8 +1323,8 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
 	/* Create a new packet. */
 	header = obex_header_new(OBEX_HEADER_NAME);
 	if (header == NULL) {
-		fprintf(stderr, "obex_packet_new_get: Failed to create the name packet "
-				"header.\n");
+		log_printf(LOG_ERROR, "obex_packet_new_get: Failed to create the name "
+				   "packet header.\n");
 		free(wname);
 		obex_packet_free(packet);
 
@@ -1331,8 +1336,8 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
 
 	/* Add the header to the packet. */
 	if (!obex_packet_header_add(packet, header)) {
-		fprintf(stderr, "obex_packet_new_get: Failed to append name header to "
-				"the packet.\n");
+		log_printf(LOG_ERROR, "obex_packet_new_get: Failed to append name "
+				   "header to the packet.\n");
 		obex_header_free(header);
 		obex_packet_free(packet);
 
@@ -1341,8 +1346,8 @@ obex_packet_t *obex_packet_new_get(const char *name, bool final) {
 
 	/* Add the hostname header to the packet. */
 	if (!obex_packet_header_add_hostname(packet)) {
-		fprintf(stderr, "obex_packet_new_get: Failed to append hostname header "
-				"to the packet.\n");
+		log_printf(LOG_ERROR, "obex_packet_new_get: Failed to append hostname "
+				   "header to the packet.\n");
 		obex_packet_free(packet);
 
 		return NULL;
@@ -1568,8 +1573,8 @@ bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
 		/* Convert the name to UTF-16. */
 		wname = utf16_mbstowcs(name);
 		if (wname == NULL) {
-			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
-					"convert name '%s' to UTF-16.\n", name);
+			log_printf(LOG_ERROR, "obex_populate_name_length_headers: Failed "
+					   "to convert name '%s' to UTF-16.\n", name);
 
 			return false;
 		}
@@ -1577,8 +1582,8 @@ bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
 		/* Create a new packet. */
 		header = obex_header_new(OBEX_HEADER_NAME);
 		if (header == NULL) {
-			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
-					"create the name packet header.\n");
+			log_printf(LOG_ERROR, "obex_populate_name_length_headers: Failed "
+					   "to create the name packet header.\n");
 			free(wname);
 
 			return false;
@@ -1589,8 +1594,8 @@ bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
 
 		/* Add the header to the packet. */
 		if (!obex_packet_header_add(packet, header)) {
-			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
-					"append name header to the packet.\n");
+			log_printf(LOG_ERROR, "obex_populate_name_length_headers: Failed "
+					   "to append name header to the packet.\n");
 			obex_header_free(header);
 
 			return false;
@@ -1602,8 +1607,8 @@ bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
 		/* Create a new packet. */
 		header = obex_header_new(OBEX_HEADER_LENGTH);
 		if (header == NULL) {
-			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
-					"create the length packet header.\n");
+			log_printf(LOG_ERROR, "obex_populate_name_length_headers: Failed "
+					   "to create the length packet header.\n");
 			return false;
 		}
 
@@ -1612,8 +1617,8 @@ bool obex_populate_name_length_headers(obex_packet_t *packet, const char *name,
 
 		/* Add the header to the packet. */
 		if (!obex_packet_header_add(packet, header)) {
-			fprintf(stderr, "obex_populate_name_length_headers: Failed to "
-					"append length header to the packet.\n");
+			log_printf(LOG_ERROR, "obex_populate_name_length_headers: Failed "
+					   "to append length header to the packet.\n");
 			obex_header_free(header);
 
 			return false;

@@ -7,9 +7,10 @@
 
 #include "client.h"
 
-#include <groundlift/defaults.h>
 #include <groundlift/client.h>
+#include <groundlift/defaults.h>
 #include <groundlift/error.h>
+#include <utils/logging.h>
 
 /* Public variables. */
 client_handle_t *g_client;
@@ -53,21 +54,21 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 	/* Setup the client. */
 	err = gl_client_setup(g_client, ip, port, fname);
 	if (err) {
-		fprintf(stderr, "Client setup failed.\n");
+		log_printf(LOG_ERROR, "Client setup failed.\n");
 		goto cleanup;
 	}
 
 	/* Connect to the server. */
 	err = gl_client_connect(g_client);
 	if (err) {
-		fprintf(stderr, "Client failed to start.\n");
+		log_printf(LOG_ERROR, "Client failed to start.\n");
 		goto cleanup;
 	}
 
 	/* Wait for it to return. */
 	err = gl_client_thread_join(g_client);
 	if (err) {
-		fprintf(stderr, "Client thread returned with errors.\n");
+		log_printf(LOG_ERROR, "Client thread returned with errors.\n");
 		goto cleanup;
 	}
 
@@ -99,7 +100,7 @@ gl_err_t *client_list_peers(void) {
 	gl_client_evt_discovery_peer_set(g_discovery_client, event_peer_discovered);
 	err = gl_client_discovery_setup(g_discovery_client, UDPSERVER_PORT);
 	if (err) {
-		fprintf(stderr, "Discovery service setup failed.\n");
+		log_printf(LOG_ERROR, "Discovery service setup failed.\n");
 		goto cleanup;
 	}
 
@@ -107,7 +108,7 @@ gl_err_t *client_list_peers(void) {
 	printf("Sending discovery broadcast...\n");
 	err = gl_client_discover_peers(g_discovery_client);
 	if (err) {
-		fprintf(stderr, "Discovery service thread failed to start.\n");
+		log_printf(LOG_ERROR, "Discovery service thread failed to start.\n");
 		goto cleanup;
 	}
 

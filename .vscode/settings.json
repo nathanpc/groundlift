@@ -21,18 +21,23 @@
 		"fileutils",
 		"itos",
 		"ltos",
+		"MAKELANGID",
 		"OBEX",
+		"recvnorm",
 		"SETPATH",
 		"sfsize",
 		"sockerrno",
 		"SOCKSERVERCLIENT",
 		"STRINGIZE",
+		"SUBLANG",
 		"tcpserver",
 		"TCPSERVERCLIENT",
 		"tjoin",
 		"UDPSERVER",
 		"wfname",
 		"wname",
+		"WSAEBADF",
+		"WSAEMSGSIZE",
 		"WSAENOTCONN"
 	]
 }

@@ -9,12 +9,13 @@
 
 #include <string.h>
 #include <utils/filesystem.h>
+#include <utils/logging.h>
+#include <utils/threads.h>
 #include <utils/utf16.h>
 
 #include "conf.h"
 #include "defaults.h"
 #include "error.h"
-#include "utils/threads.h"
 
 /* Private methods. */
 obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
@@ -266,7 +267,7 @@ gl_err_t *gl_server_thread_join(server_handle_t *handle) {
 
 	/* Join the thread back into us. */
 	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
-		perror("gl_server_thread_join@thread_join");
+		log_errno(LOG_ERROR, "gl_server_thread_join@thread_join");
 	}
 
 	return err;
@@ -342,7 +343,7 @@ gl_err_t *gl_server_discovery_thread_join(server_handle_t *handle) {
 
 	/* Join the thread back into us. */
 	if (thread_join(&handle->threads.discovery, (void **)&err) > THREAD_OK) {
-		perror("gl_server_discovery_thread_join@thread_join");
+		log_errno(LOG_ERROR, "gl_server_discovery_thread_join@thread_join");
 	}
 
 	return err;
@@ -449,7 +450,7 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 	if (err)
 		return err;
 	if (fb->size == 0)
-		fprintf(stderr, "WARNING: PUT request doesn't include a file length\n");
+		log_printf(LOG_WARNING, "PUT request doesn't include a file length\n");
 
 	/* Get the path to save the downloaded file to. */
 	fpath = path_build_download(conf_get_download_dir(), fb->base);
@@ -748,8 +749,8 @@ void *discovery_thread_func(void *handle_ptr) {
 		header = obex_packet_header_find(packet, OBEX_HEADER_NAME);
 		if ((header == NULL) ||
 				(wcscmp(L"DISCOVER", header->value.wstring.text) != 0)) {
-			fprintf(stderr, "server_discovery_thread_func: Discovery packet "
-				"name not \"DISCOVER\" or no name was supplied.\n");
+			log_printf(LOG_ERROR, "server_discovery_thread_func: Discovery "
+				"packet name not \"DISCOVER\" or no name was supplied.\n");
 			obex_packet_free(packet);
 
 			continue;
@@ -758,8 +759,8 @@ void *discovery_thread_func(void *handle_ptr) {
 		/* Create the response packet. */
 		reply = obex_packet_new_success(true, false);
 		if (reply == NULL) {
-			fprintf(stderr, "server_discovery_thread_func: Failed to create "
-					"response packet.\n");
+			log_printf(LOG_FATAL, "server_discovery_thread_func: Failed to "
+					   "create response packet.\n");
 			obex_packet_free(packet);
 
 			continue;
@@ -767,8 +768,8 @@ void *discovery_thread_func(void *handle_ptr) {
 
 		/* Add the hostname header to the packet. */
 		if (!obex_packet_header_add_hostname(reply)) {
-			fprintf(stderr, "server_discovery_thread_func: Failed to append "
-					"hostname header to the packet.\n");
+			log_printf(LOG_FATAL, "server_discovery_thread_func: Failed to "
+					   "append hostname header to the packet.\n");
 			obex_packet_free(reply);
 			obex_packet_free(packet);
 

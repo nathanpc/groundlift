@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <utils/logging.h>
 #ifdef _WIN32
 #include <stdshim.h>
 #endif /* _WIN32 */
@@ -162,6 +163,6 @@ void gl_error_print(gl_err_t *err) {
 		return;
 
 	/* Print the error out. */
-	fprintf(stderr, "%s (err type %d code %d)\n", err->msg, err->type,
+	log_printf(LOG_ERROR, "%s (err type %d code %d)\n", err->msg, err->type,
 			err->error.generic);
 }

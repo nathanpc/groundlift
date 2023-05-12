@@ -22,6 +22,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "logging.h"
+
 /**
  * Creates an empty file bundle.
  * @warning This function allocates memory that must be free'd by you!
@@ -63,7 +65,8 @@ file_bundle_t *file_bundle_new(const char *fname) {
 	/* Get the size of the file. */
 	fsize = file_size(fname);
 	if (fsize < 0L) {
-		fprintf(stderr, "Failed to get the length of the file %s.\n", fname);
+		log_printf(LOG_ERROR, "file_bundle_new@file_size: Failed to get the "
+				   "length of the file %s.\n", fname);
 		free(fb);
 
 		return NULL;
@@ -94,7 +97,8 @@ bool file_bundle_set_name(file_bundle_t *fb, const char *fname) {
 		free(fb->name);
 	fb->name = strdup(fname);
 	if (fb->name == NULL) {
-		fprintf(stderr, "Failed to duplicate %s file name string.\n", fname);
+		log_printf(LOG_FATAL, "file_bundle_set_name@strdup: Failed to "
+				   "duplicate %s file name string.\n", fname);
 		return false;
 	}
 
@@ -103,7 +107,8 @@ bool file_bundle_set_name(file_bundle_t *fb, const char *fname) {
 		free(fb->base);
 	fb->base = path_basename(fb->name);
 	if (fb->base == NULL) {
-		fprintf(stderr, "Failed to get %s basename.\n", fname);
+		log_printf(LOG_ERROR, "file_bundle_set_name@path_basename: Failed to "
+				   "get %s basename.\n", fname);
 		free(fb->name);
 		fb->name = NULL;
 

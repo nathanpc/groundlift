@@ -17,10 +17,11 @@
 #endif /* _WIN32 */
 #include <stdio.h>
 #include <string.h>
+#include <utils/logging.h>
+#include <utils/threads.h>
 
 #include "defaults.h"
 #include "error.h"
-#include "utils/threads.h"
 
 /* Private methods. */
 gl_err_t *gl_client_send_packet(client_handle_t *handle, obex_packet_t *packet);
@@ -224,7 +225,7 @@ gl_err_t *gl_client_thread_join(client_handle_t *handle) {
 
 	/* Join the thread back into us. */
 	if (thread_join(&handle->thread, (void **)&err) > THREAD_OK) {
-		perror("gl_client_thread_join@thread_join");
+		log_errno(LOG_ERROR, "gl_client_thread_join@thread_join");
 	}
 
 	return err;
@@ -382,7 +383,7 @@ gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle) {
 
 	/* Join the thread back into us. */
 	if (thread_join(&handle->thread, (void **)&err) > THREAD_OK) {
-		perror("gl_client_discovery_thread_join@thread_join");
+		log_errno(LOG_ERROR, "gl_client_discovery_thread_join@thread_join");
 	}
 
 	return err;

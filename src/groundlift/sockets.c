@@ -235,8 +235,10 @@ tcp_err_t sockets_server_stop(server_t *server) {
 	/* Close the socket file descriptor and set it to a known invalid state. */
 	err = socket_close(server->udp.sockfd);
 	server->udp.sockfd = INVALID_SOCKET;
-	if (err > SOCK_OK)
-		fprintf(stderr, "sockets_server_stop: Failed to close UDP socket.\n");
+	if (err > SOCK_OK) {
+		log_printf(LOG_WARNING,
+				   "sockets_server_stop: Failed to close UDP socket.\n");
+	}
 	err = socket_close(server->tcp.sockfd);
 	server->tcp.sockfd = INVALID_SOCKET;
 
@@ -266,8 +268,10 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
 	/* Shutdown the socket and set it to a known invalid state. */
 	err = socket_shutdown(server->udp.sockfd);
 	server->udp.sockfd = INVALID_SOCKET;
-	if (err > SOCK_OK)
-		fprintf(stderr, "sockets_server_shutdown: UDP socket close failed.\n");
+	if (err > SOCK_OK) {
+		log_printf(LOG_WARNING,
+				   "sockets_server_shutdown: UDP socket close failed.\n");
+	}
 	err = socket_shutdown(server->tcp.sockfd);
 	server->tcp.sockfd = INVALID_SOCKET;
 
@@ -1016,7 +1020,7 @@ bool socket_itos(char **buf, struct sockaddr *sock_addr) {
 	/* Allocate space for our return string. */
 	*buf = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
 	if (*buf == NULL) {
-		perror("tcp_socket_itos@malloc");
+		log_errno(LOG_FATAL, "tcp_socket_itos@malloc");
 		return false;
 	}
 

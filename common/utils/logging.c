@@ -11,6 +11,44 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef _WIN32
+/* FormatMessage default flags. */
+#define FORMAT_MESSAGE_FLAGS \
+	(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM)
+
+/* FormatMessage default language. */
+#define FORMAT_MESSAGE_LANG MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
+#endif /* _WIN32 */
+
+/**
+ * Logs any system errors that set the errno variable whenever dealing with
+ * sockets.
+ *
+ * @param level Severity of the logged information.
+ * @param msg   Error message to be associated with the error message determined
+ *              by the errno value.
+ */
+void log_errno(log_level_t level, const char *msg) {
+#ifdef _WIN32
+	LPTSTR szErrorMessage;
+
+	/* Get the descriptive error message from the system. */
+	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, GetLastError(),
+					   FORMAT_MESSAGE_LANG, &szErrorMessage, 0, NULL)) {
+		szErrorMessage = wcsdup(_T("FormatMessage failed"));
+	}
+
+	/* Print the error message. */
+	log_printf(level, "%s: (%d) %ls", msg, err, szErrorMessage);
+
+	/* Free up any resources. */
+	LocalFree(szErrorMessage);
+#else
+	/* Print the error message. */
+	log_printf(level, "%s: (%d) %s\n", msg, errno, strerror(errno));
+#endif /* _WIN32 */
+}
+
 /**
  * Logs any system errors that set the errno variable whenever dealing with
  * sockets.
@@ -25,15 +63,13 @@ void log_sockerrno(log_level_t level, const char *msg, int err) {
 	LPTSTR szErrorMessage;
 
 	/* Get the descriptive error message from the system. */
-	if (!FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						   FORMAT_MESSAGE_FROM_SYSTEM,
-					   NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, err, FORMAT_MESSAGE_LANG,
 					   &szErrorMessage, 0, NULL)) {
-		szErrorMessage = _tcsdup(_T("FormatMessage failed"));
+		szErrorMessage = wcsdup(_T("FormatMessage failed"));
 	}
 
 	/* Print the error message. */
-	log_printf("%s: WSAError (%d) %ls", msg, err, szErrorMessage);
+	log_printf(level, "%s: WSAError (%d) %ls", msg, err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -42,7 +78,6 @@ void log_sockerrno(log_level_t level, const char *msg, int err) {
 
 	/* Print the error message. */
 	log_printf(level, "%s: %s\n", msg, strerror(errno));
-	perror(msg);
 #endif /* _WIN32 */
 }
 
