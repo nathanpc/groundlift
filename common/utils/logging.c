@@ -10,6 +10,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#include <tchar.h>
+#endif /* _WIN32 */
 
 #ifdef _WIN32
 /* FormatMessage default flags. */
@@ -30,16 +33,19 @@
  */
 void log_errno(log_level_t level, const char *msg) {
 #ifdef _WIN32
+	DWORD dwLastError;
 	LPTSTR szErrorMessage;
 
 	/* Get the descriptive error message from the system. */
-	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, GetLastError(),
-					   FORMAT_MESSAGE_LANG, &szErrorMessage, 0, NULL)) {
-		szErrorMessage = wcsdup(_T("FormatMessage failed"));
+	dwLastError = GetLastError();
+	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, dwLastError,
+					   FORMAT_MESSAGE_LANG, (LPTSTR)&szErrorMessage, 0,
+					   NULL)) {
+		szErrorMessage = _wcsdup(_T("FormatMessage failed"));
 	}
 
 	/* Print the error message. */
-	log_printf(level, "%s: (%d) %ls", msg, err, szErrorMessage);
+	log_printf(level, "%s: (%d) %ls", msg, dwLastError, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -64,8 +70,8 @@ void log_sockerrno(log_level_t level, const char *msg, int err) {
 
 	/* Get the descriptive error message from the system. */
 	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, err, FORMAT_MESSAGE_LANG,
-					   &szErrorMessage, 0, NULL)) {
-		szErrorMessage = wcsdup(_T("FormatMessage failed"));
+					   (LPTSTR)&szErrorMessage, 0, NULL)) {
+		szErrorMessage = _wcsdup(_T("FormatMessage failed"));
 	}
 
 	/* Print the error message. */

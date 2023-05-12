@@ -10,13 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <utils/logging.h>
 #ifdef _WIN32
 #include <utils/utf16.h>
 #else
 #include <sys/errno.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <utils/logging.h>
 #endif /* _WIN32 */
 
 #include "defaults.h"

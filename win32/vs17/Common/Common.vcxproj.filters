@@ -45,6 +45,9 @@
     <ClInclude Include="..\..\..\common\win32\stdshim.h">
       <Filter>Shims</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\common\utils\logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\common\utils\filesystem.c">
@@ -54,6 +57,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\common\utils\utf16.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\common\utils\logging.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

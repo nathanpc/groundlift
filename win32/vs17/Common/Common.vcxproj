@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\common\utils\bits.h" />
     <ClInclude Include="..\..\..\common\utils\filesystem.h" />
+    <ClInclude Include="..\..\..\common\utils\logging.h" />
     <ClInclude Include="..\..\..\common\utils\threads.h" />
     <ClInclude Include="..\..\..\common\utils\utf16.h" />
     <ClInclude Include="..\..\..\common\win32\inttypes.h" />
@@ -31,6 +32,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\common\utils\filesystem.c" />
+    <ClCompile Include="..\..\..\common\utils\logging.c" />
     <ClCompile Include="..\..\..\common\utils\threads.c" />
     <ClCompile Include="..\..\..\common\utils\utf16.c" />
   </ItemGroup>
