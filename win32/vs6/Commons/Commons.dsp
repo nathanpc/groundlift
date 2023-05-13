@@ -99,6 +99,14 @@ SOURCE=..\..\..\common\utils\filesystem.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\common\utils\logging.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\common\utils\logging.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\common\utils\threads.c
 # End Source File
 # Begin Source File

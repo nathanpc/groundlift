@@ -33,6 +33,24 @@ Package=<4>
 
 ###############################################################################
 
+Project: "Desktop"=.\Desktop\Desktop.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name Commons
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name GroundLift
+    End Project Dependency
+}}}
+
+###############################################################################
+
 Project: "GroundLift"=.\GroundLift\GroundLift.dsp - Package Owner=<4>
 
 Package=<5>
