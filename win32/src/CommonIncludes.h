@@ -24,4 +24,7 @@
 #include <stdio.h>
 #include <tchar.h>
 
+// Utilities
+#include <MsgBoxes.h>
+
 #endif // _WINGL_COMMONINCLUDES_H

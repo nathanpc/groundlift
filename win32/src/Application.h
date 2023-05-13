@@ -22,8 +22,6 @@ int TerminateInstance(HINSTANCE hInstance, int nDefRC);
 // Window procedure.
 LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT wMsg, WPARAM wParam,
 								LPARAM lParam);
-LRESULT CALLBACK AboutDlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
-							  LPARAM lParam);
 
 // Window message handlers.
 LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);

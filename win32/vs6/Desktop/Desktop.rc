@@ -43,6 +43,8 @@ IDC_DESKTOP MENU DISCARDABLE
 BEGIN
     POPUP "&File"
     BEGIN
+        MENUITEM "&Send...",                    IDM_FILE_SEND
+        MENUITEM SEPARATOR
         MENUITEM "E&xit",                       IDM_EXIT
     END
     POPUP "&Help"

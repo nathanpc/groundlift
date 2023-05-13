@@ -7,7 +7,8 @@
 
 #include "Application.h"
 
-#include "MsgBoxes.h"
+#include "AboutDialog.h"
+#include "SendFileDialog.h"
 
 #define MAX_LOADSTRING 100
 
@@ -16,6 +17,7 @@ HINSTANCE hInst;
 HWND hwndMain;
 TCHAR szWindowClass[MAX_LOADSTRING];
 TCHAR szAppTitle[MAX_LOADSTRING];
+SendFileDialog *dlgSendFile = NULL;
 
 /**
  * Application's main entry point.
@@ -210,7 +212,8 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
     icex.dwICC  = ICC_WIN95_CLASSES;
     InitCommonControlsEx(&icex);
 
-	// TODO: Do things as soon as the window is created.
+	// Initialize the Send File dialog.
+	dlgSendFile = new SendFileDialog(hInst, hwndMain);
 
 	return 0;
 }
@@ -231,12 +234,14 @@ LRESULT WndMainCommand(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 
 	switch (wmId) {
 		case IDM_ABOUT:
-		   DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd,
-					 (DLGPROC)AboutDlgProc);
-		   break;
+			AboutDialog(hInst, hWnd).ShowModal();
+			break;
+		case IDM_FILE_SEND:
+			dlgSendFile->Show();
+			break;
 		case IDM_EXIT:
-		   DestroyWindow(hWnd);
-		   break;
+			DestroyWindow(hWnd);
+			break;
 	}
 
 	return DefWindowProc(hWnd, wMsg, wParam, lParam);
@@ -270,7 +275,9 @@ LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Send window destruction message.
 	DestroyWindow(hWnd);
 
-	// TODO: Call any destructors that might be needed.
+	// Call any destructors that might be needed.
+	if (dlgSendFile)
+		delete dlgSendFile;
 
 	return DefWindowProc(hWnd, wMsg, wParam, lParam);
 }
@@ -289,30 +296,4 @@ LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Post quit message and return.
 	PostQuitMessage(0);
 	return 0;
-}
-
-/**
- * Mesage handler for the About dialog box.
- *
- * @param hDlg   Dialog window handler.
- * @param wMsg   Message type.
- * @param wParam Message parameter.
- * @param lParam Message parameter.
- *
- * @return 0 if everything worked.
- */
-LRESULT CALLBACK AboutDlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
-							  LPARAM lParam) {
-	switch (wMsg) {
-		case WM_INITDIALOG:
-			return TRUE;
-		case WM_COMMAND:
-			if ((LOWORD(wParam) == IDOK) || (LOWORD(wParam) == IDCANCEL)) {
-				EndDialog(hDlg, LOWORD(wParam));
-				return TRUE;
-			}
-			break;
-	}
-
-    return FALSE;
 }
