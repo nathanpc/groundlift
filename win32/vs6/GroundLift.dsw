@@ -47,6 +47,9 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name GroundLift
     End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name WinCommons
+    End Project Dependency
 }}}
 
 ###############################################################################
@@ -62,6 +65,18 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name Commons
     End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "WinCommons"=.\WinCommons\WinCommons.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
 }}}
 
 ###############################################################################

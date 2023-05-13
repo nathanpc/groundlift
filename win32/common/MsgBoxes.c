@@ -8,6 +8,8 @@
 
 #include "MsgBoxes.h"
 
+#include <tchar.h>
+
 /**
  * Generic message box.
  * 

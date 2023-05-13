@@ -6,8 +6,8 @@
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _MSGBOXES_H
-#define _MSGBOXES_H
+#ifndef _WINCOMMON_MSGBOXES_H
+#define _WINCOMMON_MSGBOXES_H
 
 #if _MSC_VER > 1000
 #pragma once
@@ -17,7 +17,7 @@
 extern "C" {
 #endif  // __cplusplus
 
-#include "CommonIncludes.h"
+#include <windows.h>
 
 // Generic message box.
 int MsgBox(HWND hwndParent, UINT uType, LPCTSTR szTitle, LPCTSTR szText);
@@ -30,4 +30,4 @@ int MsgBoxLastError(HWND hwndParent);
 }
 #endif  // __cplusplus
 
-#endif // _MSGBOXES_H
+#endif // _WINCOMMON_MSGBOXES_H
