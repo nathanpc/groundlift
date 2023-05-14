@@ -213,6 +213,9 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
     icex.dwICC  = ICC_WIN95_CLASSES;
     InitCommonControlsEx(&icex);
 
+	// Initialize some of GroundLift's common modules.
+	cap_init();
+
 	// Initialize the Send File dialog.
 	dlgSendFile = new SendFileDialog(hInst, hwndMain);
 

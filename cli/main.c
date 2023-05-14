@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <utils/capabilities.h>
 #ifdef _WIN32
 #include <windows.h>
 #include <winsock2.h>
@@ -56,6 +57,7 @@ int main(int argc, char **argv) {
 	signal(SIGINT, sigint_handler);
 
 	/* Initialize some common modules. */
+	cap_init();
 	obex_init();
 	conf_init();
 
