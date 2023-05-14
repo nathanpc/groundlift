@@ -43,8 +43,11 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 		case WM_CTLCOLORLISTBOX:
 		case WM_CTLCOLORSCROLLBAR:
 		case WM_CTLCOLORSTATIC:
-			// Ensure we use the default background color of a window.
-			return (INT_PTR)GetSysColorBrush(COLOR_WINDOW);
+			if (cap_win_least_11()) {
+				// Ensure we use the default background color of a window.
+				return (INT_PTR)GetSysColorBrush(COLOR_WINDOW);
+			}
+			break;
 		case WM_COMMAND:
 			if (LOWORD(wParam) == IDOK) {
 				MsgBox(hDlg, MB_OK, L"Send File", L"Send the file!");

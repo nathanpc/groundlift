@@ -59,7 +59,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Xml Include="manifest.xml">
+    <Xml Include="..\..\manifest.xml">
       <Filter>Resource Files</Filter>
     </Xml>
   </ItemGroup>
