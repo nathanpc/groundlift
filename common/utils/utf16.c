@@ -17,13 +17,11 @@
 
 #include "capabilities.h"
 
-#if 0
-/* Codepage to be used for the conversions. */
-	#ifdef CP_UTF8
-		#define GL_CODEPAGE CP_UTF8
-	#else
-		#define GL_CODEPAGE CP_OEMCP
-	#endif /* CP_UTF8 */
+#ifdef _WIN32
+	/* Define the UTF-8 codepage on older systems. */
+	#ifndef CP_UTF8
+		#define CP_UTF8 65001
+	#endif /* !CP_UTF8 */
 #endif /* _WIN32 */
 
 /**
