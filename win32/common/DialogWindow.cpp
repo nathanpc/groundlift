@@ -23,6 +23,7 @@ DialogWindow::DialogWindow(HINSTANCE& hInst, HWND& hwndParent, WORD wResID) :
 	hwndParent(hwndParent) {
 	this->wResID = wResID;
 	this->hDlg = NULL;
+	this->bIsModal = false;
 }
 
 /**

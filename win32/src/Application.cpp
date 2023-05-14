@@ -10,6 +10,7 @@
 #include "AboutDialog.h"
 #include "SendFileDialog.h"
 
+// Common definitions.
 #define MAX_LOADSTRING 100
 
 // Global variables.
@@ -71,7 +72,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	}
 
 	// Clean up.
-	return TerminateInstance(hInstance, msg.wParam);
+	return TerminateInstance(hInstance, (int)msg.wParam);
 }
 
 /**
