@@ -8,7 +8,7 @@
 #include "capabilities.h"
 
 #ifdef _WIN32
-#include <sysinfoapi.h>
+#include <windows.h>
 #endif /* _WIN32 */
 
 #ifdef _WIN32

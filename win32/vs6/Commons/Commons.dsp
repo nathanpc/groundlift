@@ -91,6 +91,14 @@ SOURCE=..\..\..\common\utils\bits.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\common\utils\capabilities.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\common\utils\capabilities.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\common\utils\filesystem.c
 # End Source File
 # Begin Source File

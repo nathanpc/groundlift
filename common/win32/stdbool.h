@@ -10,9 +10,7 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef __cplusplus
 
 /* Boolean type definition. */
 #ifndef bool
@@ -23,8 +21,6 @@ typedef int bool;
 #define true 1
 #define false 0
 
-#ifdef __cplusplus
-}
-#endif
+#endif /* __cplusplus */
 
 #endif /* _GL_STD_STDBOOL_H */
