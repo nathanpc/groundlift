@@ -72,14 +72,14 @@ END
 //
 
 IDD_ABOUTBOX DIALOG DISCARDABLE  22, 17, 230, 75
-STYLE DS_SHELLFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+STYLE DS_MODALFRAME | DS_SHELLFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About"
 FONT 8, "MS Shell Dlg"
 BEGIN
     ICON            IDI_DESKTOP,IDC_MYICON,14,9,16,16
     LTEXT           "Desktop Version 1.0",IDC_STATIC,49,10,119,8,SS_NOPREFIX
     LTEXT           "Copyright (C) 2023",IDC_STATIC,49,20,119,8
-    DEFPUSHBUTTON   "OK",IDOK,195,6,30,11,WS_GROUP
+    DEFPUSHBUTTON   "OK",IDOK,175,56,50,14
 END
 
 
@@ -137,8 +137,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 // Dialog
 //
 
-IDD_SEND DIALOG 0, 0, 248, 175
-STYLE DS_SHELLFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_SEND DIALOG DISCARDABLE  0, 0, 248, 175
+STYLE DS_MODALFRAME | DS_SHELLFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Send File"
 FONT 8, "MS Shell Dlg"
 BEGIN
@@ -187,6 +187,13 @@ BEGIN
 END
 #endif    // APSTUDIO_INVOKED
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// 24
+//
+
+1                       24      DISCARDABLE     "manifest.xml"
 #endif    // English (U.K.) resources
 /////////////////////////////////////////////////////////////////////////////
 

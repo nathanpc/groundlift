@@ -114,6 +114,10 @@ SOURCE=.\Desktop.rc
 # End Source File
 # Begin Source File
 
+SOURCE=.\manifest.xml
+# End Source File
+# Begin Source File
+
 SOURCE=.\resource.h
 # End Source File
 # Begin Source File
