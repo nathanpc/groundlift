@@ -114,6 +114,11 @@ ATOM RegisterApplication(HINSTANCE hInstance) {
  */
 HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
 	HWND hWnd;
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int iRet;
+
+	// Set the global instance variable.
 	hInst = hInstance;
 
 	// Create the main window.
@@ -148,6 +153,16 @@ HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
 	SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 #endif
 
+	// Initialize the Winsock stuff.
+	wVersionRequested = MAKEWORD(2, 2);
+	if ((iRet = WSAStartup(wVersionRequested, &wsaData)) != 0) {
+		printf("WSAStartup failed with error %d\n", iRet);
+		MessageBox(NULL, TEXT("Windows sockets WSAStartup failed!"),
+				   TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
+
+		return 0;
+	}
+
 	// Show and update the window.
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
@@ -165,6 +180,9 @@ HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
  * @return Previous return code.
  */
 int TerminateInstance(HINSTANCE hInstance, int nDefRC) {
+	// Clean up the Winsock stuff.
+	WSACleanup();
+
 	return nDefRC;
 }
 
