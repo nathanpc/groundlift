@@ -656,7 +656,7 @@ socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
 socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
 					   uint16_t port) {
 	return socket_setup_inaddr(addr,
-		(ipaddr == NULL) ? INADDR_ANY : inet_addr(ipaddr), port);
+		(ipaddr == NULL) ? INADDR_ANY : socket_inet_addr(ipaddr), port);
 }
 
 /**
@@ -1032,6 +1032,39 @@ bool socket_itos(char **buf, struct sockaddr *sock_addr) {
 }
 
 /**
+ * Converts an IPv4 address represented as a string to its binary form.
+ * 
+ * @param ipaddr IPv4 address in its string representation.
+ * 
+ * @return Binary representation of the IPv4 address or INADDR_NONE (-1) if an
+ *         error occurred.
+ */
+in_addr_t socket_inet_addr(const char *ipaddr) {
+#ifdef _WIN32
+	wchar_t *ipaw;
+	struct sockaddr_in addr;
+	int len;
+
+	/* Convert our IP address string to UTF-16. */
+	ipaw = utf16_mbstowcs(ipaddr);
+	if (ipaw == NULL)
+		return INADDR_NONE;
+
+	/* Get the address from the string. */
+	len = sizeof(struct sockaddr_in);
+	addr.sin_family = AF_INET;
+	WSAStringToAddress(ipaw, AF_INET, NULL, (struct sockaddr *)&addr, &len);
+
+	/* Free our temporary buffer. */
+	free(ipaw);
+
+	return addr.sin_addr.S_un.S_addr;
+#else
+	return inet_addr(ipaddr);
+#endif /* _WIN32 */
+}
+
+/**
  * Gets the IP address that the TCP server is currently bound to in a string
  * representation.
  *
@@ -1122,7 +1155,7 @@ char *tcp_client_get_ipstr(const tcp_client_t *client) {
  * @param buf Network byte ordered buffer to be inspected.
  * @param len Length of the buffer.
  */
-void socket_net_buffer(const void *buf, size_t len) {
+void socket_print_net_buffer(const void *buf, size_t len) {
 	size_t i;
 	const uint8_t *p;
 

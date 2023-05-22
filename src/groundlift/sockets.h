@@ -12,7 +12,7 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <stdshim.h>
+#include "../common/win32/stdshim.h"
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -134,6 +134,7 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 tcp_err_t socket_close(int sockfd);
 tcp_err_t socket_shutdown(int sockfd);
 bool socket_itos(char **buf, struct sockaddr *sock_addr);
+in_addr_t socket_inet_addr(const char *ipaddr);
 
 /* Misc. utilities. */
 char *tcp_server_get_ipstr(const server_t *server);
