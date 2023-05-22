@@ -19,6 +19,8 @@ extern "C" {
 #include <tchar.h>
 #include <stdint.h>
 
+#include "ssize_t.h"
+
 #if _MSC_VER < 1930
 	/* snprintf should be _snprintf. */
 	#ifndef snprintf

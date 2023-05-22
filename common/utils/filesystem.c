@@ -10,7 +10,7 @@
 #ifdef _WIN32
 #include <shlobj.h>
 #include <shlwapi.h>
-#include <stdshim.h>
+#include "../win32/stdshim.h"
 #include "utf16.h"
 #else
 #include <libgen.h>

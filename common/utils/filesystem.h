@@ -12,6 +12,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include "../win32/stdshim.h"
+#endif /* _WIN32 */
 
 #ifdef __cplusplus
 extern "C" {
