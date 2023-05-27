@@ -1014,6 +1014,14 @@ bool socket_itos(char **buf, struct sockaddr *sock_addr) {
 	}
 
 #ifdef _WIN32
+	/* Remove the port number from the string. */
+	for (dwLen = 0; tmp[dwLen] != '\0'; dwLen++) {
+		if (tmp[dwLen] == ':') {
+			tmp[dwLen] = '\0';
+			break;
+		}
+	}
+
 	/* Convert our string to UTF-8 assigning it to the return value. */
 	*buf = utf16_wcstombs(tmp);
 #else
