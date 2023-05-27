@@ -153,13 +153,10 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 			break;
 		case WM_COMMAND:
 			switch (LOWORD(wParam)) {
+				case IDC_BUTTON_BROWSE:
+					return ButtonBrowseOnCommand(hDlg, wParam, lParam);
 				case IDOK:
 					//MsgBox(hDlg, MB_OK, L"Send File", L"Send the file!");
-					break;
-				case IDCANCEL:
-					//MsgBox(hDlg, MB_OK, L"Send File", L"Cancel everything!");
-					break;
-				case IDC_BUTTON_BROWSE:
 					break;
 			}
 			break;
@@ -201,7 +198,39 @@ INT_PTR SendFileDialog::ListClientsOnNotify(HWND hDlg, WPARAM wParam,
 			break;
 	}
 
-	return 0;
+	return FALSE;
+}
+
+/**
+ * Handles the WM_COMMAND message of the Browse button.
+ *
+ * @param hDlg   Dialog window handle.
+ * @param wParam Message parameter.
+ * @param lParam Message parameter.
+ */
+INT_PTR SendFileDialog::ButtonBrowseOnCommand(HWND hDlg, WPARAM wParam,
+											  LPARAM lParam) {
+	OPENFILENAME ofn;
+	TCHAR szPath[MAX_PATH] = _T("");
+
+	// Populate the structure.
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.lpstrTitle = _T("Select File to Share");
+	ofn.hwndOwner = hDlg;
+	ofn.lpstrFilter = _T("All Files (*.*)\0*.*\0");
+	ofn.lpstrFile = szPath;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST;
+
+	// Open the file dialog.
+	if (!GetOpenFileName(&ofn))
+		return FALSE;
+
+	// Set the file path edit control's text.
+	SetWindowText(this->hwndFilePathEdit, szPath);
+
+	return TRUE;
 }
 
 /**

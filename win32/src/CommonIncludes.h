@@ -15,6 +15,7 @@
 // Windows Header Files
 #include <windows.h>
 #include <commctrl.h>
+#include <commdlg.h>
 
 // Project Resource Files
 #include "../vs6/Desktop/resource.h"
