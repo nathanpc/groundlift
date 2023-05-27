@@ -7,6 +7,8 @@
 
 #include "SendFileDialog.h"
 
+#include <utils/utf16.h>
+
 #include "CommonIncludes.h"
 
 /**
@@ -20,6 +22,11 @@ SendFileDialog::SendFileDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	this->hwndAddressEdit = NULL;
 	this->hwndPeerList = NULL;
 	this->hwndFilePathEdit = NULL;
+
+	// Setup the peer discovery event handler.
+	this->peerDiscovery.SetPeerDiscoveredEvent(
+		SendFileDialog::PeerDiscoveryEventHandler,
+		reinterpret_cast<void *>(this));
 }
 
 SendFileDialog::~SendFileDialog() {
@@ -35,20 +42,8 @@ void SendFileDialog::RefreshPeerList() {
 	ListView_DeleteAllItems(this->hwndPeerList);
 	ClearPeersVector();
 
-	// TODO: Ensure we get the callback for the discovery service.
-
-	// TODO: Send discovery broadcast.
-
-	// TODO: Populate the list.
-
-	AppendPeerToList(
-		new GroundLift::Peer(_T("W"), _T("You"), _T("127.0.0.1"), 1650));
-	AppendPeerToList(
-		new GroundLift::Peer(_T("L"), _T("Some Device"), _T("192.168.1.2"), 1650));
-	AppendPeerToList(
-		new GroundLift::Peer(_T("W"), _T("Win98"), _T("192.168.1.13"), 1650));
-	AppendPeerToList(
-		new GroundLift::Peer(_T("A"), _T("iPhone"), _T("192.168.1.66"), 1650));
+	// Start scanning around for peers.
+	this->peerDiscovery.Scan();
 }
 
 /**
@@ -219,4 +214,41 @@ void SendFileDialog::ClearPeersVector() {
 
 	// Clear the vector.
 	this->vecPeers.clear();
+}
+
+/**
+ * Handles the raw Peer Discovered event.
+ * 
+ * @param peer Discovered peer object.
+ * @param arg  Optional data set by the event handler setup.
+ */
+void SendFileDialog::PeerDiscoveryEventHandler(const gl_discovery_peer_t *peer,
+											   void *arg) {
+	SendFileDialog *pThis;
+	GroundLift::Peer *glPeer;
+	LPTSTR szHostname;
+
+	// Get ourselves from the optional argument.
+	pThis = reinterpret_cast<SendFileDialog *>(arg);
+	if (pThis == NULL) {
+		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
+			_T("Failed to get dialog object from event handler argument."));
+		return;
+	}
+
+	// Convert the hostname to UTF-16.
+	szHostname = utf16_mbstowcs(peer->name);
+	if (szHostname == NULL) {
+		MsgBoxLastError(NULL);
+		return;
+	}
+
+	// Setup a peer object and append it to the list.
+	glPeer = new GroundLift::Peer(_T("?"), szHostname,
+		reinterpret_cast<const struct sockaddr *>(& peer->sock->addr_in),
+		peer->sock->addr_in_size);
+	pThis->AppendPeerToList(glPeer);
+
+	// Free up any temporary resources.
+	free(szHostname);
 }

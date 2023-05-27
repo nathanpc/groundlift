@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Models/Peer.h"
+#include "Controllers/PeerDiscovery.h"
 
 /**
  * A dialog to send files to a specific client.
@@ -27,6 +28,7 @@ protected:
 	HWND hwndPeerList;
 	HWND hwndFilePathEdit;
 
+	GroundLift::PeerDiscovery peerDiscovery;
 	std::vector<GroundLift::Peer *> vecPeers;
 
 public:
@@ -46,6 +48,9 @@ private:
 	void AddPeerToList(int iRow, LPCTSTR szDeviceType, LPCTSTR szHostname,
 					   LPCTSTR szIPAddress);
 	void ClearPeersVector();
+
+	static void PeerDiscoveryEventHandler(const gl_discovery_peer_t *peer,
+										  void *arg);
 
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);
