@@ -163,10 +163,45 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 					break;
 			}
 			break;
+		case WM_NOTIFY:
+			LPNMHDR nmh = reinterpret_cast<LPNMHDR>(lParam);
+			switch (nmh->idFrom) {
+				case IDC_LIST_CLIENTS:
+					return ListClientsOnNotify(hDlg, wParam, lParam);
+			}
+			break;
 	}
 
 	// Pass the message to the default message handler.
 	return DefaultDlgProc(hDlg, wMsg, wParam, lParam);
+}
+
+/**
+ * Handles the WM_NOTIFY message of the client's List View.
+ * 
+ * @param hDlg   Dialog window handle.
+ * @param wParam Message parameter.
+ * @param lParam Message parameter.
+ */
+INT_PTR SendFileDialog::ListClientsOnNotify(HWND hDlg, WPARAM wParam,
+											LPARAM lParam) {
+	LPNMHDR nmh = reinterpret_cast<LPNMHDR>(lParam);
+
+	switch (nmh->code) {
+		case NM_CLICK:
+			// Get the selected item.
+			int iItem = ListView_GetNextItem(this->hwndPeerList, -1,
+											 LVNI_SELECTED);
+			if (iItem != -1) {
+				// Set the IP address bar to the selected item's IP address.
+				LPTSTR szIP = vecPeers[iItem]->IPAddress();
+				SetWindowText(this->hwndAddressEdit, szIP);
+				free(szIP);
+			}
+			break;
+	}
+
+	return 0;
 }
 
 /**

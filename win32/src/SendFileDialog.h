@@ -49,6 +49,8 @@ private:
 					   LPCTSTR szIPAddress);
 	void ClearPeersVector();
 
+	INT_PTR ListClientsOnNotify(HWND hDlg, WPARAM wParam, LPARAM lParam);
+
 	static void PeerDiscoveryEventHandler(const gl_discovery_peer_t *peer,
 										  void *arg);
 
