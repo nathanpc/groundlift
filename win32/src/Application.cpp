@@ -7,6 +7,8 @@
 
 #include "Application.h"
 
+#include <groundlift/conf.h>
+
 #include "AboutDialog.h"
 #include "SendFileDialog.h"
 
@@ -233,6 +235,8 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 
 	// Initialize some of GroundLift's common modules.
 	cap_init();
+	obex_init();
+	conf_init();
 
 	// Initialize the Send File dialog.
 	dlgSendFile = new SendFileDialog(hInst, hwndMain);
