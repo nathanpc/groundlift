@@ -35,6 +35,15 @@ typedef struct {
 } gl_client_progress_t;
 
 /**
+ * Structure holding all of the information about a discovered peer on the
+ * network.
+ */
+typedef struct {
+	const char *name;
+	const sock_bundle_t *sock;
+} gl_discovery_peer_t;
+
+/**
  * Client connected to server event callback function pointer type definition.
  *
  * @param client Client connection handle object.
@@ -78,11 +87,11 @@ typedef void (*gl_client_evt_put_succeed_func)(const file_bundle_t *fb);
 /**
  * Discovered peers event callback function pointer type definition.
  *
- * @param name Hostname of the peer.
- * @param addr IP address information of the peer.
+ * @param peer Discovered peer object.
+ * @param arg  Optional data set by the event handler setup.
  */
-typedef void (*gl_client_evt_discovery_peer_func)(const char *name,
-												  const struct sockaddr *addr);
+typedef void (*gl_client_evt_discovery_peer_func)(
+	const gl_discovery_peer_t *peer, void *arg);
 
 /**
  * Client handle object.
@@ -126,6 +135,11 @@ typedef struct {
 	struct {
 		gl_client_evt_discovery_peer_func discovered_peer;
 	} events;
+
+	/* Event handler arguments. */
+	struct {
+		void *discovered_peer;
+	} event_args;
 } discovery_client_t;
 
 /* Initialization and destruction. */
@@ -159,7 +173,8 @@ void gl_client_evt_put_progress_set(client_handle_t *handle,
 void gl_client_evt_put_succeed_set(client_handle_t *handle,
 								   gl_client_evt_put_succeed_func func);
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
-									  gl_client_evt_discovery_peer_func func);
+									  gl_client_evt_discovery_peer_func func,
+									  void *arg);
 
 #ifdef __cplusplus
 }

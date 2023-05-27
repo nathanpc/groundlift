@@ -22,7 +22,7 @@ void event_conn_req_resp(const file_bundle_t *fb, bool accepted);
 void event_send_progress(const gl_client_progress_t *progress);
 void event_send_success(const file_bundle_t *fb);
 void event_disconnected(const tcp_client_t *client);
-void event_peer_discovered(const char *name, const struct sockaddr *addr);
+void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
 
 /**
  * Perform an entire send exchange with the server.
@@ -97,7 +97,8 @@ gl_err_t *client_list_peers(void) {
 	}
 
 	/* Setup event handlers and the discovery socket. */
-	gl_client_evt_discovery_peer_set(g_discovery_client, event_peer_discovered);
+	gl_client_evt_discovery_peer_set(g_discovery_client, event_peer_discovered,
+									 NULL);
 	err = gl_client_discovery_setup(g_discovery_client, UDPSERVER_PORT);
 	if (err) {
 		log_printf(LOG_ERROR, "Discovery service setup failed.\n");
@@ -194,15 +195,11 @@ void event_disconnected(const tcp_client_t *client) {
 /**
  * Handles the peer discovered event.
  *
- * @param name Hostname of the peer.
- * @param addr IP address information of the peer.
+ * @param peer Discovered peer object.
+ * @param arg  Optional data set by the event handler setup.
  */
-void event_peer_discovered(const char *name, const struct sockaddr *addr) {
-	const struct sockaddr_in *addr_in;
-
-	/* Convert our address structure. */
-	addr_in = (const struct sockaddr_in *)addr;
-
+void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg) {
 	/* Display the discovered peer. */
-	printf("Discovered peer '%s' (%s)\n", name, inet_ntoa(addr_in->sin_addr));
+	printf("Discovered peer '%s' (%s)\n", peer->name,
+		   inet_ntoa(peer->sock->addr_in.sin_addr));
 }

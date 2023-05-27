@@ -256,6 +256,7 @@ discovery_client_t *gl_client_discovery_new(void) {
 	handle->thread = NULL;
 	handle->mutexes.client = thread_mutex_new();
 	handle->events.discovered_peer = NULL;
+	handle->event_args.discovered_peer = NULL;
 
 	return handle;
 }
@@ -764,8 +765,23 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 
 		/* Trigger the discovered peer event handler. */
 		if (handle->events.discovered_peer) {
-			handle->events.discovered_peer(header->value.string.text,
-				(const struct sockaddr *)&handle->sock.addr_in);
+			gl_discovery_peer_t *peer;
+
+			/* Allocate some memory for the peer object. */
+			peer = (gl_discovery_peer_t *)malloc(sizeof(gl_discovery_peer_t));
+			if (peer == NULL) {
+				return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+					EMSG("Failed to allocate the discovered peer object"));
+			}
+
+			/* Populate the discovered peer object. */
+			peer->name = header->value.string.text;
+			peer->sock = &handle->sock;
+			
+			/* Call the event handler and free the peer object. */
+			handle->events.discovered_peer(peer,
+										   handle->event_args.discovered_peer);
+			free(peer);
 		}
 
 		/* Free up resources. */
@@ -838,8 +854,11 @@ void gl_client_evt_put_succeed_set(client_handle_t *handle,
  *
  * @param handle Client's handle object.
  * @param func   Send File Operation Succeeded event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
-									  gl_client_evt_discovery_peer_func func) {
+									  gl_client_evt_discovery_peer_func func,
+									  void *arg) {
 	handle->events.discovered_peer = func;
+	handle->event_args.discovered_peer = arg;
 }
