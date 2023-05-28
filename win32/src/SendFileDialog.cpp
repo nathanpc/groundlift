@@ -29,6 +29,9 @@ SendFileDialog::SendFileDialog(HINSTANCE& hInst, HWND& hwndParent) :
 		reinterpret_cast<void *>(this));
 }
 
+/**
+ * Frees up any resources allocated by this object.
+ */
 SendFileDialog::~SendFileDialog() {
 	ClearPeersVector();
 }
