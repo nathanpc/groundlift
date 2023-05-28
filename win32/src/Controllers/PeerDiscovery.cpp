@@ -17,6 +17,16 @@
 using namespace GroundLift;
 
 /**
+ * WARNING REGARDING VISUAL C++ 6:
+ *
+ * When compiling this class using Visual Studio 6.0 you'll need to patch an
+ * SDK header in order to get rid of some compilation issues due to the nature
+ * of the project that mixes a C library with C++.
+ *
+ * Consult "docs/compiling_mscv6.md" for instructions.
+ */
+
+/**
  * Constructs a new object.
  */
 PeerDiscovery::PeerDiscovery() {
