@@ -30,9 +30,9 @@ private:
 public:
 	Peer(LPCTSTR szDeviceType, LPCTSTR szHostname,
 		 const struct sockaddr *saAddress, socklen_t lenAddress);
-	Peer() : Peer(NULL, NULL, NULL, 0) {};
 	Peer(LPCTSTR szDeviceType, LPCTSTR szHostname, LPCTSTR szIPAddress,
 		 USHORT usPort);
+	Peer();
 	virtual ~Peer();
 
 	LPCTSTR DeviceType();
@@ -40,6 +40,11 @@ public:
 	const struct sockaddr *SocketAddress();
 	socklen_t SocketAddressLength();
 	LPTSTR IPAddress();
+
+protected:
+	void Initialize(LPCTSTR szDeviceType, LPCTSTR szHostname,
+		 const struct sockaddr *saAddress, socklen_t lenAddress);
+
 };
 
 }

@@ -97,18 +97,18 @@ void SendFileDialog::AddPeerToList(int iRow, LPCTSTR szDeviceType,
 	lvi.state = 0;
 
 	// Setup and add the Device Type cell.
-	lvi.iSubItem = this->kDeviceTypeColIndex;
+	lvi.iSubItem = SendFileDialog::ColIndex::DeviceType;
 	lvi.pszText = const_cast<LPTSTR>(szDeviceType);
 	ListView_InsertItem(this->hwndPeerList, &lvi);
 
 	// Setup and add the Hostname cell.
 	lvi.mask = LVIF_TEXT;
-	lvi.iSubItem = this->kHostnameColIndex;
+	lvi.iSubItem = SendFileDialog::ColIndex::Hostname;
 	lvi.pszText = const_cast<LPTSTR>(szHostname);
 	ListView_SetItem(this->hwndPeerList, &lvi);
 
 	// Setup and add the IP Address cell.
-	lvi.iSubItem = this->kIPAddressColIndex;
+	lvi.iSubItem = SendFileDialog::ColIndex::IPAddress;
 	lvi.pszText = const_cast<LPTSTR>(szIPAddress);
 	ListView_SetItem(this->hwndPeerList, &lvi);
 }
@@ -246,7 +246,7 @@ void SendFileDialog::SetupPeerList() {
 	lvc.fmt = LVCFMT_LEFT;
 	lvc.cx = 30;
 	lvc.pszText = const_cast<LPTSTR>(_T("Type"));
-	lvc.iSubItem = this->kDeviceTypeColIndex;
+	lvc.iSubItem = SendFileDialog::ColIndex::DeviceType;
 	ListView_InsertColumn(this->hwndPeerList, lvc.iSubItem, &lvc);
 
 	// Setup the hostname column.
@@ -254,7 +254,7 @@ void SendFileDialog::SetupPeerList() {
 	lvc.fmt = LVCFMT_LEFT;
 	lvc.cx = 140;
 	lvc.pszText = const_cast<LPTSTR>(_T("Hostname"));
-	lvc.iSubItem = this->kHostnameColIndex;
+	lvc.iSubItem = SendFileDialog::ColIndex::Hostname;
 	ListView_InsertColumn(this->hwndPeerList, lvc.iSubItem, &lvc);
 
 	// Setup the IP address column.
@@ -262,7 +262,7 @@ void SendFileDialog::SetupPeerList() {
 	lvc.fmt = LVCFMT_LEFT;
 	lvc.cx = 170;
 	lvc.pszText = const_cast<LPTSTR>(_T("IP Address"));
-	lvc.iSubItem = this->kIPAddressColIndex;
+	lvc.iSubItem = SendFileDialog::ColIndex::IPAddress;
 	ListView_InsertColumn(this->hwndPeerList, lvc.iSubItem, &lvc);
 }
 

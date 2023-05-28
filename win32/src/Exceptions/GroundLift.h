@@ -25,8 +25,8 @@ private:
 	gl_err_t *err;
 
 public:
-	Exception(gl_err_t *err) noexcept :
-		std::exception(err->msg, 1) {
+	Exception(gl_err_t *err) :
+		std::exception(err->msg) {
 		this->err = err;
 	};
 	virtual ~Exception();

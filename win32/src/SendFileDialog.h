@@ -31,6 +31,12 @@ protected:
 	GroundLift::PeerDiscovery peerDiscovery;
 	std::vector<GroundLift::Peer *> vecPeers;
 
+	enum ColIndex {
+		DeviceType = 0,
+		Hostname,
+		IPAddress
+	};
+
 public:
 	SendFileDialog(HINSTANCE& hInst, HWND& hwndParent);
 	virtual ~SendFileDialog();
@@ -39,10 +45,6 @@ public:
 	void AppendPeerToList(GroundLift::Peer *peer);
 
 private:
-	const int kDeviceTypeColIndex = 0;
-	const int kHostnameColIndex = 1;
-	const int kIPAddressColIndex = 2;
-
 	void SetupPeerList();
 	void AddPeerToList(int iRow, GroundLift::Peer *peer);
 	void AddPeerToList(int iRow, LPCTSTR szDeviceType, LPCTSTR szHostname,

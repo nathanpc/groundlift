@@ -23,18 +23,7 @@ using namespace GroundLift;
  */
 Peer::Peer(LPCTSTR szDeviceType, LPCTSTR szHostname,
 		   const struct sockaddr *saAddress, socklen_t lenAddress) {
-	this->szDeviceType = _tcsdup(szDeviceType);
-	this->szHostname = _tcsdup(szHostname);
-	this->saAddress = NULL;
-	this->lenAddress = lenAddress;
-
-	// Allocate memory and copy our socket address structure.
-	if (saAddress) {
-		this->saAddress = static_cast<struct sockaddr *>(malloc(lenAddress));
-		if (this->saAddress == NULL)
-			throw std::bad_alloc();
-		memcpy(this->saAddress, saAddress, lenAddress);
-	}
+	Initialize(szDeviceType, szHostname, saAddress, lenAddress);
 }
 
 /**
@@ -46,9 +35,12 @@ Peer::Peer(LPCTSTR szDeviceType, LPCTSTR szHostname,
  * @param usPort       Port of the server on the peer.
  */
 Peer::Peer(LPCTSTR szDeviceType, LPCTSTR szHostname, LPCTSTR szIPAddress,
-		   USHORT usPort) : Peer(szDeviceType, szHostname, NULL, 0) {
+		   USHORT usPort) {
 	struct sockaddr_in *addr;
 	char *szIP;
+
+	// Initialize common properties.
+	Initialize(szDeviceType, szHostname, NULL, 0);
 
 	// Convert our IP to UTF-8.
 	szIP = utf16_wcstombs(szIPAddress);
@@ -70,6 +62,16 @@ Peer::Peer(LPCTSTR szDeviceType, LPCTSTR szHostname, LPCTSTR szIPAddress,
 
 	// Free our temporary resources.
 	free(szIP);
+}
+
+/**
+ * Constructs an empty Peer object.
+ */
+Peer::Peer() {
+	this->szDeviceType = NULL;
+	this->szHostname = NULL;
+	this->saAddress = NULL;
+	this->lenAddress = 0;
 }
 
 /**
@@ -146,4 +148,29 @@ LPTSTR Peer::IPAddress() {
 	free(szBuffer);
 
 	return wszBuffer;
+}
+
+/**
+ * Initializes some of the object's properties. This is used to provide a
+ * common initialization section for our constructors.
+ * 
+ * @param szDeviceType Type of device of the peer.
+ * @param szHostname   Hostname of the peer.
+ * @param saAddress    Socket address structure pointing to the peer.
+ * @param lenAddress   Length in bytes of the socket address structure.
+ */
+void Peer::Initialize(LPCTSTR szDeviceType, LPCTSTR szHostname,
+					  const struct sockaddr *saAddress, socklen_t lenAddress) {
+	this->szDeviceType = _tcsdup(szDeviceType);
+	this->szHostname = _tcsdup(szHostname);
+	this->saAddress = NULL;
+	this->lenAddress = lenAddress;
+
+	// Allocate memory and copy our socket address structure.
+	if (saAddress) {
+		this->saAddress = static_cast<struct sockaddr *>(malloc(lenAddress));
+		if (this->saAddress == NULL)
+			throw std::bad_alloc();
+		memcpy(this->saAddress, saAddress, lenAddress);
+	}
 }

@@ -89,14 +89,6 @@ LINK32=link.exe
 
 # Name "Desktop - Win32 Release"
 # Name "Desktop - Win32 Debug"
-# Begin Group "Source Files"
-
-# PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
-# End Group
-# Begin Group "Header Files"
-
-# PROP Default_Filter "h;hpp;hxx;hm;inl"
-# End Group
 # Begin Group "Resource Files"
 
 # PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;rc"
@@ -125,7 +117,7 @@ SOURCE=.\resource.h
 SOURCE=.\small.ico
 # End Source File
 # End Group
-# Begin Group "Windows"
+# Begin Group "Views"
 
 # PROP Default_Filter ""
 # Begin Source File
@@ -151,6 +143,42 @@ SOURCE=..\..\src\SendFileDialog.cpp
 # Begin Source File
 
 SOURCE=..\..\src\SendFileDialog.h
+# End Source File
+# End Group
+# Begin Group "Models"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\..\src\Models\Peer.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\Models\Peer.h
+# End Source File
+# End Group
+# Begin Group "Controllers"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\..\src\Controllers\PeerDiscovery.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\Controllers\PeerDiscovery.h
+# End Source File
+# End Group
+# Begin Group "Exceptions"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\..\src\Exceptions\GroundLift.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\Exceptions\GroundLift.h
 # End Source File
 # End Group
 # End Target
