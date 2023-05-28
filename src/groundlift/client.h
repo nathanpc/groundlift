@@ -47,16 +47,19 @@ typedef struct {
  * Client connected to server event callback function pointer type definition.
  *
  * @param client Client connection handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-typedef void (*gl_client_evt_conn_func)(const tcp_client_t *client);
+typedef void (*gl_client_evt_conn_func)(const tcp_client_t *client, void *arg);
 
 /**
  * Client disconnected to server event callback function pointer type
  * definition.
  *
  * @param client Client connection handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client);
+typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client,
+										   void *arg);
 
 /**
  * Client connection request reply received event callback function pointer type
@@ -64,25 +67,29 @@ typedef void (*gl_client_evt_disconn_func)(const tcp_client_t *client);
  *
  * @param fb       File bundle that was uploaded.
  * @param accepted Has the connection request been accepted?
+ * @param arg      Optional data set by the event handler setup.
  */
 typedef void (*gl_client_evt_conn_req_resp_func)(const file_bundle_t *fb,
-												 bool accepted);
+												 bool accepted, void *arg);
 
 /**
  * Client file upload progress event callback function pointer type definition.
  *
  * @param progress Structure containing all the information about the progress.
+ * @param arg      Optional data set by the event handler setup.
  */
 typedef void (*gl_client_evt_put_progress_func)(
-	const gl_client_progress_t *progress);
+	const gl_client_progress_t *progress, void *arg);
 
 /**
  * Client file upload succeeded event callback function pointer type
  * definition.
  *
- * @param fb File bundle that was uploaded.
+ * @param fb  File bundle that was uploaded.
+ * @param arg Optional data set by the event handler setup.
  */
-typedef void (*gl_client_evt_put_succeed_func)(const file_bundle_t *fb);
+typedef void (*gl_client_evt_put_succeed_func)(const file_bundle_t *fb,
+											   void *arg);
 
 /**
  * Discovered peers event callback function pointer type definition.
@@ -117,6 +124,15 @@ typedef struct {
 		gl_client_evt_put_progress_func put_progress;
 		gl_client_evt_put_succeed_func put_succeeded;
 	} events;
+
+	/* Event handler arguments. */
+	struct {
+		void *connected;
+		void *disconnected;
+		void *request_response;
+		void *put_progress;
+		void *put_succeeded;
+	} event_args;
 } client_handle_t;
 
 /**
@@ -163,15 +179,18 @@ gl_err_t *gl_client_discovery_free(discovery_client_t *handle);
 
 /* Event handler setters. */
 void gl_client_evt_conn_set(client_handle_t *handle,
-							gl_client_evt_conn_func func);
+							gl_client_evt_conn_func func, void *arg);
 void gl_client_evt_disconn_set(client_handle_t *handle,
-							   gl_client_evt_disconn_func func);
+							   gl_client_evt_disconn_func func, void *arg);
 void gl_client_evt_conn_req_resp_set(client_handle_t *handle,
-									 gl_client_evt_conn_req_resp_func func);
+									 gl_client_evt_conn_req_resp_func func,
+									 void *arg);
 void gl_client_evt_put_progress_set(client_handle_t *handle,
-									gl_client_evt_put_progress_func func);
+									gl_client_evt_put_progress_func func,
+									void *arg);
 void gl_client_evt_put_succeed_set(client_handle_t *handle,
-								   gl_client_evt_put_succeed_func func);
+								   gl_client_evt_put_succeed_func func,
+								   void *arg);
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
 									  gl_client_evt_discovery_peer_func func,
 									  void *arg);

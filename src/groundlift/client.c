@@ -61,6 +61,11 @@ client_handle_t *gl_client_new(void) {
 	handle->events.request_response = NULL;
 	handle->events.put_progress = NULL;
 	handle->events.put_succeeded = NULL;
+	handle->event_args.connected = NULL;
+	handle->event_args.disconnected = NULL;
+	handle->event_args.request_response = NULL;
+	handle->event_args.put_progress = NULL;
+	handle->event_args.put_succeeded = NULL;
 
 	return handle;
 }
@@ -589,7 +594,8 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 		/* Update the progress of the transfer via an event. */
 		if (handle->events.put_progress != NULL) {
 			progress.sent_chunk = cc + 1;
-			handle->events.put_progress(&progress);
+			handle->events.put_progress(&progress,
+										handle->event_args.put_progress);
 		}
 
 		/* Read the response packet. */
@@ -636,7 +642,8 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 
 	/* Trigger the put succeeded event. */
 	if ((err == NULL) && (handle->events.put_succeeded != NULL))
-		handle->events.put_succeeded(handle->fb);
+		handle->events.put_succeeded(handle->fb,
+									 handle->event_args.put_succeeded);
 
 	return err;
 }
@@ -684,12 +691,13 @@ void *client_thread_func(void *handle_ptr) {
 
 	/* Trigger the connected event callback. */
 	if (handle->events.connected != NULL)
-		handle->events.connected(handle->client);
+		handle->events.connected(handle->client, handle->event_args.connected);
 
 	/* Send the OBEX connection request and trigger an event upon reply. */
 	gl_err = gl_client_send_conn_req(handle, &handle->running);
 	if (handle->events.request_response != NULL)
-		handle->events.request_response(handle->fb, handle->running);
+		handle->events.request_response(handle->fb, handle->running,
+										handle->event_args.request_response);
 	if (!handle->running || (gl_err != NULL))
 		goto disconnect;
 
@@ -702,7 +710,8 @@ disconnect:
 	/* Disconnect from server, free up any resources, and trigger callback. */
 	gl_client_disconnect(handle);
 	if (handle->events.disconnected != NULL)
-		handle->events.disconnected(handle->client);
+		handle->events.disconnected(handle->client,
+									handle->event_args.disconnected);
 
 	return (void *)gl_err;
 }
@@ -799,10 +808,12 @@ void *peer_discovery_thread_func(void *handle_ptr) {
  *
  * @param handle Client's handle object.
  * @param func   Connected event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_conn_set(client_handle_t *handle,
-							gl_client_evt_conn_func func) {
+							gl_client_evt_conn_func func, void *arg) {
 	handle->events.connected = func;
+	handle->event_args.connected = arg;
 }
 
 /**
@@ -810,10 +821,12 @@ void gl_client_evt_conn_set(client_handle_t *handle,
  *
  * @param handle Client's handle object.
  * @param func   Disconnected event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_disconn_set(client_handle_t *handle,
-							   gl_client_evt_disconn_func func) {
+							   gl_client_evt_disconn_func func, void *arg) {
 	handle->events.disconnected = func;
+	handle->event_args.disconnected = arg;
 }
 
 /**
@@ -821,10 +834,13 @@ void gl_client_evt_disconn_set(client_handle_t *handle,
  *
  * @param handle Client's handle object.
  * @param func   Connection Request Reply event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_conn_req_resp_set(client_handle_t *handle,
-									 gl_client_evt_conn_req_resp_func func) {
+									 gl_client_evt_conn_req_resp_func func,
+									 void *arg) {
 	handle->events.request_response = func;
+	handle->event_args.request_response = arg;
 }
 
 /**
@@ -832,10 +848,13 @@ void gl_client_evt_conn_req_resp_set(client_handle_t *handle,
  *
  * @param handle Client's handle object.
  * @param func   Send File Operation Succeeded event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_put_progress_set(client_handle_t *handle,
-									gl_client_evt_put_progress_func func) {
+									gl_client_evt_put_progress_func func,
+									void *arg) {
 	handle->events.put_progress = func;
+	handle->event_args.put_progress = arg;
 }
 
 /**
@@ -843,10 +862,13 @@ void gl_client_evt_put_progress_set(client_handle_t *handle,
  *
  * @param handle Client's handle object.
  * @param func   Send File Operation Succeeded event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_put_succeed_set(client_handle_t *handle,
-								   gl_client_evt_put_succeed_func func) {
+								   gl_client_evt_put_succeed_func func,
+								   void *arg) {
 	handle->events.put_succeeded = func;
+	handle->event_args.put_succeeded = arg;
 }
 
 /**

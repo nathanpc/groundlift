@@ -17,11 +17,11 @@ client_handle_t *g_client;
 discovery_client_t *g_discovery_client;
 
 /* Client event handlers. */
-void event_connected(const tcp_client_t *client);
-void event_conn_req_resp(const file_bundle_t *fb, bool accepted);
-void event_send_progress(const gl_client_progress_t *progress);
-void event_send_success(const file_bundle_t *fb);
-void event_disconnected(const tcp_client_t *client);
+void event_connected(const tcp_client_t *client, void *arg);
+void event_conn_req_resp(const file_bundle_t *fb, bool accepted, void *arg);
+void event_send_progress(const gl_client_progress_t *progress, void *arg);
+void event_send_success(const file_bundle_t *fb, void *arg);
+void event_disconnected(const tcp_client_t *client, void *arg);
 void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
 
 /**
@@ -45,11 +45,11 @@ gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
 	}
 
 	/* Setup event handlers. */
-	gl_client_evt_conn_set(g_client, event_connected);
-	gl_client_evt_conn_req_resp_set(g_client, event_conn_req_resp);
-	gl_client_evt_put_progress_set(g_client, event_send_progress);
-	gl_client_evt_put_succeed_set(g_client, event_send_success);
-	gl_client_evt_disconn_set(g_client, event_disconnected);
+	gl_client_evt_conn_set(g_client, event_connected, NULL);
+	gl_client_evt_conn_req_resp_set(g_client, event_conn_req_resp, NULL);
+	gl_client_evt_put_progress_set(g_client, event_send_progress, NULL);
+	gl_client_evt_put_succeed_set(g_client, event_send_success, NULL);
+	gl_client_evt_disconn_set(g_client, event_disconnected, NULL);
 
 	/* Setup the client. */
 	err = gl_client_setup(g_client, ip, port, fname);
@@ -131,9 +131,13 @@ cleanup:
  * Handles the client connected event.
  *
  * @param client Client connection handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-void event_connected(const tcp_client_t *client) {
+void event_connected(const tcp_client_t *client, void *arg) {
 	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
 
 	/* Print some information about the current state of the connection. */
 	ipstr = tcp_client_get_ipstr(client);
@@ -149,8 +153,12 @@ void event_connected(const tcp_client_t *client) {
  *
  * @param fb       File bundle that was uploaded.
  * @param accepted Has the connection been accepted by the server?
+ * @param arg      Optional data set by the event handler setup.
  */
-void event_conn_req_resp(const file_bundle_t *fb, bool accepted) {
+void event_conn_req_resp(const file_bundle_t *fb, bool accepted, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	if (accepted) {
 		printf("Server accepted receiving %s\n", fb->base);
 	} else {
@@ -162,8 +170,12 @@ void event_conn_req_resp(const file_bundle_t *fb, bool accepted) {
  * Handles the client's file upload progress event.
  *
  * @param progress Structure containing all the information about the progress.
+ * @param arg      Optional data set by the event handler setup.
  */
-void event_send_progress(const gl_client_progress_t *progress) {
+void event_send_progress(const gl_client_progress_t *progress, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Sending %s (%u/%lu)\n", progress->fb->base, progress->sent_bytes,
 		   progress->fb->size);
 }
@@ -171,9 +183,13 @@ void event_send_progress(const gl_client_progress_t *progress) {
 /**
  * Handles the client's file upload succeeded event.
  *
- * @param fb File bundle that was uploaded.
+ * @param fb  File bundle that was uploaded.
+ * @param arg Optional data set by the event handler setup.
  */
-void event_send_success(const file_bundle_t *fb) {
+void event_send_success(const file_bundle_t *fb, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Finished sending %s\n", fb->base);
 }
 
@@ -181,9 +197,13 @@ void event_send_success(const file_bundle_t *fb) {
  * Handles the client disconnection event.
  *
  * @param client Client connection handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-void event_disconnected(const tcp_client_t *client) {
+void event_disconnected(const tcp_client_t *client, void *arg) {
 	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
 
 	/* Print some information about the disconnection. */
 	ipstr = tcp_client_get_ipstr(client);
