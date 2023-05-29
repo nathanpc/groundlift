@@ -10,6 +10,8 @@
 #include <utils/utf16.h>
 
 #include "CommonIncludes.h"
+#include "WindowUtilities.h"
+#include "SendProgressDialog.h"
 
 /**
  * Initializes the dialog window object.
@@ -61,6 +63,36 @@ void SendFileDialog::AppendPeerToList(GroundLift::Peer *peer) {
 	this->vecPeers.push_back(peer);
 	iPos = this->vecPeers.size() - 1;
 	AddPeerToList(iPos, this->vecPeers.at(iPos));
+}
+
+/**
+ * Sends the selected file to the selected peer.
+ *
+ * @param hDlg Dialog window handle.
+ */
+void SendFileDialog::SendFile(HWND hDlg) {
+	SendProgressDialog *dlgProgress;
+	LPTSTR szIP;
+	LPTSTR szFilePath;
+
+	// Get the necessary information from our dialog.
+	szIP = GetWindowTextAlloc(this->hwndAddressEdit);
+	szFilePath = GetWindowTextAlloc(this->hwndFilePathEdit);
+
+	// TODO: Perform validation checks.
+
+	// TODO: Check if the IP corresponds to a peer so that we can pass it over.
+	
+	// TODO: Make a factory so that we can properly dispose of this later.
+	dlgProgress = new SendProgressDialog(this->hInst, this->hwndParent);
+	dlgProgress->Show();
+
+	// Send the file.
+	dlgProgress->SendFile(szIP, szFilePath);
+
+	// Free up our temporary buffers.
+	free(szIP);
+	free(szFilePath);
 }
 
 /**
@@ -159,7 +191,7 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 				case IDC_BUTTON_BROWSE:
 					return ButtonBrowseOnCommand(hDlg, wParam, lParam);
 				case IDOK:
-					//MsgBox(hDlg, MB_OK, L"Send File", L"Send the file!");
+					SendFile(hDlg);
 					break;
 			}
 			break;
@@ -284,7 +316,7 @@ void SendFileDialog::ClearPeersVector() {
 }
 
 /**
- * Handles the raw Peer Discovered event.
+ * Handles the Peer Discovered event.
  * 
  * @param peer Discovered peer object.
  * @param arg  Optional data set by the event handler setup.

@@ -50,6 +50,9 @@
     <ClInclude Include="..\..\src\Controllers\PeerDiscovery.h">
       <Filter>Controllers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\SendProgressDialog.h">
+      <Filter>Windows and Dialogs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\AboutDialog.cpp">
@@ -72,6 +75,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Controllers\PeerDiscovery.cpp">
       <Filter>Controllers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\SendProgressDialog.cpp">
+      <Filter>Windows and Dialogs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

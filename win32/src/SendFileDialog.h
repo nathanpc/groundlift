@@ -44,6 +44,8 @@ public:
 	void RefreshPeerList();
 	void AppendPeerToList(GroundLift::Peer *peer);
 
+	void SendFile(HWND hDlg);
+
 private:
 	void SetupPeerList();
 	void AddPeerToList(int iRow, GroundLift::Peer *peer);
