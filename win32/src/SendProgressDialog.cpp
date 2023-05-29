@@ -174,15 +174,8 @@ void SendProgressDialog::SetupControls(HWND hDlg) {
  */
 void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 											  bool accepted, void *arg) {
-	SendProgressDialog *pThis;
-
 	// Get ourselves from the optional argument.
-	pThis = reinterpret_cast<SendProgressDialog *>(arg);
-	if (pThis == NULL) {
-		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
-			_T("Failed to get dialog object from event handler argument."));
-		return;
-	}
+	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
 	// TODO: Setup the progress bar and progress label.
 
@@ -206,15 +199,8 @@ void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
  */
 void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 									void *arg) {
-	SendProgressDialog *pThis;
-
 	// Get ourselves from the optional argument.
-	pThis = reinterpret_cast<SendProgressDialog *>(arg);
-	if (pThis == NULL) {
-		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
-			_T("Failed to get dialog object from event handler argument."));
-		return;
-	}
+	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
 	// Update the progress label.
 	SetWindowFormatText(pThis->hwndProgressLabel,
@@ -233,15 +219,8 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
  * @param arg Optional data set by the event handler setup.
  */
 void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
-	SendProgressDialog *pThis;
-
 	// Get ourselves from the optional argument.
-	pThis = reinterpret_cast<SendProgressDialog *>(arg);
-	if (pThis == NULL) {
-		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
-			_T("Failed to get dialog object from event handler argument."));
-		return;
-	}
+	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
 	// Update the context label.
 	SetWindowText(pThis->hwndContextLabel,
@@ -249,4 +228,26 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 
 	// Change the cancel button into a close button.
 	pThis->SwitchCancelButtonToClose();
+}
+
+/**
+ * Get our own object pointer statically from a void pointer.
+ * 
+ * @param lpvThis Pointer to a valid instance of ourselves.
+ * 
+ * @return Pointer to an instance of ourselves.
+ */
+SendProgressDialog *SendProgressDialog::GetOurObjectPointer(void *lpvThis) {
+	SendProgressDialog *pThis = NULL;
+
+	// Cast the pointer to ourselves.
+	pThis = reinterpret_cast<SendProgressDialog *>(lpvThis);
+	if (pThis == NULL) {
+		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
+			_T("Failed to get instance of SendProgressDialog from pointer."));
+		throw std::exception(
+			"Failed to get instance of SendProgressDialog from pointer");
+	}
+
+	return pThis;
 }

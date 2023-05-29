@@ -50,6 +50,8 @@ private:
 	static void OnProgress(const gl_client_progress_t *progress, void *arg);
 	static void OnSuccess(const file_bundle_t *fb, void *arg);
 
+	static SendProgressDialog *GetOurObjectPointer(void *lpvThis);
+
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);
 };
