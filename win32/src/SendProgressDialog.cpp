@@ -52,17 +52,14 @@ SendProgressDialog::~SendProgressDialog() {
  * @param szFilePath Path to the file to be sent.
  */
 void SendProgressDialog::SendFile(LPCTSTR szIP, LPCTSTR szFilePath) {
-	TCHAR szBuffer[MAX_PATH];
 	LPCTSTR szBasename;
 
 	// Get the file basename.
 	szBasename = PathFindFileName(szFilePath);
 
 	// Set the context label text.
-	wsprintf(szBuffer, _T("Waiting for %s to accept %s"), szIP, szBasename);
-	SetWindowText(this->hwndContextLabel, szBuffer);
-
-	// TODO: Create a function to set the window text as printf.
+	SetWindowFormatText(this->hwndContextLabel,
+						_T("Waiting for %s to accept %s"), szIP, szBasename);
 
 	// TODO: Put progress bar in marquee mode.
 
@@ -210,7 +207,6 @@ void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 									void *arg) {
 	SendProgressDialog *pThis;
-	TCHAR szBuffer[MAX_PATH];
 
 	// Get ourselves from the optional argument.
 	pThis = reinterpret_cast<SendProgressDialog *>(arg);
@@ -221,9 +217,9 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 	}
 
 	// Update the progress label.
-	wsprintf(szBuffer, _T("%lu bytes of %I64u bytes"), progress->sent_bytes,
-			 progress->fb->size);
-	SetWindowText(pThis->hwndProgressLabel, szBuffer);
+	SetWindowFormatText(pThis->hwndProgressLabel,
+						_T("%lu bytes of %I64u bytes"), progress->sent_bytes,
+						progress->fb->size);
 
 	// TODO: Update the progress bar with chunks.
 

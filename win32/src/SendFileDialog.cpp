@@ -10,7 +10,6 @@
 #include <utils/utf16.h>
 
 #include "CommonIncludes.h"
-#include "WindowUtilities.h"
 #include "SendProgressDialog.h"
 
 /**

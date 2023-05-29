@@ -17,8 +17,10 @@ extern "C" {
 #endif  // __cplusplus
 
 #include <windows.h>
+#include <stdarg.h>
 
 LPTSTR GetWindowTextAlloc(HWND hWnd);
+BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...);
 
 #ifdef  __cplusplus
 }

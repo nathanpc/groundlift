@@ -28,5 +28,6 @@
 // Utilities
 #include <utils/capabilities.h>
 #include <MsgBoxes.h>
+#include <WindowUtilities.h>
 
 #endif // _WINGL_COMMONINCLUDES_H
