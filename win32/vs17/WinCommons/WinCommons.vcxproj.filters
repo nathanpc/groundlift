@@ -21,12 +21,18 @@
     <ClCompile Include="..\..\common\MsgBoxes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\common\WindowUtilities.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\common\DialogWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\common\MsgBoxes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\common\WindowUtilities.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

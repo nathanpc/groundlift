@@ -26,10 +26,12 @@
   <ItemGroup>
     <ClCompile Include="..\..\common\DialogWindow.cpp" />
     <ClCompile Include="..\..\common\MsgBoxes.c" />
+    <ClCompile Include="..\..\common\WindowUtilities.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\common\DialogWindow.h" />
     <ClInclude Include="..\..\common\MsgBoxes.h" />
+    <ClInclude Include="..\..\common\WindowUtilities.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
