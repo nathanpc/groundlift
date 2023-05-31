@@ -58,15 +58,15 @@ BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...) {
 
 	/* Get the number of characters needed for the buffer. */
 	nLen = _vsntprintf(NULL, 0, szFormat, args);
-	nLen++;
 
 	/* Allocate the buffer to hold the string. */
-	szBuffer = (LPTSTR)malloc(nLen * sizeof(TCHAR));
+	szBuffer = (LPTSTR)malloc((nLen + 1) * sizeof(TCHAR));
 	if (szBuffer == NULL)
 		return FALSE;
 
-	/* Populate the buffer. */
+	/* Populate the buffer and ensure its termination. */
 	_vsntprintf(szBuffer, nLen, szFormat, args);
+	szBuffer[nLen] = _T('\0');
 
 	va_end(args);
 
@@ -75,4 +75,25 @@ BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...) {
 
 	/* Free our temporary buffer. */
 	free(szBuffer);
+}
+
+/**
+ * Sets the default button in a dialog box and ensures any previous default
+ * button looses its default button style.
+ * 
+ * @param hDlg Dialog handle.
+ * @param nID  ID of the new default button in the dialog.
+ */
+void SetDlgDefaultButton(HWND hDlg, int nID) {
+	LRESULT lDefButton;
+
+	// Get the current default button.
+	lDefButton = SendMessage(hDlg, DM_GETDEFID, 0, 0);
+
+	// Ensure that the last default button looses its style.
+	if (HIWORD(lDefButton) == DC_HASDEFID)
+		SendMessage(hDlg, BM_SETSTYLE, BS_PUSHBUTTON, MAKELPARAM(TRUE, 0));
+
+	// Set the new default button.
+	SendMessage(hDlg, DM_SETDEFID, nID, 0);
 }

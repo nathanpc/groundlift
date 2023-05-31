@@ -22,6 +22,8 @@ extern "C" {
 LPTSTR GetWindowTextAlloc(HWND hWnd);
 BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...);
 
+void SetDlgDefaultButton(HWND hDlg, int nID);
+
 #ifdef  __cplusplus
 }
 #endif  // __cplusplus
