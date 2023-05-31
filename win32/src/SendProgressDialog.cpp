@@ -20,7 +20,7 @@
  * @param hwndParent Parent window handle.
  */
 SendProgressDialog::SendProgressDialog(HINSTANCE& hInst, HWND& hwndParent) :
-	DialogWindow(hInst, hwndParent, IDD_TRANSFER) {
+	ProgressDialog(hInst, hwndParent, IDD_TRANSFER) {
 	this->hwndContextLabel = NULL;
 	this->hwndProgressBar = NULL;
 	this->hwndRateLabel = NULL;
@@ -82,16 +82,6 @@ void SendProgressDialog::SendFile(GroundLift::Peer& peer, LPCTSTR szFilePath) {
 }
 
 /**
- * Switches the cancel button into a close button.
- */
-void SendProgressDialog::SwitchCancelButtonToClose() {
-	// TODO: Make the default button of the dialog.
-
-	// Change the text of the button.
-	SetWindowText(this->hwndCancelButton, _T("Close"));
-}
-
-/**
  * Dialog window procedure.
  *
  * @param hDlg   Dialog window handle.
@@ -108,42 +98,19 @@ INT_PTR CALLBACK SendProgressDialog::DlgProc(HWND hDlg, UINT wMsg,
 	// Handle messages.
 	switch (wMsg) {
 		case WM_INITDIALOG:
-			// Get the handle of every useful control in the window.
-			this->hwndContextLabel = GetDlgItem(hDlg,
-												IDC_STATIC_TRANSFER_CONTEXT);
-			this->hwndProgressBar = GetDlgItem(hDlg, IDC_PROGRESS);
-			this->hwndRateLabel = GetDlgItem(hDlg, IDC_STATIC_RATE);
-			this->hwndProgressLabel = GetDlgItem(hDlg, IDC_STATIC_PROGRESS);
-			this->hwndOpenFileButton = GetDlgItem(hDlg, IDC_OPEN_FILE);
-			this->hwndOpenFolderButton = GetDlgItem(hDlg, IDC_OPEN_FOLDER);
-			this->hwndCancelButton = GetDlgItem(hDlg, IDCANCEL);
-
 			// Setup the controls for this operation.
 			SetupControls(hDlg);
 			break;
-		case WM_CTLCOLORDLG:
-		case WM_CTLCOLORBTN:
-		case WM_CTLCOLOREDIT:
-		case WM_CTLCOLORLISTBOX:
-		case WM_CTLCOLORSCROLLBAR:
-		case WM_CTLCOLORSTATIC:
-			if (cap_win_least_11()) {
-				// Ensure we use the default background color of a window.
-				return reinterpret_cast<INT_PTR>(
-					GetSysColorBrush(COLOR_WINDOW));
-			}
-			break;
 		case WM_COMMAND:
 			switch (LOWORD(wParam)) {
-				case IDCANCEL:
-					MsgBox(hDlg, MB_OK, L"Send File", L"CANCELED!");
+				case IDOK:
 					break;
 			}
 			break;
 	}
 
 	// Pass the message to the default message handler.
-	return DefaultDlgProc(hDlg, wMsg, wParam, lParam);
+	return ProgressDialog::DlgProc(hDlg, wMsg, wParam, lParam);
 }
 
 /**
@@ -152,6 +119,9 @@ INT_PTR CALLBACK SendProgressDialog::DlgProc(HWND hDlg, UINT wMsg,
  * @param hDlg Dialog window handle.
  */
 void SendProgressDialog::SetupControls(HWND hDlg) {
+	// Set some defaults first.
+	ProgressDialog::SetupControls(hDlg);
+
 	// Change the dialog's title to something more specific.
 	SetWindowText(hDlg, _T("Sending file..."));
 
@@ -183,7 +153,7 @@ void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 	if (!accepted) {
 		SetWindowText(pThis->hwndContextLabel,
 					  _T("Peer declined our file transfer"));
-		pThis->SwitchCancelButtonToClose();
+		pThis->SwitchCancelButtonToClose(true);
 		return;
 	} else {
 		SetWindowText(pThis->hwndContextLabel,
@@ -227,7 +197,7 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 				  _T("Successfully transferred the file"));
 
 	// Change the cancel button into a close button.
-	pThis->SwitchCancelButtonToClose();
+	pThis->SwitchCancelButtonToClose(true);
 }
 
 /**

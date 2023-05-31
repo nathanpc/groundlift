@@ -53,6 +53,9 @@
     <ClInclude Include="..\..\src\SendProgressDialog.h">
       <Filter>Windows and Dialogs</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ProgressDialog.h">
+      <Filter>Windows and Dialogs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\AboutDialog.cpp">
@@ -77,6 +80,9 @@
       <Filter>Controllers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\SendProgressDialog.cpp">
+      <Filter>Windows and Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ProgressDialog.cpp">
       <Filter>Windows and Dialogs</Filter>
     </ClCompile>
   </ItemGroup>
