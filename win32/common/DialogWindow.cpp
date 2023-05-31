@@ -16,7 +16,7 @@
  *
  * @param hInst      Application's instance that this dialog belongs to.
  * @param hwndParent Parent window handle.
- * @param lpTemplate Dialog resource ID.
+ * @param wResID     Dialog resource ID.
  */
 DialogWindow::DialogWindow(HINSTANCE& hInst, HWND& hwndParent, WORD wResID) :
 	hInst(hInst),
