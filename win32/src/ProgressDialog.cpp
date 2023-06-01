@@ -31,6 +31,8 @@ ProgressDialog::ProgressDialog(HINSTANCE& hInst, HWND& hwndParent,
 	this->hwndCancelButton = NULL;
 
 	this->isButtonClose = false;
+	this->fsTarget = 0;
+	this->bDivideProgress = false;
 }
 
 /**
@@ -56,6 +58,61 @@ void ProgressDialog::SwitchCancelButtonToClose(bool bMakeDefault) {
 	// Change the text of the button.
 	SetWindowText(this->hwndCancelButton, _T("Close"));
 	this->isButtonClose = true;
+}
+
+/**
+ * Turns the marquee mode of the progress bar ON or OFF.
+ * 
+ * @param bEnable Enable the marquee mode?
+ */
+void ProgressDialog::SetProgressBarMarquee(bool bEnabled) {
+	if (bEnabled) {
+		// Enable the marquee style and let it roll.
+		SetWindowLongPtr(this->hwndProgressBar, GWL_STYLE,
+			GetWindowLongPtr(this->hwndProgressBar, GWL_STYLE) | PBS_MARQUEE);
+		SendMessage(this->hwndProgressBar, PBM_SETMARQUEE, TRUE, 0);
+	} else {
+		// Remove the marquee style from the window style flags.
+		LONG_PTR lWnd = GetWindowLongPtr(this->hwndProgressBar, GWL_STYLE);
+		lWnd &= ~(PBS_MARQUEE);
+
+		// Stop the marquee animation and remove the style.
+		SendMessage(this->hwndProgressBar, PBM_SETMARQUEE, FALSE, 0);
+		SetWindowLongPtr(this->hwndProgressBar, GWL_STYLE, lWnd);
+		SendMessage(this->hwndProgressBar, PBM_SETPOS, 0, 0);
+	}
+}
+
+/**
+ * Sets the progress-related controls to 100% target value.
+ * 
+ * @param fb File bundle with the information about the current file.
+ */
+void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
+	// Set the target and progress bar division factor if necessary.
+	this->fsTarget = fb->size;
+	this->bDivideProgress = fb->size > UINT_MAX;
+
+	// Ensure the progress bar has its maximum value set.
+	if (this->bDivideProgress) {
+		SetProgressBarMax(static_cast<DWORD>(fb->size / 2));
+	} else {
+		SetProgressBarMax(static_cast<DWORD>(fb->size));
+	}
+
+	// Update the progress controls.
+	SetProgressValue(0);
+}
+
+/**
+ * Sets the progress-related controls current value in relationship to their
+ * target.
+ * 
+ * @param fsValue Current value of the progress.
+ */
+void ProgressDialog::SetProgressValue(fsize_t fsValue) {
+	SetProgressBarValue(fsValue);
+	SetProgressLabelValue(fsValue);
 }
 
 /**
@@ -128,6 +185,49 @@ void ProgressDialog::SetupControls(HWND hDlg) {
 	// Set some default texts for the labels.
 	SetWindowText(this->hwndRateLabel, _T(""));
 	SetWindowText(this->hwndProgressLabel, _T(""));
+}
+
+/**
+ * Sets the progress bar upper value.
+ *
+ * @param dwMaxRange Value that represents 100% of the progress.
+ */
+void ProgressDialog::SetProgressBarMax(DWORD dwMaxRange) {
+	SendMessage(this->hwndProgressBar, PBM_SETRANGE32, 0,
+				static_cast<LPARAM>(dwMaxRange));
+}
+
+/**
+ * Sets the current value of the progress bar.
+ *
+ * @param dwValue Current value of the progress bar.
+ */
+void ProgressDialog::SetProgressBarValue(DWORD dwValue) {
+	SendMessage(this->hwndProgressBar, PBM_SETPOS,
+				static_cast<WPARAM>(dwValue), 0);
+}
+
+/**
+ * Sets the current file size value of the progress bar.
+ *
+ * @param fsValue Current file size transfer value.
+ */
+void ProgressDialog::SetProgressBarValue(fsize_t fsValue) {
+	if (this->bDivideProgress) {
+		SetProgressBarValue(static_cast<DWORD>(fsValue / 2));
+	} else {
+		SetProgressBarValue(static_cast<DWORD>(fsValue));
+	}
+}
+
+/**
+ * Sets the current file size value of progress label.
+ *
+ * @param fsValue Current file size transfer value.
+ */
+void ProgressDialog::SetProgressLabelValue(fsize_t fsValue) {
+	SetWindowFormatText(this->hwndProgressLabel,
+		_T("%I64u bytes of %I64u bytes"), fsValue, this->fsTarget);
 }
 
 /**

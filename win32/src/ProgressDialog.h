@@ -14,6 +14,7 @@
 
 #include <windows.h>
 #include <DialogWindow.h>
+#include <utils/filesystem.h>
 
 /**
  * A generic dialog base class that monitors the progress of an operation.
@@ -30,8 +31,15 @@ protected:
 
 	bool isButtonClose;
 
+	fsize_t fsTarget;
+	bool bDivideProgress;
+
 	virtual void SetupControls(HWND hDlg);
 	void SwitchCancelButtonToClose(bool bMakeDefault);
+
+	void SetProgressBarMarquee(bool bEnabled);
+	void SetProgressTarget(const file_bundle_t* fb);
+	void SetProgressValue(fsize_t fsValue);
 
 	virtual INT_PTR OnCancel(HWND hDlg);
 
@@ -41,6 +49,13 @@ protected:
 public:
 	ProgressDialog(HINSTANCE& hInst, HWND& hwndParent, WORD wResID);
 	virtual ~ProgressDialog();
+
+private:
+	void SetProgressBarMax(DWORD dwMaxRange);
+	void SetProgressBarValue(DWORD dwValue);
+	void SetProgressBarValue(fsize_t fsValue);
+
+	void SetProgressLabelValue(fsize_t fsValue);
 };
 
 #endif // _WINGL_PROGRESSDIALOG_H

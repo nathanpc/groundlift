@@ -61,7 +61,8 @@ void SendProgressDialog::SendFile(LPCTSTR szIP, LPCTSTR szFilePath) {
 	SetWindowFormatText(this->hwndContextLabel,
 						_T("Waiting for %s to accept %s"), szIP, szBasename);
 
-	// TODO: Put progress bar in marquee mode.
+	// Put progress bar in marquee mode while we wait for a response.
+	SetProgressBarMarquee(true);
 
 	// TODO: Update progress label.
 
@@ -144,10 +145,20 @@ void SendProgressDialog::SetupControls(HWND hDlg) {
  */
 void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 											  bool accepted, void *arg) {
+	LPTSTR szBuffer;
+
 	// Get ourselves from the optional argument.
 	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
-	// TODO: Setup the progress bar and progress label.
+	// Set the window title.
+	szBuffer = utf16_mbstowcs(fb->base);
+	SetWindowFormatText(pThis->hDlg, _T("Sending %s"), szBuffer);
+	free(szBuffer);
+	szBuffer = NULL;
+
+	// Setup the progress bar and progress label.
+	pThis->SetProgressBarMarquee(false);
+	pThis->SetProgressTarget(fb);
 
 	// Update the controls depending on the peer's response.
 	if (!accepted) {
@@ -172,12 +183,8 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 	// Get ourselves from the optional argument.
 	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
-	// Update the progress label.
-	SetWindowFormatText(pThis->hwndProgressLabel,
-						_T("%lu bytes of %I64u bytes"), progress->sent_bytes,
-						progress->fb->size);
-
-	// TODO: Update the progress bar with chunks.
+	// Update the progress-related controls.
+	pThis->SetProgressValue(progress->sent_bytes);
 
 	// TODO: Update the transfer rate label.
 }
@@ -189,8 +196,16 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
  * @param arg Optional data set by the event handler setup.
  */
 void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
+	LPTSTR szBuffer;
+
 	// Get ourselves from the optional argument.
 	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
+
+	// Set the window title.
+	szBuffer = utf16_mbstowcs(fb->base);
+	SetWindowFormatText(pThis->hDlg, _T("Sent %s"), szBuffer);
+	free(szBuffer);
+	szBuffer = NULL;
 
 	// Update the context label.
 	SetWindowText(pThis->hwndContextLabel,
