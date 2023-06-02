@@ -219,6 +219,9 @@ void event_disconnected(const tcp_client_t *client, void *arg) {
  * @param arg  Optional data set by the event handler setup.
  */
 void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	/* Display the discovered peer. */
 	printf("Discovered peer '%s' (%s)\n", peer->name,
 		   inet_ntoa(peer->sock->addr_in.sin_addr));

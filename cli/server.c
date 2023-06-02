@@ -16,7 +16,7 @@ server_handle_t *g_server;
 
 /* Server event handlers. */
 void event_started(const server_t *server);
-int event_conn_req(const file_bundle_t *fb);
+int event_conn_req(const gl_server_conn_req_t *req);
 void event_stopped(void);
 
 /* Server client's connection event handlers. */
@@ -118,16 +118,28 @@ void event_started(const server_t *server) {
 /**
  * Handles the server client connection requested event.
  *
- * @param fb File bundle of what is supposed to be received.
+ * @param req Information about the client and its request.
  *
  * @return 0 to refuses the request. Anything else will be treated as accepting.
  */
-int event_conn_req(const file_bundle_t *fb) {
+int event_conn_req(const gl_server_conn_req_t *req) {
 	int c;
+	float fsize;
+	char prefix;
+
+	/* Get a human-readable file size. */
+	fsize = file_size_readable(req->fb->size, &prefix);
 
 	/* Ask the user for permission to accept the transfer of the file. */
-	printf("Client wants to send the file '%s' with %lu bytes. Accept? [y/n]? ",
-		   fb->base, fb->size);
+	if (prefix != 'B') {
+		printf("%s wants to send you the file '%s' (%.2f %cB). Accept? [y/n]? ",
+			   req->hostname, req->fb->base, fsize, prefix);
+	} else {
+		printf("%s wants to send you the file '%s' (%.0f bytes). Accept? "
+			   "[y/n]? ", req->hostname, req->fb->base, fsize);
+	}
+
+	/* Wait for the user to reply. */
 	do {
 		c = getc(stdin);
 	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
