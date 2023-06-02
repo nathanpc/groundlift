@@ -638,18 +638,18 @@ float file_size_readable(fsize_t fsize, char *mag) {
 	if (fsize >= 1000000000UL) {
 		/* GB */
 		c = 'G';
-		hsize = (float)fsize / 1000000000UL;
+		hsize = UINT64_TO_FLOAT(fsize) / 1000000000UL;
 	} else if (fsize >= 1000000UL) {
 		/* MB */
 		c = 'M';
-		hsize = (float)fsize / 1000000;
+		hsize = UINT64_TO_FLOAT(fsize) / 1000000;
 	} else if (fsize >= 1000UL) {
 		/* KB */
 		c = 'K';
-		hsize = (float)fsize / 1000;
+		hsize = UINT64_TO_FLOAT(fsize) / 1000;
 	} else {
 		c = 'B';
-		hsize = (float)fsize;
+		hsize = UINT64_TO_FLOAT(fsize);
 	}
 
 	/* Set the magnitude prefix if asked for. */

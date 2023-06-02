@@ -162,7 +162,7 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,192,46,50,14
     PUSHBUTTON      "Open &Folder",IDC_OPEN_FOLDER,135,46,50,14
     LTEXT           "Receiving whatever.txt from peer",
-                    IDC_STATIC_TRANSFER_CONTEXT,7,7,105,8
+                    IDC_STATIC_TRANSFER_CONTEXT,7,7,235,8
     CONTROL         "Progress1",IDC_PROGRESS,"msctls_progress32",WS_BORDER,7,
                     18,235,14
     RTEXT           "1.83MB or 23MB",IDC_STATIC_PROGRESS,132,33,110,8

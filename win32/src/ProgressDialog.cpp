@@ -12,6 +12,14 @@
 
 #include "CommonIncludes.h"
 
+/* Ensure compilation under VC++ 6 with marquee style support. */
+#ifndef PBS_MARQUEE
+	#define PBS_MARQUEE 0x08
+#endif /* !PBS_MARQUEE */
+#ifndef PBM_SETMARQUEE
+	#define PBM_SETMARQUEE (WM_USER + 10)
+#endif /* !PBM_SETMARQUEE */
+
 /**
  * Initializes the dialog window object.
  *
@@ -268,7 +276,7 @@ void ProgressDialog::SetProgressLabelValue(fsize_t fsValue, bool bForce) {
 	static fsize_t fsLast;
 
 	// Check if it's worth updating the progress label.
-	if (!bForce && ((fsLast * 1.01f) >= fsValue))
+	if (!bForce && ((fsize_t)(UINT64_TO_FLOAT(fsLast) * 1.01f) >= fsValue))
 		return;
 
 	// Update the progress label.
@@ -291,7 +299,8 @@ void ProgressDialog::UpdateRateLabel() {
 	}
 
 	// Calculate the transfer rate and update the label.
-	fsRate = (this->fsCurrent - fsLast) / ((float)this->uRateInterval / 1000);
+	fsRate = (fsize_t)(UINT64_TO_FLOAT(this->fsCurrent - fsLast) /
+					   (UINT64_TO_FLOAT(this->uRateInterval) / 1000));
 	SetWindowFormatText(this->hwndRateLabel, _T("%s/s"),
 						GetRoundedFileSize(fsRate));
 

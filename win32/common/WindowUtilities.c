@@ -51,11 +51,19 @@ LPTSTR GetWindowTextAlloc(HWND hWnd) {
 BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...) {
 	va_list args;
 	size_t nLen;
-	LPTSTR szBuffer;
 	BOOL bRet;
+#if (_MSC_VER > 1200)
+	LPTSTR szBuffer;
+#else
+	TCHAR szBuffer[1024];
+
+	/* Ensure we have a maximum length set. */
+	nLen = 1023;
+#endif /* _MSC_VER > 1200 */
 
 	va_start(args, szFormat);
 
+#if (_MSC_VER > 1200)
 	/* Get the number of characters needed for the buffer. */
 	nLen = _vsntprintf(NULL, 0, szFormat, args);
 
@@ -63,6 +71,7 @@ BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...) {
 	szBuffer = (LPTSTR)malloc((nLen + 1) * sizeof(TCHAR));
 	if (szBuffer == NULL)
 		return FALSE;
+#endif /* _MSC_VER > 1200 */
 
 	/* Populate the buffer and ensure its termination. */
 	_vsntprintf(szBuffer, nLen, szFormat, args);
@@ -73,8 +82,12 @@ BOOL SetWindowFormatText(HWND hWnd, LPCTSTR szFormat, ...) {
 	/* Set the window's text. */
 	bRet = SetWindowText(hWnd, szBuffer);
 
+#if (_MSC_VER > 1200)
 	/* Free our temporary buffer. */
 	free(szBuffer);
+#endif /* _MSC_VER > 1200 */
+
+	return bRet;
 }
 
 /**

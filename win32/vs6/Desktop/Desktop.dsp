@@ -43,7 +43,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /Yu"stdafx.h" /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "..\..\..\common\win32" /I "..\..\..\common" /I "..\..\..\src" /I "..\..\common" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "WIN32_LEAN_AND_MEAN" /D "UNICODE" /D "_UNICODE" /FD /c
+# ADD CPP /nologo /MD /W3 /GX /O2 /I "..\..\..\common\win32" /I "..\..\..\common" /I "..\..\..\src" /I "..\..\common" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "WIN32_LEAN_AND_MEAN" /D "UNICODE" /D "_UNICODE" /FD /c
 # SUBTRACT CPP /YX /Yc /Yu
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
@@ -138,11 +138,27 @@ SOURCE=..\..\src\Application.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\src\ProgressDialog.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\ProgressDialog.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\src\SendFileDialog.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\src\SendFileDialog.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\SendProgressDialog.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\SendProgressDialog.h
 # End Source File
 # End Group
 # Begin Group "Models"
@@ -160,6 +176,14 @@ SOURCE=..\..\src\Models\Peer.h
 # Begin Group "Controllers"
 
 # PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\..\src\Controllers\Client.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\src\Controllers\Client.h
+# End Source File
 # Begin Source File
 
 SOURCE=..\..\src\Controllers\PeerDiscovery.cpp

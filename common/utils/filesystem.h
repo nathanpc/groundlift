@@ -21,6 +21,17 @@ extern "C" {
 #endif
 
 /**
+ * Workaround casting from uint64_t to double in Visual C++ 6.
+ */
+#ifdef _WIN32
+	#if (_MSC_VER <= 1200)
+		#define UINT64_TO_FLOAT(num) ((float)((int64_t)(num)))
+	#endif /* _MSC_VER <= 1200 */
+#else
+	#define UINT64_TO_FLOAT(num) ((float)(num))
+#endif /* _WIN32 */
+
+/**
  * Character used for separating paths in the current environment.
  */
 #ifndef PATH_SEPARATOR
