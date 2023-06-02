@@ -976,7 +976,7 @@ tcp_err_t socket_shutdown(int sockfd) {
  * @return TRUE if the conversion was successful.
  *         FALSE if an error occurred and we couldn't convert the IP address.
  */
-bool socket_itos(char **buf, struct sockaddr *sock_addr) {
+bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 #ifdef _WIN32
 	TCHAR tmp[INET6_ADDRSTRLEN];
 	DWORD dwLen;
@@ -1088,7 +1088,7 @@ char *tcp_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (struct sockaddr *)&server->tcp.addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&server->tcp.addr_in))
 		return NULL;
 
 	return buf;
@@ -1110,7 +1110,7 @@ char *udp_server_get_ipstr(const server_t *server) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (struct sockaddr *)&server->udp.addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&server->udp.addr_in))
 		return NULL;
 
 	return buf;
@@ -1130,7 +1130,7 @@ char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (struct sockaddr *)&conn->addr))
+	if (!socket_itos(&buf, (const struct sockaddr *)&conn->addr))
 		return NULL;
 
 	return buf;
@@ -1150,7 +1150,7 @@ char *tcp_client_get_ipstr(const tcp_client_t *client) {
 	char *buf;
 
 	/* Perform the conversion. */
-	if (!socket_itos(&buf, (struct sockaddr *)&client->addr_in))
+	if (!socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
 		return NULL;
 
 	return buf;

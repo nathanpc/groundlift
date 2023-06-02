@@ -133,7 +133,7 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 						  size_t *recv_len, bool peek);
 tcp_err_t socket_close(int sockfd);
 tcp_err_t socket_shutdown(int sockfd);
-bool socket_itos(char **buf, struct sockaddr *sock_addr);
+bool socket_itos(char **buf, const struct sockaddr *sock_addr);
 in_addr_t socket_inet_addr(const char *ipaddr);
 
 /* Misc. utilities. */
