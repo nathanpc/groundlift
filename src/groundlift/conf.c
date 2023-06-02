@@ -10,6 +10,7 @@
 #ifdef _WIN32
 #include <winsock.h>
 #include <stdshim.h>
+#include <utils/utf16.h>
 #else
 #include <unistd.h>
 #endif /* _WIN32 */
@@ -58,13 +59,23 @@ void conf_free(void) {
  * @return Newly allocated hostname string.
  */
 char *conf_gethostname(void) {
+#ifdef _WIN32
+	TCHAR szHostname[HOST_NAME_MAX + 1];
+	DWORD dwLen;
+
+	/* Get the NetBIOS hostname. */
+	dwLen = HOST_NAME_MAX + 1;
+	GetComputerName(szHostname, &dwLen);
+
+	/* Return an MBCS version of the hostname. */
+	return utf16_wcstombs(szHostname);
+#else
 	char hostname[HOST_NAME_MAX + 1];
 
-	/* Get the hostname. */
+	/* Get the hostname and return an allocated copy of it. */
 	gethostname(hostname, HOST_NAME_MAX + 1);
-
-	/* Return an allocated copy of the hostname. */
 	return strdup(hostname);
+#endif /* _WIN32 */
 }
 
 /**
