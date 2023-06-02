@@ -11,6 +11,7 @@
 
 #include "AboutDialog.h"
 #include "SendFileDialog.h"
+#include "RequestPopupDialog.h"
 
 // Common definitions.
 #define MAX_LOADSTRING 100
@@ -21,6 +22,7 @@ HWND hwndMain;
 TCHAR szWindowClass[MAX_LOADSTRING];
 TCHAR szAppTitle[MAX_LOADSTRING];
 SendFileDialog *dlgSendFile = NULL;
+RequestPopupDialog *dlgRequestPopup = NULL;
 
 /**
  * Application's main entry point.
@@ -238,8 +240,9 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	obex_init();
 	conf_init();
 
-	// Initialize the Send File dialog.
+	// Initialize any common dialogs.
 	dlgSendFile = new SendFileDialog(hInst, hwndMain);
+	dlgRequestPopup = new RequestPopupDialog(hInst, hwndMain);
 
 	return 0;
 }
@@ -304,6 +307,8 @@ LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Call any destructors that might be needed.
 	if (dlgSendFile)
 		delete dlgSendFile;
+	if (dlgRequestPopup)
+		delete dlgRequestPopup;
 
 	return DefWindowProc(hWnd, wMsg, wParam, lParam);
 }

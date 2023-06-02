@@ -164,6 +164,7 @@
     <ClInclude Include="..\..\src\Exceptions\GroundLift.h" />
     <ClInclude Include="..\..\src\Models\Peer.h" />
     <ClInclude Include="..\..\src\ProgressDialog.h" />
+    <ClInclude Include="..\..\src\RequestPopupDialog.h" />
     <ClInclude Include="..\..\src\SendFileDialog.h" />
     <ClInclude Include="..\..\src\SendProgressDialog.h" />
     <ClInclude Include="..\..\vs6\Desktop\resource.h" />
@@ -176,6 +177,7 @@
     <ClCompile Include="..\..\src\Exceptions\GroundLift.cpp" />
     <ClCompile Include="..\..\src\Models\Peer.cpp" />
     <ClCompile Include="..\..\src\ProgressDialog.cpp" />
+    <ClCompile Include="..\..\src\RequestPopupDialog.cpp" />
     <ClCompile Include="..\..\src\SendFileDialog.cpp" />
     <ClCompile Include="..\..\src\SendProgressDialog.cpp" />
   </ItemGroup>
