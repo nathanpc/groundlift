@@ -114,9 +114,9 @@ END
 
 STRINGTABLE DISCARDABLE 
 BEGIN
-    IDS_APP_TITLE           "Desktop"
+    IDS_APP_TITLE           "GroundLift"
     IDS_HELLO               "Hello World!"
-    IDC_DESKTOP             "DESKTOP"
+    IDC_DESKTOP             "GROUNDLIFT"
 END
 
 #endif    // English (U.S.) resources
