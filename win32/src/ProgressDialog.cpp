@@ -33,12 +33,15 @@ ProgressDialog::ProgressDialog(HINSTANCE& hInst, HWND& hwndParent,
 	this->isButtonClose = false;
 	this->fsTarget = 0;
 	this->bDivideProgress = false;
+	this->szTargetSize = NULL;
 }
 
 /**
  * Frees up any resources allocated by this object.
  */
 ProgressDialog::~ProgressDialog() {
+	if (this->szTargetSize)
+		free(this->szTargetSize);
 }
 
 /**
@@ -93,6 +96,11 @@ void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
 	this->fsTarget = fb->size;
 	this->bDivideProgress = fb->size > UINT_MAX;
 
+	// Set the target size string.
+	if (this->szTargetSize)
+		free(this->szTargetSize);
+	this->szTargetSize = _tcsdup(GetRoundedFileSize(fb->size));
+
 	// Ensure the progress bar has its maximum value set.
 	if (this->bDivideProgress) {
 		SetProgressBarMax(static_cast<DWORD>(fb->size / 2));
@@ -101,7 +109,7 @@ void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
 	}
 
 	// Update the progress controls.
-	SetProgressValue(0);
+	SetProgressValue(0, true);
 }
 
 /**
@@ -109,10 +117,11 @@ void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
  * target.
  * 
  * @param fsValue Current value of the progress.
+ * @param bForce  Forcefully update the progress label value?
  */
-void ProgressDialog::SetProgressValue(fsize_t fsValue) {
+void ProgressDialog::SetProgressValue(fsize_t fsValue, bool bForce) {
 	SetProgressBarValue(fsValue);
-	SetProgressLabelValue(fsValue);
+	SetProgressLabelValue(fsValue, bForce);
 }
 
 /**
@@ -224,10 +233,49 @@ void ProgressDialog::SetProgressBarValue(fsize_t fsValue) {
  * Sets the current file size value of progress label.
  *
  * @param fsValue Current file size transfer value.
+ * @param bForce  Forcefully update the label?
  */
-void ProgressDialog::SetProgressLabelValue(fsize_t fsValue) {
-	SetWindowFormatText(this->hwndProgressLabel,
-		_T("%I64u bytes of %I64u bytes"), fsValue, this->fsTarget);
+void ProgressDialog::SetProgressLabelValue(fsize_t fsValue, bool bForce) {
+	static fsize_t fsLast;
+
+	// Check if it's worth updating the progress label.
+	if (!bForce && ((fsLast * 1.01f) >= fsValue))
+		return;
+
+	// Update the progress label.
+	SetWindowFormatText(this->hwndProgressLabel, _T("%s of %s"),
+						GetRoundedFileSize(fsValue), this->szTargetSize);
+	fsLast = fsValue;
+}
+
+/**
+ * Gets a human-readable string with a file size and its unit rounded to the
+ * nearest hundred.
+ * 
+ * @warning This function allocates memory that must be free'd by you.
+ * 
+ * @param fsSize File size to be rounded.
+ * 
+ * @return Newly allocated string with the file size and its unit.
+ */
+LPTSTR ProgressDialog::GetRoundedFileSize(fsize_t fsSize) {
+	static TCHAR szBuffer[15];
+	float fReadable;
+	char cPrefix;
+	WCHAR wcPrefix;
+
+	// Get the human-readable file size.
+	fReadable = file_size_readable(fsSize, &cPrefix);
+	wcPrefix = btowc(cPrefix);
+
+	// Build up a nice string for our file size.
+	if (wcPrefix != L'B') {
+		_sntprintf(szBuffer, 15, _T("%.2f %cB"), fReadable, wcPrefix);
+	} else {
+		_sntprintf(szBuffer, 15, _T("%.0f"), fReadable);
+	}
+
+	return szBuffer;
 }
 
 /**

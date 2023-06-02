@@ -33,13 +33,14 @@ protected:
 
 	fsize_t fsTarget;
 	bool bDivideProgress;
+	LPTSTR szTargetSize;
 
 	virtual void SetupControls(HWND hDlg);
 	void SwitchCancelButtonToClose(bool bMakeDefault);
 
 	void SetProgressBarMarquee(bool bEnabled);
 	void SetProgressTarget(const file_bundle_t* fb);
-	void SetProgressValue(fsize_t fsValue);
+	void SetProgressValue(fsize_t fsValue, bool bForce);
 
 	virtual INT_PTR OnCancel(HWND hDlg);
 
@@ -55,7 +56,9 @@ private:
 	void SetProgressBarValue(DWORD dwValue);
 	void SetProgressBarValue(fsize_t fsValue);
 
-	void SetProgressLabelValue(fsize_t fsValue);
+	void SetProgressLabelValue(fsize_t fsValue, bool bForce);
+
+	LPTSTR GetRoundedFileSize(fsize_t fsSize);
 };
 
 #endif // _WINGL_PROGRESSDIALOG_H

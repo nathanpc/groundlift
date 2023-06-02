@@ -64,8 +64,6 @@ void SendProgressDialog::SendFile(LPCTSTR szIP, LPCTSTR szFilePath) {
 	// Put progress bar in marquee mode while we wait for a response.
 	SetProgressBarMarquee(true);
 
-	// TODO: Update progress label.
-
 	// Start the transfer.
 	this->glClient.SendFile(szIP, TCPSERVER_PORT, szFilePath);
 }
@@ -184,7 +182,7 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 	SendProgressDialog *pThis = SendProgressDialog::GetOurObjectPointer(arg);
 
 	// Update the progress-related controls.
-	pThis->SetProgressValue(progress->sent_bytes);
+	pThis->SetProgressValue(progress->sent_bytes, false);
 
 	// TODO: Update the transfer rate label.
 }
@@ -207,9 +205,10 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 	free(szBuffer);
 	szBuffer = NULL;
 
-	// Update the context label.
+	// Update the context and progress labels.
 	SetWindowText(pThis->hwndContextLabel,
 				  _T("Successfully transferred the file"));
+	pThis->SetProgressValue(fb->size, true);
 
 	// Change the cancel button into a close button.
 	pThis->SwitchCancelButtonToClose(true);
