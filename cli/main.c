@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 		err = client_list_peers();
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
-		return 1;
+		ret = 1;
 	}
 
 	/* Check if we had any errors to report. */
