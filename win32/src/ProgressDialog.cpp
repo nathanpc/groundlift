@@ -31,7 +31,10 @@ ProgressDialog::ProgressDialog(HINSTANCE& hInst, HWND& hwndParent,
 	this->hwndCancelButton = NULL;
 
 	this->isButtonClose = false;
+	this->uRateInterval = 500;
+
 	this->fsTarget = 0;
+	this->fsCurrent = 0;
 	this->bDivideProgress = false;
 	this->szTargetSize = NULL;
 }
@@ -108,7 +111,8 @@ void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
 		SetProgressBarMax(static_cast<DWORD>(fb->size));
 	}
 
-	// Update the progress controls.
+	// Update the transfer rate label and the progress controls.
+	SetWindowText(this->hwndRateLabel, _T(""));
 	SetProgressValue(0, true);
 }
 
@@ -120,8 +124,25 @@ void ProgressDialog::SetProgressTarget(const file_bundle_t* fb) {
  * @param bForce  Forcefully update the progress label value?
  */
 void ProgressDialog::SetProgressValue(fsize_t fsValue, bool bForce) {
+	fsCurrent = fsValue;
+
 	SetProgressBarValue(fsValue);
 	SetProgressLabelValue(fsValue, bForce);
+}
+
+/**
+ * Start tracking the transfer rate.
+ */
+void ProgressDialog::StartTransferRateTracking() {
+	SetTimer(this->hDlg, IDT_TRANSFER_RATE, this->uRateInterval,
+			 static_cast<TIMERPROC>(NULL));
+}
+
+/**
+ * Stop tracking the transfer rate.
+ */
+void ProgressDialog::StopTransferRateTracking() {
+	KillTimer(this->hDlg, IDT_TRANSFER_RATE);
 }
 
 /**
@@ -167,6 +188,14 @@ INT_PTR CALLBACK ProgressDialog::DlgProc(HWND hDlg, UINT wMsg,
 					}
 					break;
 				}
+			}
+			break;
+		case WM_TIMER:
+			switch (wParam) {
+				case IDT_TRANSFER_RATE:
+					// Update the transfer rate label.
+					UpdateRateLabel();
+					break;
 			}
 			break;
 	}
@@ -249,6 +278,28 @@ void ProgressDialog::SetProgressLabelValue(fsize_t fsValue, bool bForce) {
 }
 
 /**
+ * Updates the transfer rate label.
+ */
+void ProgressDialog::UpdateRateLabel() {
+	static fsize_t fsLast;
+	fsize_t fsRate;
+
+	// Ignore the initial burst.
+	if (fsLast == 0) {
+		fsLast = this->fsCurrent;
+		return;
+	}
+
+	// Calculate the transfer rate and update the label.
+	fsRate = (this->fsCurrent - fsLast) / ((float)this->uRateInterval / 1000);
+	SetWindowFormatText(this->hwndRateLabel, _T("%s/s"),
+						GetRoundedFileSize(fsRate));
+
+	// Reset the reference value.
+	fsLast = this->fsCurrent;
+}
+
+/**
  * Gets a human-readable string with a file size and its unit rounded to the
  * nearest hundred.
  * 
@@ -287,5 +338,6 @@ LPTSTR ProgressDialog::GetRoundedFileSize(fsize_t fsSize) {
  * @return Value to be returned by the dialog's message handling procedure.
  */
 INT_PTR ProgressDialog::OnCancel(HWND hDlg) {
+	StopTransferRateTracking();
 	return 0;
 }

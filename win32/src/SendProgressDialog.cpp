@@ -163,10 +163,10 @@ void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 		SetWindowText(pThis->hwndContextLabel,
 					  _T("Peer declined our file transfer"));
 		pThis->SwitchCancelButtonToClose(true);
-		return;
 	} else {
 		SetWindowText(pThis->hwndContextLabel,
 					  _T("Peer accepted our file transfer"));
+		pThis->StartTransferRateTracking();
 	}
 }
 
@@ -183,8 +183,6 @@ void SendProgressDialog::OnProgress(const gl_client_progress_t *progress,
 
 	// Update the progress-related controls.
 	pThis->SetProgressValue(progress->sent_bytes, false);
-
-	// TODO: Update the transfer rate label.
 }
 
 /**
@@ -209,6 +207,9 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 	SetWindowText(pThis->hwndContextLabel,
 				  _T("Successfully transferred the file"));
 	pThis->SetProgressValue(fb->size, true);
+
+	// Stop the transfer rate update.
+	pThis->StopTransferRateTracking();
 
 	// Change the cancel button into a close button.
 	pThis->SwitchCancelButtonToClose(true);

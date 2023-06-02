@@ -30,8 +30,10 @@ protected:
 	HWND hwndCancelButton;
 
 	bool isButtonClose;
+	UINT uRateInterval;
 
 	fsize_t fsTarget;
+	fsize_t fsCurrent;
 	bool bDivideProgress;
 	LPTSTR szTargetSize;
 
@@ -41,6 +43,9 @@ protected:
 	void SetProgressBarMarquee(bool bEnabled);
 	void SetProgressTarget(const file_bundle_t* fb);
 	void SetProgressValue(fsize_t fsValue, bool bForce);
+
+	void StartTransferRateTracking();
+	void StopTransferRateTracking();
 
 	virtual INT_PTR OnCancel(HWND hDlg);
 
@@ -57,6 +62,7 @@ private:
 	void SetProgressBarValue(fsize_t fsValue);
 
 	void SetProgressLabelValue(fsize_t fsValue, bool bForce);
+	void UpdateRateLabel();
 
 	LPTSTR GetRoundedFileSize(fsize_t fsSize);
 };

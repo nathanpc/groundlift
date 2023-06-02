@@ -103,5 +103,6 @@
     <Xml Include="..\..\manifest.xml">
       <Filter>Resource Files</Filter>
     </Xml>
+    <Xml Include="..\..\vs6\Desktop\manifest.xml" />
   </ItemGroup>
 </Project>
