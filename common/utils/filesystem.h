@@ -26,6 +26,8 @@ extern "C" {
 #ifdef _WIN32
 	#if (_MSC_VER <= 1200)
 		#define UINT64_TO_FLOAT(num) ((float)((int64_t)(num)))
+	#else
+		#define UINT64_TO_FLOAT(num) ((float)(num))
 	#endif /* _MSC_VER <= 1200 */
 #else
 	#define UINT64_TO_FLOAT(num) ((float)(num))
