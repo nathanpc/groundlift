@@ -619,3 +619,42 @@ cleanup:
 
 	return path;
 }
+
+/**
+ * Converts a file size in bytes to a human-readable, rounded to the nearest
+ * hundred, value.
+ *
+ * @param fsize File size in bytes.
+ * @param mag   Pointer to store the magnitude character (single character) that
+ *              represents the multiplier of the value (B, k, M, G, ...) or NULL
+ *              if you don't need this extra information.
+ *
+ * @return File size rounded to the nearest hundred.
+ */
+float file_size_readable(fsize_t fsize, char *mag) {
+	char c;
+	float hsize;
+
+	if (fsize >= 1000000000UL) {
+		/* GB */
+		c = 'G';
+		hsize = (float)fsize / 1000000000UL;
+	} else if (fsize >= 1000000UL) {
+		/* MB */
+		c = 'M';
+		hsize = (float)fsize / 1000000;
+	} else if (fsize >= 1000UL) {
+		/* KB */
+		c = 'K';
+		hsize = (float)fsize / 1000;
+	} else {
+		c = 'B';
+		hsize = (float)fsize;
+	}
+
+	/* Set the magnitude prefix if asked for. */
+	if (mag)
+		*mag = c;
+
+	return hsize;
+}

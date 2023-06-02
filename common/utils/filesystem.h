@@ -82,6 +82,9 @@ char *path_extname(const char *path);
 char *path_remove_ext(char *path);
 char *path_build_download(const char *dir, const char *fname);
 
+/* Human-friendly File Sizing */
+float file_size_readable(fsize_t fsize, char *mag);
+
 #ifdef __cplusplus
 }
 #endif
