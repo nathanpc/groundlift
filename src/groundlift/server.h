@@ -23,6 +23,16 @@ extern "C" {
 #endif
 
 /**
+ * Structure holding all of the information about a client's connection request.
+ */
+typedef struct {
+	const char *hostname;
+	const server_conn_t *conn;
+
+	file_bundle_t *fb;
+} gl_server_conn_req_t;
+
+/**
  * Structure holding all of the information about a transfer's current progress.
  */
 typedef struct {
@@ -57,12 +67,13 @@ typedef void (*gl_server_evt_stop_func)(void);
 /**
  * Client connection request event callback function pointer type definition.
  *
- * @param fb File bundle that was uploaded.
+ * @param req Information about the client and its request.
  *
  * @return Return 0 to refuse the connection request. Anything else will be
  *         treated as accepting.
  */
-typedef int (*gl_server_evt_client_conn_req_func)(const file_bundle_t *fb);
+typedef int (*gl_server_evt_client_conn_req_func)(
+	const gl_server_conn_req_t *req);
 
 /**
  * File download progress event callback function pointer type definition.

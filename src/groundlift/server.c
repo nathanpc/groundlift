@@ -16,6 +16,7 @@
 #include "conf.h"
 #include "defaults.h"
 #include "error.h"
+#include "obex.h"
 
 /* Private methods. */
 obex_opcodes_t *gl_server_expected_opcodes(server_handle_t *handle,
@@ -385,17 +386,25 @@ gl_err_t *gl_server_handle_conn_req(server_handle_t *handle,
 									bool *accepted) {
 	gl_err_t *err;
 	obex_packet_t *resp;
-	file_bundle_t *fb;
+	const obex_header_t *header;
+	gl_server_conn_req_t req;
 
 	/* Get the file information. */
-	err = gl_server_packet_file_info(packet, &fb);
+	err = gl_server_packet_file_info(packet, &req.fb);
 	if (err)
 		return err;
+
+	/* Get some information about the client. */
+	req.conn = handle->conn;
+	req.hostname = NULL;
+	header = obex_packet_header_find(packet, OBEX_HEADER_EXT_HOSTNAME);
+	if (header)
+		req.hostname = header->value.string.text;
 
 	/* Trigger the connection requested event. */
 	*accepted = true;
 	if (handle->events.transfer_requested != NULL)
-		*accepted = handle->events.transfer_requested(fb);
+		*accepted = handle->events.transfer_requested(&req);
 
 	/* Set our packet length if needed. */
 	thread_mutex_lock(handle->mutexes.conn);
