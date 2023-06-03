@@ -56,10 +56,13 @@ server_handle_t *gl_server_new(void) {
 	handle->server = NULL;
 	handle->conn = NULL;
 	handle->expected_opcodes = 0;
+
 	handle->threads.main = NULL;
 	handle->threads.discovery = NULL;
+
 	handle->mutexes.server = thread_mutex_new();
 	handle->mutexes.conn = thread_mutex_new();
+
 	handle->events.started = NULL;
 	handle->events.conn_accepted = NULL;
 	handle->events.conn_closed = NULL;
@@ -67,6 +70,14 @@ server_handle_t *gl_server_new(void) {
 	handle->events.transfer_requested = NULL;
 	handle->events.transfer_progress = NULL;
 	handle->events.transfer_success = NULL;
+
+	handle->event_args.started = NULL;
+	handle->event_args.conn_accepted = NULL;
+	handle->event_args.conn_closed = NULL;
+	handle->event_args.stopped = NULL;
+	handle->event_args.transfer_requested = NULL;
+	handle->event_args.transfer_progress = NULL;
+	handle->event_args.transfer_success = NULL;
 
 	return handle;
 }
@@ -403,8 +414,10 @@ gl_err_t *gl_server_handle_conn_req(server_handle_t *handle,
 
 	/* Trigger the connection requested event. */
 	*accepted = true;
-	if (handle->events.transfer_requested != NULL)
-		*accepted = handle->events.transfer_requested(&req);
+	if (handle->events.transfer_requested != NULL) {
+		*accepted = handle->events.transfer_requested(&req,
+			handle->event_args.transfer_requested);
+	}
 
 	/* Set our packet length if needed. */
 	thread_mutex_lock(handle->mutexes.conn);
@@ -505,8 +518,10 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 	}
 
 	/* Update the progress of the current transfer via an event. */
-	if (handle->events.transfer_progress != NULL)
-		handle->events.transfer_progress(&progress);
+	if (handle->events.transfer_progress != NULL) {
+		handle->events.transfer_progress(&progress,
+			handle->event_args.transfer_progress);
+	}
 
 	/* Initialize reply packet. */
 	if (OBEX_IS_FINAL_OPCODE(init_packet->opcode)) {
@@ -524,9 +539,13 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 		/* Close the downloaded file handle. */
 		file_close(fh);
 
-		/* Trigger the downloaded success event and free the file bundle. */
-		if (handle->events.transfer_success != NULL)
-			handle->events.transfer_success(fb);
+		/* Trigger the downloaded success event. */
+		if (handle->events.transfer_success != NULL) {
+			handle->events.transfer_success(fb,
+				handle->event_args.transfer_success);
+		}
+
+		/* Free the file bundle. */
 		file_bundle_free(fb);
 
 		return err;
@@ -552,8 +571,10 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 		}
 
 		/* Update the progress of the current transfer via an event. */
-		if (handle->events.transfer_progress != NULL)
-			handle->events.transfer_progress(&progress);
+		if (handle->events.transfer_progress != NULL) {
+			handle->events.transfer_progress(&progress,
+				handle->event_args.transfer_progress);
+		}
 
 		/* Initialize reply packet. */
 		if (OBEX_IS_FINAL_OPCODE(packet->opcode)) {
@@ -572,9 +593,13 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 			obex_packet_free(packet);
 			file_close(fh);
 
-			/* Trigger the downloaded success event and free the file bundle. */
-			if (handle->events.transfer_success != NULL)
-				handle->events.transfer_success(fb);
+			/* Trigger the downloaded success event. */
+			if (handle->events.transfer_success != NULL) {
+				handle->events.transfer_success(fb,
+					handle->event_args.transfer_success);
+			}
+
+			/* Free the file bundle. */
 			file_bundle_free(fb);
 
 			return err;
@@ -630,7 +655,7 @@ void *server_thread_func(void *handle_ptr) {
 
 	/* Trigger the server started event. */
 	if (handle->events.started != NULL)
-		handle->events.started(handle->server);
+		handle->events.started(handle->server, handle->event_args.started);
 
 	/* Accept incoming connections. */
 	while ((handle->conn = tcp_server_conn_accept(handle->server)) != NULL) {
@@ -646,8 +671,10 @@ void *server_thread_func(void *handle_ptr) {
 		}
 
 		/* Trigger the connection accepted event. */
-		if (handle->events.conn_accepted != NULL)
-			handle->events.conn_accepted(handle->conn);
+		if (handle->events.conn_accepted != NULL) {
+			handle->events.conn_accepted(handle->conn,
+				handle->event_args.conn_accepted);
+		}
 
 		/* Read packets until the connection is closed or an error occurs. */
 		state = CONN_STATE_CREATED;
@@ -712,7 +739,7 @@ void *server_thread_func(void *handle_ptr) {
 
 		/* Trigger the connection closed event. */
 		if (handle->events.conn_closed != NULL)
-			handle->events.conn_closed();
+			handle->events.conn_closed(handle->event_args.conn_closed);
 	}
 
 	/* Stop the server and free up any resources. */
@@ -720,7 +747,7 @@ void *server_thread_func(void *handle_ptr) {
 
 	/* Trigger the server stopped event. */
 	if (handle->events.stopped != NULL)
-		handle->events.stopped();
+		handle->events.stopped(handle->event_args.stopped);
 
 	return (void *)gl_err;
 }
@@ -886,10 +913,12 @@ gl_err_t *gl_server_packet_file_info(const obex_packet_t *packet,
  *
  * @param handle Server handle object.
  * @param func   Started event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_evt_start_set(server_handle_t *handle,
-							 gl_server_evt_start_func func) {
+							 gl_server_evt_start_func func, void *arg) {
 	handle->events.started = func;
+	handle->event_args.started = arg;
 }
 
 /**
@@ -897,10 +926,13 @@ void gl_server_evt_start_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   Connection Accepted event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_conn_evt_accept_set(server_handle_t *handle,
-								   gl_server_conn_evt_accept_func func) {
+								   gl_server_conn_evt_accept_func func,
+								   void *arg) {
 	handle->events.conn_accepted = func;
+	handle->event_args.conn_accepted = arg;
 }
 
 /**
@@ -908,10 +940,12 @@ void gl_server_conn_evt_accept_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   Connection Closed event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_conn_evt_close_set(server_handle_t *handle,
-								  gl_server_conn_evt_close_func func) {
+		gl_server_conn_evt_close_func func, void *arg) {
 	handle->events.conn_closed = func;
+	handle->event_args.conn_closed = arg;
 }
 
 /**
@@ -919,10 +953,12 @@ void gl_server_conn_evt_close_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   Stopped event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_evt_stop_set(server_handle_t *handle,
-							gl_server_evt_stop_func func) {
+							gl_server_evt_stop_func func, void *arg) {
 	handle->events.stopped = func;
+	handle->event_args.stopped = arg;
 }
 
 /**
@@ -930,10 +966,13 @@ void gl_server_evt_stop_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   Client Connection Requested event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_evt_client_conn_req_set(server_handle_t *handle,
-									gl_server_evt_client_conn_req_func func) {
+									   gl_server_evt_client_conn_req_func func,
+									   void *arg) {
 	handle->events.transfer_requested = func;
+	handle->event_args.transfer_requested = arg;
 }
 
 /**
@@ -941,10 +980,12 @@ void gl_server_evt_client_conn_req_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   File Download Progress event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_conn_evt_download_progress_set(server_handle_t *handle,
-							gl_server_conn_evt_download_progress_func func) {
+		gl_server_conn_evt_download_progress_func func, void *arg) {
 	handle->events.transfer_progress = func;
+	handle->event_args.transfer_progress = arg;
 }
 
 /**
@@ -952,8 +993,10 @@ void gl_server_conn_evt_download_progress_set(server_handle_t *handle,
  *
  * @param handle Server handle object.
  * @param func   File Downloaded Successfully event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_server_conn_evt_download_success_set(server_handle_t *handle,
-								gl_server_conn_evt_download_success_func func) {
+		gl_server_conn_evt_download_success_func func, void *arg) {
 	handle->events.transfer_success = func;
+	handle->event_args.transfer_success = arg;
 }

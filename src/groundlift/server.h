@@ -44,52 +44,62 @@ typedef struct {
  * Server started event callback function pointer type definition.
  *
  * @param server Server handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-typedef void (*gl_server_evt_start_func)(const server_t *server);
+typedef void (*gl_server_evt_start_func)(const server_t *server, void *arg);
 
 /**
  * Server accepted a connection event callback function pointer type definition.
  *
  * @param conn Server client connection handle object.
+ * @param arg  Optional data set by the event handler setup.
  */
-typedef void (*gl_server_conn_evt_accept_func)(const server_conn_t *conn);
+typedef void (*gl_server_conn_evt_accept_func)(const server_conn_t *conn,
+											   void *arg);
 
 /**
  * Connection closed event callback function pointer type definition.
+ *
+ * @param arg Optional data set by the event handler setup.
  */
-typedef void (*gl_server_conn_evt_close_func)(void);
+typedef void (*gl_server_conn_evt_close_func)(void *arg);
 
 /**
  * Server stopped closed event callback function pointer type definition.
+ *
+ * @param arg Optional data set by the event handler setup.
  */
-typedef void (*gl_server_evt_stop_func)(void);
+typedef void (*gl_server_evt_stop_func)(void *arg);
 
 /**
  * Client connection request event callback function pointer type definition.
  *
  * @param req Information about the client and its request.
+ * @param arg Optional data set by the event handler setup.
  *
  * @return Return 0 to refuse the connection request. Anything else will be
  *         treated as accepting.
  */
 typedef int (*gl_server_evt_client_conn_req_func)(
-	const gl_server_conn_req_t *req);
+	const gl_server_conn_req_t *req, void *arg);
 
 /**
  * File download progress event callback function pointer type definition.
  *
  * @param progress Structure containing all the information about the progress.
+ * @param arg      Optional data set by the event handler setup.
  */
 typedef void (*gl_server_conn_evt_download_progress_func)(
-	const gl_server_conn_progress_t *progress);
+	const gl_server_conn_progress_t *progress, void *arg);
 
 /**
  * File downloaded successfully event callback function pointer type definition.
  *
- * @param fb File bundle that was uploaded.
+ * @param fb  File bundle that was uploaded.
+ * @param arg Optional data set by the event handler setup.
  */
 typedef void (*gl_server_conn_evt_download_success_func)(
-	const file_bundle_t *fb);
+	const file_bundle_t *fb, void *arg);
 
 /**
  * Client connection states.
@@ -130,6 +140,17 @@ typedef struct {
 		gl_server_conn_evt_download_progress_func transfer_progress;
 		gl_server_conn_evt_download_success_func transfer_success;
 	} events;
+
+	/* Event handler arguments. */
+	struct {
+		void *started;
+		void *conn_accepted;
+		void *conn_closed;
+		void *stopped;
+		void *transfer_requested;
+		void *transfer_progress;
+		void *transfer_success;
+	} event_args;
 } server_handle_t;
 
 /* Initialization and destruction. */
@@ -150,19 +171,21 @@ gl_err_t *gl_server_discovery_thread_join(server_handle_t *handle);
 
 /* Callbacks */
 void gl_server_evt_start_set(server_handle_t *handle,
-							 gl_server_evt_start_func func);
+							 gl_server_evt_start_func func, void *arg);
 void gl_server_conn_evt_accept_set(server_handle_t *handle,
-								   gl_server_conn_evt_accept_func func);
+								   gl_server_conn_evt_accept_func func,
+								   void *arg);
 void gl_server_conn_evt_close_set(server_handle_t *handle,
-								  gl_server_conn_evt_close_func func);
+	gl_server_conn_evt_close_func func, void *arg);
 void gl_server_evt_stop_set(server_handle_t *handle,
-							gl_server_evt_stop_func func);
+							gl_server_evt_stop_func func, void *arg);
 void gl_server_evt_client_conn_req_set(server_handle_t *handle,
-									   gl_server_evt_client_conn_req_func func);
+									   gl_server_evt_client_conn_req_func func,
+									   void *arg);
 void gl_server_conn_evt_download_progress_set(server_handle_t *handle,
-								gl_server_conn_evt_download_progress_func func);
+	gl_server_conn_evt_download_progress_func func, void *arg);
 void gl_server_conn_evt_download_success_set(server_handle_t *handle,
-								gl_server_conn_evt_download_success_func func);
+	gl_server_conn_evt_download_success_func func, void *arg);
 
 #ifdef __cplusplus
 }

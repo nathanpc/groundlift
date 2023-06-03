@@ -15,15 +15,16 @@
 server_handle_t *g_server;
 
 /* Server event handlers. */
-void event_started(const server_t *server);
-int event_conn_req(const gl_server_conn_req_t *req);
-void event_stopped(void);
+void event_started(const server_t *server, void *arg);
+int event_conn_req(const gl_server_conn_req_t *req, void *arg);
+void event_stopped(void *arg);
 
 /* Server client's connection event handlers. */
-void event_conn_accepted(const server_conn_t *conn);
-void event_conn_download_progress(const gl_server_conn_progress_t *progress);
-void event_conn_download_success(const file_bundle_t *fb);
-void event_conn_closed(void);
+void event_conn_accepted(const server_conn_t *conn, void *arg);
+void event_conn_download_progress(const gl_server_conn_progress_t *progress,
+								  void *arg);
+void event_conn_download_success(const file_bundle_t *fb, void *arg);
+void event_conn_closed(void *arg);
 
 /**
  * Starts up the server and wait for it to be shutdown.
@@ -45,15 +46,16 @@ gl_err_t *server_run(const char *ip, uint16_t port) {
 	}
 
 	/* Setup event handlers. */
-	gl_server_evt_start_set(g_server, event_started);
-	gl_server_evt_client_conn_req_set(g_server, event_conn_req);
-	gl_server_evt_stop_set(g_server, event_stopped);
-	gl_server_conn_evt_accept_set(g_server, event_conn_accepted);
+	gl_server_evt_start_set(g_server, event_started, NULL);
+	gl_server_evt_client_conn_req_set(g_server, event_conn_req, NULL);
+	gl_server_evt_stop_set(g_server, event_stopped, NULL);
+	gl_server_conn_evt_accept_set(g_server, event_conn_accepted, NULL);
 	gl_server_conn_evt_download_progress_set(g_server,
-											 event_conn_download_progress);
+											 event_conn_download_progress,
+											 NULL);
 	gl_server_conn_evt_download_success_set(g_server,
-											event_conn_download_success);
-	gl_server_conn_evt_close_set(g_server, event_conn_closed);
+											event_conn_download_success, NULL);
+	gl_server_conn_evt_close_set(g_server, event_conn_closed, NULL);
 
 	/* Initialize the server. */
 	err = gl_server_setup(g_server, ip, port);
@@ -102,9 +104,13 @@ cleanup:
  * Handles the server started event.
  *
  * @param server Server handle object.
+ * @param arg    Optional data set by the event handler setup.
  */
-void event_started(const server_t *server) {
+void event_started(const server_t *server, void *arg) {
 	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
 
 	/* Print some information about the current state of the server. */
 	ipstr = tcp_server_get_ipstr(server);
@@ -119,13 +125,17 @@ void event_started(const server_t *server) {
  * Handles the server client connection requested event.
  *
  * @param req Information about the client and its request.
+ * @param arg Optional data set by the event handler setup.
  *
  * @return 0 to refuses the request. Anything else will be treated as accepting.
  */
-int event_conn_req(const gl_server_conn_req_t *req) {
+int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
 	int c;
 	float fsize;
 	char prefix;
+
+	/* Ignore unused arguments. */
+	(void)arg;
 
 	/* Get a human-readable file size. */
 	fsize = file_size_readable(req->fb->size, &prefix);
@@ -149,8 +159,13 @@ int event_conn_req(const gl_server_conn_req_t *req) {
 
 /**
  * Handles the server stopped event.
+ *
+ * @param arg Optional data set by the event handler setup.
  */
-void event_stopped(void) {
+void event_stopped(void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Server stopped\n");
 }
 
@@ -158,9 +173,13 @@ void event_stopped(void) {
  * Handles the server connection accepted event.
  *
  * @param conn Client connection handle object.
+ * @param arg  Optional data set by the event handler setup.
  */
-void event_conn_accepted(const server_conn_t *conn) {
+void event_conn_accepted(const server_conn_t *conn, void *arg) {
 	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
 
 	/* Print out some client information. */
 	ipstr = tcp_server_conn_get_ipstr(conn);
@@ -173,8 +192,13 @@ void event_conn_accepted(const server_conn_t *conn) {
  * Handles the server connection download progress event.
  *
  * @param progress Structure containing all the information about the progress.
+ * @param arg      Optional data set by the event handler setup.
  */
-void event_conn_download_progress(const gl_server_conn_progress_t *progress) {
+void event_conn_download_progress(const gl_server_conn_progress_t *progress,
+								  void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Receiving file... (%u/%lu)\n", progress->recv_bytes,
 		   progress->fb->size);
 }
@@ -182,15 +206,24 @@ void event_conn_download_progress(const gl_server_conn_progress_t *progress) {
 /**
  * Handles the server connection download finished event.
  *
- * @param fb File bundle of the downloaded file.
+ * @param fb  File bundle of the downloaded file.
+ * @param arg Optional data set by the event handler setup.
  */
-void event_conn_download_success(const file_bundle_t *fb) {
+void event_conn_download_success(const file_bundle_t *fb, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Finished receiving %s\n", fb->base);
 }
 
 /**
  * Handles the server connection closed event.
+ *
+ * @param arg Optional data set by the event handler setup.
  */
-void event_conn_closed(void) {
+void event_conn_closed(void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
 	printf("Client connection closed\n");
 }
