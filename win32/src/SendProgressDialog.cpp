@@ -21,14 +21,6 @@
  */
 SendProgressDialog::SendProgressDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	ProgressDialog(hInst, hwndParent, IDD_TRANSFER) {
-	this->hwndContextLabel = NULL;
-	this->hwndProgressBar = NULL;
-	this->hwndRateLabel = NULL;
-	this->hwndProgressLabel = NULL;
-	this->hwndOpenFileButton = NULL;
-	this->hwndOpenFolderButton = NULL;
-	this->hwndCancelButton = NULL;
-
 	// Setup event handlers.
 	this->glClient.SetConnectionResponseEvent(
 		SendProgressDialog::OnConnectionResponse,
@@ -162,7 +154,7 @@ void SendProgressDialog::OnConnectionResponse(const file_bundle_t *fb,
 	if (!accepted) {
 		SetWindowText(pThis->hwndContextLabel,
 					  _T("Peer declined our file transfer"));
-		pThis->SwitchCancelButtonToClose(true);
+		pThis->SwitchCancelButtonToClose(true, false);
 	} else {
 		SetWindowText(pThis->hwndContextLabel,
 					  _T("Peer accepted our file transfer"));
@@ -212,7 +204,7 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 	pThis->StopTransferRateTracking();
 
 	// Change the cancel button into a close button.
-	pThis->SwitchCancelButtonToClose(true);
+	pThis->SwitchCancelButtonToClose(true, false);
 }
 
 /**

@@ -56,18 +56,28 @@ ProgressDialog::~ProgressDialog() {
 }
 
 /**
+ * Enables or disables the Open File and Open Folder buttons.
+ *
+ * @param bEnable Should the buttons be enabled?
+ */
+void ProgressDialog::EnableOpenButtons(bool bEnable) {
+	EnableWindow(this->hwndOpenFileButton, bEnable);
+	EnableWindow(this->hwndOpenFolderButton, bEnable);
+}
+
+/**
  * Switches the cancel button into a close button.
  * 
  * @param bMakeDefault Make the close button the default in the dialog.
  */
-void ProgressDialog::SwitchCancelButtonToClose(bool bMakeDefault) {
-	// Make the default button of the dialog.
+void ProgressDialog::SwitchCancelButtonToClose(bool bMakeDefault,
+											   bool bEnableOpen) {
+	// Check if Cancel should be the default button of the dialog.
 	if (bMakeDefault)
 		SetDlgDefaultButton(this->hDlg, IDCANCEL);
 
-	// Disable the other buttons.
-	EnableWindow(this->hwndOpenFileButton, false);
-	EnableWindow(this->hwndOpenFolderButton, false);
+	// Enable or disable the open buttons.
+	EnableOpenButtons(bEnableOpen);
 
 	// Change the text of the button.
 	SetWindowText(this->hwndCancelButton, _T("Close"));
@@ -349,7 +359,7 @@ LPTSTR ProgressDialog::GetRoundedFileSize(fsize_t fsSize) {
 INT_PTR ProgressDialog::OnCancel(HWND hDlg) {
 	// Stop the rate tracking and turn the cancel button into a close one.
 	StopTransferRateTracking();
-	SwitchCancelButtonToClose(true);
+	SwitchCancelButtonToClose(true, false);
 
 	return FALSE;
 }

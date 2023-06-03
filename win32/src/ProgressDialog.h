@@ -38,7 +38,9 @@ protected:
 	LPTSTR szTargetSize;
 
 	virtual void SetupControls(HWND hDlg);
-	void SwitchCancelButtonToClose(bool bMakeDefault);
+
+	void EnableOpenButtons(bool bEnable);
+	void SwitchCancelButtonToClose(bool bMakeDefault, bool bEnableOpen);
 
 	void SetProgressBarMarquee(bool bEnabled);
 	void SetProgressTarget(const file_bundle_t* fb);
