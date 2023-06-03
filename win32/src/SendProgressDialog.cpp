@@ -216,6 +216,26 @@ void SendProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 }
 
 /**
+ * Event handler that's called when the Cancel button gets clicked. Won't be
+ * called after the Cancel button becomes a Close button.
+ *
+ * @param hDlg Dialog window handle.
+ *
+ * @return Value to be returned by the dialog's message handling procedure.
+ */
+INT_PTR SendProgressDialog::OnCancel(HWND hDlg) {
+	// Cancel the transfer.
+	this->glClient.Cancel();
+
+	// Update some controls on the window.
+	SetWindowText(this->hwndContextLabel, _T("Canceled the file transfer"));
+	ProgressDialog::OnCancel(hDlg);
+
+	// Prevent the dialog from closing.
+	return TRUE;
+}
+
+/**
  * Get our own object pointer statically from a void pointer.
  * 
  * @param lpvThis Pointer to a valid instance of ourselves.

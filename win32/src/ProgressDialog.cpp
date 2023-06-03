@@ -347,6 +347,9 @@ LPTSTR ProgressDialog::GetRoundedFileSize(fsize_t fsSize) {
  * @return Value to be returned by the dialog's message handling procedure.
  */
 INT_PTR ProgressDialog::OnCancel(HWND hDlg) {
+	// Stop the rate tracking and turn the cancel button into a close one.
 	StopTransferRateTracking();
-	return 0;
+	SwitchCancelButtonToClose(true);
+
+	return FALSE;
 }

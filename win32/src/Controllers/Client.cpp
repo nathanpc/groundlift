@@ -20,19 +20,16 @@ using namespace GroundLift;
  * Constructs a new object.
  */
 Client::Client() {
-	this->hndClient = gl_client_new();
-	if (this->hndClient == NULL) {
-		throw GroundLift::Exception(
-			gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-				EMSG("Failed to construct the client handle object"))
-		);
-	}
+	Setup();
 }
 
 /**
  * Frees up any resources allocated internally for the object.
  */
 Client::~Client() {
+	// Disconnect just to be sure.
+	Cancel();
+
 	// Wait for the client's thread to return.
 	gl_err_t *err = gl_client_thread_join(this->hndClient);
 	if (err) {
@@ -58,6 +55,10 @@ void Client::SendFile(LPCTSTR szDest, USHORT usPort, LPCTSTR szPath) {
 	char *szmbDest;
 	char *szmbPath;
 
+	// Do we still have a valid handle?
+	if (!IsHandleValid())
+		Setup();
+
 	// Convert our parameters to UTF-8.
 	szmbDest = utf16_wcstombs(szDest);
 	szmbPath = utf16_wcstombs(szPath);
@@ -75,6 +76,39 @@ void Client::SendFile(LPCTSTR szDest, USHORT usPort, LPCTSTR szPath) {
 	// Free our temporary buffers.
 	free(szmbDest);
 	free(szmbPath);
+}
+
+void Client::Cancel() {
+	// Disconnect the client.
+	gl_client_disconnect(this->hndClient);
+}
+
+/**
+ * Sets up a brand new client handle.
+ */
+void Client::Setup() {
+	// Do we need to tear down the old one?
+	if (IsHandleValid())
+		Cancel();
+
+	// Setup the new client handle.
+	this->hndClient = gl_client_new();
+	if (this->hndClient == NULL) {
+		throw GroundLift::Exception(
+			gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+				EMSG("Failed to construct the client handle object"))
+		);
+	}
+}
+
+/**
+ * Checks if the client handle is currently valid and can be used in
+ * operations.
+ * 
+ * @return Is the client handle valid (not NULL)?
+ */
+bool Client::IsHandleValid() {
+	return this->hndClient != NULL;
 }
 
 /**

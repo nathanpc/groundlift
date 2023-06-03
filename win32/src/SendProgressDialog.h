@@ -25,6 +25,8 @@ class SendProgressDialog : public ProgressDialog {
 protected:
 	GroundLift::Client glClient;
 
+	INT_PTR OnCancel(HWND hDlg);
+
 	void SetupControls(HWND hDlg);
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);

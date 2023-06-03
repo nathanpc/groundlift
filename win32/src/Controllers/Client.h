@@ -23,11 +23,15 @@ class Client {
 private:
 	client_handle_t *hndClient;
 
+	void Setup();
+	bool IsHandleValid();
+
 public:
 	Client();
 	virtual ~Client();
 
 	void SendFile(LPCTSTR szDest, USHORT usPort, LPCTSTR szPath);
+	void Cancel();
 
 	// Event handlers.
 	void SetConnectionResponseEvent(gl_client_evt_conn_req_resp_func func,
