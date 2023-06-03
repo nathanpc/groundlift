@@ -16,6 +16,8 @@
 #include <windows.h>
 #include <DialogWindow.h>
 
+#include "Controllers/Server.h"
+
 /**
  * A popup dialog, similar to a modern notification, that allows the user to
  * accept or decline a transfer requested by a client.
@@ -33,8 +35,14 @@ public:
 	RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent);
 	virtual ~RequestPopupDialog();
 
+	void SetupEventHandlers(GroundLift::Server* glServer);
+
 private:
 	void MoveIntoPosition();
+
+	static int OnTransferRequested(const gl_server_conn_req_t* req, void* arg);
+
+	static RequestPopupDialog* GetOurObjectPointer(void* lpvThis);
 };
 
 #endif // _WINGL_REQUESRPOPUPDIALOG_H

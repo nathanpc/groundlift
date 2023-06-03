@@ -12,6 +12,7 @@
 #include "AboutDialog.h"
 #include "SendFileDialog.h"
 #include "RequestPopupDialog.h"
+#include "Controllers/Server.h"
 
 // Common definitions.
 #define MAX_LOADSTRING 100
@@ -21,6 +22,7 @@ HINSTANCE hInst;
 HWND hwndMain;
 TCHAR szWindowClass[MAX_LOADSTRING];
 TCHAR szAppTitle[MAX_LOADSTRING];
+GroundLift::Server *glServer;
 SendFileDialog *dlgSendFile = NULL;
 RequestPopupDialog *dlgRequestPopup = NULL;
 
@@ -125,6 +127,16 @@ HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
 	// Set the global instance variable.
 	hInst = hInstance;
 
+	// Initialize the Winsock stuff.
+	wVersionRequested = MAKEWORD(2, 2);
+	if ((iRet = WSAStartup(wVersionRequested, &wsaData)) != 0) {
+		printf("WSAStartup failed with error %d\n", iRet);
+		MessageBox(NULL, TEXT("Windows sockets WSAStartup failed!"),
+				   TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
+
+		return 0;
+	}
+
 	// Create the main window.
 	hWnd = CreateWindow(szWindowClass,			// Window class.
 						szAppTitle,				// Window title.
@@ -156,16 +168,6 @@ HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
 		GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
 	SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 #endif
-
-	// Initialize the Winsock stuff.
-	wVersionRequested = MAKEWORD(2, 2);
-	if ((iRet = WSAStartup(wVersionRequested, &wsaData)) != 0) {
-		printf("WSAStartup failed with error %d\n", iRet);
-		MessageBox(NULL, TEXT("Windows sockets WSAStartup failed!"),
-				   TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
-
-		return 0;
-	}
 
 	// Show and update the window.
 	ShowWindow(hWnd, nCmdShow);
@@ -244,6 +246,10 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	dlgSendFile = new SendFileDialog(hInst, hwndMain);
 	dlgRequestPopup = new RequestPopupDialog(hInst, hwndMain);
 
+	// Setup the server and start it up!
+	ServerSetup();
+	glServer->Start();
+
 	return 0;
 }
 
@@ -309,6 +315,8 @@ LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 		delete dlgSendFile;
 	if (dlgRequestPopup)
 		delete dlgRequestPopup;
+	if (glServer)
+		delete glServer;
 
 	return DefWindowProc(hWnd, wMsg, wParam, lParam);
 }
@@ -327,4 +335,12 @@ LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Post quit message and return.
 	PostQuitMessage(0);
 	return 0;
+}
+
+/**
+ * Sets up our server instance and its event handlers.
+ */
+void ServerSetup() {
+	glServer = new GroundLift::Server();
+	dlgRequestPopup->SetupEventHandlers(glServer);
 }

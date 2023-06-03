@@ -8,6 +8,9 @@
 
 #include "RequestPopupDialog.h"
 
+#include <stdexcept>
+#include <utils/utf16.h>
+
 #include "CommonIncludes.h"
 
 /**
@@ -27,6 +30,18 @@ RequestPopupDialog::RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent) :
  * Frees up any resources allocated by this object.
  */
 RequestPopupDialog::~RequestPopupDialog() {
+}
+
+/**
+ * Sets up all of the event handlers that we and the transfer are responsible
+ * for.
+ * 
+ * @param glServer GroundLift server object to have its event handlers set.
+ */
+void RequestPopupDialog::SetupEventHandlers(GroundLift::Server* glServer) {
+	glServer->SetClientTransferRequestEvent(OnTransferRequested,
+										   reinterpret_cast<void*>(this));
+	// TODO: Use SetConnectionCloseEvent for closing canceled requests.
 }
 
 /**
@@ -99,9 +114,85 @@ void RequestPopupDialog::MoveIntoPosition() {
 	GetWindowRect(this->hDlg, &rcWindow);
 
 	// Calculate the new position.
-	int posX = rcDesktop.right - rcWindow.right;
-	int posY = rcDesktop.bottom - rcWindow.bottom;
+	int posX = rcDesktop.right - (rcWindow.right - rcWindow.left);
+	int posY = rcDesktop.bottom - (rcWindow.bottom - rcWindow.top);
 
 	// Make ourselves the topmost window and reposition us.
-	SetWindowPos(hDlg, HWND_TOP, posX, posY, 0, 0, SWP_NOSIZE);
+	SetWindowPos(hDlg, HWND_TOPMOST, posX, posY, 0, 0, SWP_NOSIZE);
+}
+
+/**
+ * Handles the Client Transfer Request event.
+ *
+ * @param req Information about the client and its request.
+ * @param arg Optional data set by the event handler setup.
+ *
+ * @return Return 0 to refuse the connection request. Anything else will be
+ *         treated as accepting.
+ */
+int RequestPopupDialog::OnTransferRequested(const gl_server_conn_req_t* req,
+											void* arg) {
+	float fSize;
+	char cPrefix;
+	LPTSTR szHostname;
+	LPTSTR szIP;
+	LPTSTR szFilename;
+
+	// Get ourselves from the optional argument.
+	RequestPopupDialog* pThis = RequestPopupDialog::GetOurObjectPointer(arg);
+
+	// Get a human-readable file size and convert some strings to UTF-16.
+	fSize = file_size_readable(req->fb->size, &cPrefix);
+	szHostname = utf16_mbstowcs(req->hostname);
+	szFilename = utf16_mbstowcs(req->fb->base);
+	szIP = NULL;
+
+	// Get the peer IP address.
+	char* szBuffer;
+	if (socket_itos(&szBuffer, (const struct sockaddr*)&req->conn->addr)) {
+		szIP = utf16_mbstowcs(szBuffer);
+		free(szBuffer);
+		szBuffer = NULL;
+	}
+
+	// Set a nice notification message.
+	if (cPrefix != 'B') {
+		SetWindowFormatText(pThis->hwndInfoLabel,
+							_T("%s (%s) wants to send you %s (%.0f bytes)"),
+							szHostname, szIP, szFilename, fSize, cPrefix);
+	} else {
+		SetWindowFormatText(pThis->hwndInfoLabel,
+							_T("%s (%s) wants to send you %s (%.2f %cB)"),
+							szHostname, szIP, szFilename, fSize, cPrefix);
+	}
+
+	// Free our temporary buffers.
+	free(szHostname);
+	free(szIP);
+	free(szFilename);
+
+	// Show the notification popup.
+	return pThis->ShowModal() == IDOK;
+}
+
+/**
+ * Get our own object pointer statically from a void pointer.
+ *
+ * @param lpvThis Pointer to a valid instance of ourselves.
+ *
+ * @return Pointer to an instance of ourselves.
+ */
+RequestPopupDialog* RequestPopupDialog::GetOurObjectPointer(void* lpvThis) {
+	RequestPopupDialog* pThis = NULL;
+
+	// Cast the pointer to ourselves.
+	pThis = reinterpret_cast<RequestPopupDialog*>(lpvThis);
+	if (pThis == NULL) {
+		MsgBoxError(NULL, _T("Dialog Object Cast Failed"),
+			_T("Failed to get instance of RequestPopupDialog from pointer."));
+		throw std::exception(
+			"Failed to get instance of RequestPopupDialog from pointer");
+	}
+
+	return pThis;
 }
