@@ -161,6 +161,7 @@
     <ClInclude Include="..\..\src\CommonIncludes.h" />
     <ClInclude Include="..\..\src\Controllers\Client.h" />
     <ClInclude Include="..\..\src\Controllers\PeerDiscovery.h" />
+    <ClInclude Include="..\..\src\Controllers\Server.h" />
     <ClInclude Include="..\..\src\Exceptions\GroundLift.h" />
     <ClInclude Include="..\..\src\Models\Peer.h" />
     <ClInclude Include="..\..\src\ProgressDialog.h" />
@@ -174,6 +175,7 @@
     <ClCompile Include="..\..\src\Application.cpp" />
     <ClCompile Include="..\..\src\Controllers\Client.cpp" />
     <ClCompile Include="..\..\src\Controllers\PeerDiscovery.cpp" />
+    <ClCompile Include="..\..\src\Controllers\Server.cpp" />
     <ClCompile Include="..\..\src\Exceptions\GroundLift.cpp" />
     <ClCompile Include="..\..\src\Models\Peer.cpp" />
     <ClCompile Include="..\..\src\ProgressDialog.cpp" />

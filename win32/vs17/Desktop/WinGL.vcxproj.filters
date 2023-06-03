@@ -59,6 +59,9 @@
     <ClInclude Include="..\..\src\RequestPopupDialog.h">
       <Filter>Windows and Dialogs</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\Controllers\Server.h">
+      <Filter>Controllers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\AboutDialog.cpp">
@@ -90,6 +93,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\RequestPopupDialog.cpp">
       <Filter>Windows and Dialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Controllers\Server.cpp">
+      <Filter>Controllers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
