@@ -28,6 +28,25 @@ Peer::Peer(LPCTSTR szDeviceType, LPCTSTR szHostname,
 
 /**
  * Constructs a new Peer object.
+ *
+ * @param szDeviceType Type of device of the peer.
+ * @param szHostname   Hostname of the peer.
+ * @param saAddress    Socket address structure pointing to the peer.
+ * @param lenAddress   Length in bytes of the socket address structure.
+ */
+Peer::Peer(const char* szDeviceType, const char* szHostname,
+		   const struct sockaddr* saAddress, socklen_t lenAddress) {
+	// Convert the strings to UTF-16.
+	this->szDeviceType = utf16_mbstowcs(szDeviceType);
+	this->szHostname = utf16_mbstowcs(szHostname);
+
+	// Initialize the socket address properties.
+	if (saAddress)
+		InitializeAddress(saAddress, lenAddress);
+}
+
+/**
+ * Constructs a new Peer object.
  * 
  * @param szDeviceType Type of device of the peer.
  * @param szHostname   Hostname of the peer.
@@ -166,11 +185,24 @@ void Peer::Initialize(LPCTSTR szDeviceType, LPCTSTR szHostname,
 	this->saAddress = NULL;
 	this->lenAddress = lenAddress;
 
-	// Allocate memory and copy our socket address structure.
-	if (saAddress) {
-		this->saAddress = static_cast<struct sockaddr *>(malloc(lenAddress));
-		if (this->saAddress == NULL)
-			throw std::bad_alloc();
-		memcpy(this->saAddress, saAddress, lenAddress);
-	}
+	// Copy our socket address structure.
+	if (saAddress)
+		InitializeAddress(saAddress, lenAddress);
+}
+
+/**
+ * Initializes the object's socket address properties.
+ *
+ * @param saAddress  Socket address structure pointing to the peer.
+ * @param lenAddress Length in bytes of the socket address structure.
+ */
+void Peer::InitializeAddress(const struct sockaddr* saAddress,
+							 socklen_t lenAddress) {
+	// Allocate some memory for our socket's address.
+	this->saAddress = static_cast<struct sockaddr *>(malloc(lenAddress));
+	if (this->saAddress == NULL)
+		throw std::bad_alloc();
+
+	// Copy the structure over.
+	memcpy(this->saAddress, saAddress, lenAddress);
 }
