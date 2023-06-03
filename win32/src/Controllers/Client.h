@@ -23,9 +23,6 @@ class Client {
 private:
 	client_handle_t *hndClient;
 
-	void Setup();
-	bool IsHandleValid();
-
 public:
 	Client();
 	virtual ~Client();
