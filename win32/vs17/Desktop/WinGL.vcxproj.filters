@@ -62,6 +62,9 @@
     <ClInclude Include="..\..\src\Controllers\Server.h">
       <Filter>Controllers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ReceiveProgressDialog.h">
+      <Filter>Windows and Dialogs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\AboutDialog.cpp">
@@ -96,6 +99,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Controllers\Server.cpp">
       <Filter>Controllers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ReceiveProgressDialog.cpp">
+      <Filter>Windows and Dialogs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

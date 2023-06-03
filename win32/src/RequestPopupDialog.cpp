@@ -24,12 +24,24 @@ RequestPopupDialog::RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	this->hwndInfoLabel = NULL;
 	this->hwndAcceptButton = NULL;
 	this->hwndDeclineButton = NULL;
+
+	// Setup our progress dialog.
+	this->dlgProgress = new ReceiveProgressDialog(this->hInst, hwndParent);
 }
 
 /**
  * Frees up any resources allocated by this object.
  */
 RequestPopupDialog::~RequestPopupDialog() {
+	if (this->dlgProgress)
+		delete dlgProgress;
+}
+
+/**
+ * Shows the transfer progress dialog.
+ */
+void RequestPopupDialog::ShowTransferProgress() {
+	this->dlgProgress->Show();
 }
 
 /**
@@ -39,9 +51,13 @@ RequestPopupDialog::~RequestPopupDialog() {
  * @param glServer GroundLift server object to have its event handlers set.
  */
 void RequestPopupDialog::SetupEventHandlers(GroundLift::Server* glServer) {
+	// Setup our own event handlers.
 	glServer->SetClientTransferRequestEvent(OnTransferRequested,
-										   reinterpret_cast<void*>(this));
+											reinterpret_cast<void*>(this));
 	// TODO: Use SetConnectionCloseEvent for closing canceled requests.
+
+	// Setup the progress dialog event handlers.
+	this->dlgProgress->SetupEventHandlers(glServer);
 }
 
 /**
@@ -79,14 +95,6 @@ INT_PTR CALLBACK RequestPopupDialog::DlgProc(HWND hDlg, UINT wMsg,
 				// Ensure we use the default background color of a window.
 				return reinterpret_cast<INT_PTR>(
 					GetSysColorBrush(COLOR_WINDOW));
-			}
-			break;
-		case WM_COMMAND:
-			switch (LOWORD(wParam)) {
-				case IDOK:
-					break;
-				case IDCANCEL:
-					break;
 			}
 			break;
 	}
@@ -134,45 +142,42 @@ int RequestPopupDialog::OnTransferRequested(const gl_server_conn_req_t* req,
 											void* arg) {
 	float fSize;
 	char cPrefix;
-	LPTSTR szHostname;
-	LPTSTR szIP;
 	LPTSTR szFilename;
+	LPTSTR szIP;
+	int nAccepted;
 
 	// Get ourselves from the optional argument.
-	RequestPopupDialog* pThis = RequestPopupDialog::GetOurObjectPointer(arg);
+	RequestPopupDialog* pThis = GetOurObjectPointer(arg);
 
-	// Get a human-readable file size and convert some strings to UTF-16.
+	// Get a human-readable file size and construct a peer object.
 	fSize = file_size_readable(req->fb->size, &cPrefix);
-	szHostname = utf16_mbstowcs(req->hostname);
+	GroundLift::Peer peer("?", req->hostname,
+		(const struct sockaddr*)&req->conn->addr, req->conn->addr_size);
 	szFilename = utf16_mbstowcs(req->fb->base);
-	szIP = NULL;
-
-	// Get the peer IP address.
-	char* szBuffer;
-	if (socket_itos(&szBuffer, (const struct sockaddr*)&req->conn->addr)) {
-		szIP = utf16_mbstowcs(szBuffer);
-		free(szBuffer);
-		szBuffer = NULL;
-	}
+	szIP = peer.IPAddress();
 
 	// Set a nice notification message.
 	if (cPrefix != 'B') {
 		SetWindowFormatText(pThis->hwndInfoLabel,
 							_T("%s (%s) wants to send you %s (%.0f bytes)"),
-							szHostname, szIP, szFilename, fSize, cPrefix);
+							peer.Hostname(), szIP, szFilename, fSize, cPrefix);
 	} else {
 		SetWindowFormatText(pThis->hwndInfoLabel,
 							_T("%s (%s) wants to send you %s (%.2f %cB)"),
-							szHostname, szIP, szFilename, fSize, cPrefix);
+							peer.Hostname(), szIP, szFilename, fSize, cPrefix);
 	}
 
 	// Free our temporary buffers.
-	free(szHostname);
-	free(szIP);
 	free(szFilename);
+	free(szIP);
 
-	// Show the notification popup.
-	return pThis->ShowModal() == IDOK;
+	// Send the message to show the notification popup.
+	nAccepted = 0;
+	SendMessage(pThis->hwndParent, WM_SHOWPOPUP, 0,
+				reinterpret_cast<LPARAM>(&nAccepted));
+	pThis->dlgProgress->InitiateTransfer(peer, req->fb);
+
+	return nAccepted;
 }
 
 /**

@@ -215,6 +215,8 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT wMsg, WPARAM wParam,
 			return WndMainClose(hWnd, wMsg, wParam, lParam);
 		case WM_DESTROY:
 			return WndMainDestroy(hWnd, wMsg, wParam, lParam);
+		case WM_SHOWPOPUP:
+			return WndMainShowPopup(hWnd, wMsg, wParam, lParam);
 	}
 
 	return DefWindowProc(hWnd, wMsg, wParam, lParam);
@@ -334,6 +336,27 @@ LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Post quit message and return.
 	PostQuitMessage(0);
+	return 0;
+}
+
+/**
+ * Process the WM_SHOWPOPUP message for the window.
+ *
+ * @param hWnd   Window handler.
+ * @param wMsg   Message type.
+ * @param wParam Message parameter.
+ * @param lParam Message parameter.
+ *
+ * @return Should always return 0.
+ */
+LRESULT WndMainShowPopup(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
+	int *nAccepted = reinterpret_cast<int *>(lParam);
+
+	// Show the notification popup.
+	*nAccepted = dlgRequestPopup->ShowModal() == IDOK;
+	if (*nAccepted)
+		dlgRequestPopup->ShowTransferProgress();
+
 	return 0;
 }
 

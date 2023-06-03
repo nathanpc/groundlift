@@ -29,6 +29,7 @@ LRESULT WndMainCommand(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
 LRESULT WndMainNotify(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
 LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
 LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
+LRESULT WndMainShowPopup(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
 
 // GroundLift server.
 void ServerSetup();

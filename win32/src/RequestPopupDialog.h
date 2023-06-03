@@ -17,6 +17,16 @@
 #include <DialogWindow.h>
 
 #include "Controllers/Server.h"
+#include "Models/Peer.h"
+#include "ReceiveProgressDialog.h"
+
+/**
+ * Message sent when the popup should get opened.
+ * 
+ * @param wParam Should be 0.
+ * @param lParam Pointer to a variable that will hold the acceptance response.
+ */
+#define WM_SHOWPOPUP (WM_APP + 0x01)
 
 /**
  * A popup dialog, similar to a modern notification, that allows the user to
@@ -27,6 +37,7 @@ protected:
 	HWND hwndInfoLabel;
 	HWND hwndAcceptButton;
 	HWND hwndDeclineButton;
+	ReceiveProgressDialog* dlgProgress;
 
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);
@@ -34,6 +45,8 @@ protected:
 public:
 	RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent);
 	virtual ~RequestPopupDialog();
+
+	void ShowTransferProgress();
 
 	void SetupEventHandlers(GroundLift::Server* glServer);
 
