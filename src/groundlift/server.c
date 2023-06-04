@@ -186,6 +186,64 @@ gl_err_t *gl_server_start(server_handle_t *handle) {
 }
 
 /**
+ * Closes the current active connection to the server using mutexes. Works just
+ * like gl_server_conn_close, except it's safe to be called from the outside.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
+ * @see gl_server_conn_close
+ */
+gl_err_t *gl_server_conn_cancel(server_handle_t *handle) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+
+	/* Do we even need to do stuff? */
+	if ((handle == NULL) || (handle->conn == NULL))
+		return NULL;
+
+	/* Close the connection. */
+	thread_mutex_lock(handle->mutexes.conn);
+	err = gl_server_conn_close(handle);
+	thread_mutex_unlock(handle->mutexes.conn);
+
+	return err;
+}
+
+/**
+ * Closes the current active connection to the server.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error information or NULL if the operation was successful. This
+ *         pointer must be free'd by you.
+ *
+ * @see gl_server_conn_destroy
+ */
+gl_err_t *gl_server_conn_close(server_handle_t *handle) {
+	gl_err_t *err;
+	tcp_err_t tcp_err;
+
+	/* Do we even need to do stuff? */
+	if ((handle == NULL) || (handle->conn == NULL))
+		return NULL;
+
+	/* Close the connection. */
+	tcp_err = tcp_server_conn_shutdown(handle->conn);
+
+	/* Check for errors. */
+	err = NULL;
+	if (tcp_err > SOCK_OK) {
+		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
+			EMSG("Failed to shutdown the server's client connection socket"));
+	}
+
+	return err;
+}
+
+/**
  * Closes and frees up any resources associated with the current active
  * connection to the server.
  *
@@ -195,27 +253,19 @@ gl_err_t *gl_server_start(server_handle_t *handle) {
  *         pointer must be free'd by you.
  *
  * @see gl_server_stop
- * @see tcp_server_conn_close
+ * @see gl_server_conn_close
  */
 gl_err_t *gl_server_conn_destroy(server_handle_t *handle) {
 	gl_err_t *err;
-	tcp_err_t tcp_err;
 
 	/* Do we even need to do stuff? */
 	if ((handle == NULL) || (handle->conn == NULL))
 		return NULL;
 
 	/* Close the connection and free up any resources allocated. */
-	tcp_err = tcp_server_conn_shutdown(handle->conn);
+	err = gl_server_conn_close(handle);
 	tcp_server_conn_free(handle->conn);
 	handle->conn = NULL;
-
-	/* Check for errors. */
-	err = NULL;
-	if (tcp_err > SOCK_OK) {
-		err = gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
-			EMSG("Failed to shutdown the server's client connection socket"));
-	}
 
 	return err;
 }
@@ -609,8 +659,19 @@ gl_err_t *gl_server_handle_put_req(server_handle_t *handle,
 		obex_packet_free(packet);
 	}
 
-	/* Free any resources and return the error. */
+	/* Free any resources. */
 	file_bundle_free(fb);
+	file_close(fh);
+
+	/* Check if the transfer was cancelled. */
+	if (handle->conn->sockfd == INVALID_SOCKET) {
+		*running = false;
+		*state = CONN_STATE_CANCELLED;
+
+		return err;
+	}
+
+	/* Return the error. */
 	return gl_error_new(ERR_TYPE_OBEX, OBEX_ERR_PACKET_RECV,
 		EMSG("An invalid packet was received during a chunked file transfer"));
 }
@@ -714,6 +775,9 @@ void *server_thread_func(void *handle_ptr) {
 						gl_err = gl_server_handle_put_req(
 							handle, packet, &running, &state);
 					}
+					break;
+				case CONN_STATE_CANCELLED:
+					running = false;
 					break;
 				case CONN_STATE_ERROR:
 					running = false;

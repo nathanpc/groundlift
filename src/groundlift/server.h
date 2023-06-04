@@ -107,6 +107,7 @@ typedef void (*gl_server_conn_evt_download_success_func)(
 typedef enum {
 	CONN_STATE_CREATED = 0,
 	CONN_STATE_RECV_FILES,
+	CONN_STATE_CANCELLED,
 	CONN_STATE_ERROR
 } conn_state_t;
 
@@ -161,7 +162,9 @@ gl_err_t *gl_server_free(server_handle_t *handle);
 
 /* Server lifecycle. */
 gl_err_t *gl_server_start(server_handle_t *handle);
+gl_err_t *gl_server_conn_close(server_handle_t *handle);
 gl_err_t *gl_server_conn_destroy(server_handle_t *handle);
+gl_err_t *gl_server_conn_cancel(server_handle_t *handle);
 gl_err_t *gl_server_stop(server_handle_t *handle);
 gl_err_t *gl_server_thread_join(server_handle_t *handle);
 
