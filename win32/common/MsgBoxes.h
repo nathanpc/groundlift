@@ -23,6 +23,8 @@ extern "C" {
 int MsgBox(HWND hwndParent, UINT uType, LPCTSTR szTitle, LPCTSTR szText);
 
 // Commonly used message boxes.
+int MsgBoxInfo(HWND hwndParent, LPCTSTR szTitle, LPCTSTR szText);
+int MsgBoxWarning(HWND hwndParent, LPCTSTR szTitle, LPCTSTR szText);
 int MsgBoxError(HWND hwndParent, LPCTSTR szTitle, LPCTSTR szText);
 int MsgBoxLastError(HWND hwndParent);
 
