@@ -46,7 +46,8 @@ SendProgressDialog::~SendProgressDialog() {
 void SendProgressDialog::SendFile(LPCTSTR szIP, LPCTSTR szFilePath) {
 	LPCTSTR szBasename;
 
-	// Get the file basename.
+	// Store the file path and get its basename.
+	SetFilePath(szFilePath);
 	szBasename = PathFindFileName(szFilePath);
 
 	// Set the context label text.

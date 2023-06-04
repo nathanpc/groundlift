@@ -33,6 +33,8 @@ public:
 	void Start();
 	void Stop();
 	void Restart();
+	void CloseConnection();
+
 	bool IsRunning();
 
 	// Event handlers.

@@ -7,6 +7,7 @@
 
 #include "ProgressDialog.h"
 
+#include <shellapi.h>
 #include <shlwapi.h>
 #include <utils/utf16.h>
 
@@ -41,6 +42,7 @@ ProgressDialog::ProgressDialog(HINSTANCE& hInst, HWND& hwndParent,
 	this->isButtonClose = false;
 	this->uRateInterval = 500;
 
+	this->szFilePath = NULL;
 	this->fsTarget = 0;
 	this->fsCurrent = 0;
 	this->bDivideProgress = false;
@@ -51,6 +53,8 @@ ProgressDialog::ProgressDialog(HINSTANCE& hInst, HWND& hwndParent,
  * Frees up any resources allocated by this object.
  */
 ProgressDialog::~ProgressDialog() {
+	if (this->szFilePath)
+		free(this->szFilePath);
 	if (this->szTargetSize)
 		free(this->szTargetSize);
 }
@@ -82,6 +86,34 @@ void ProgressDialog::SwitchCancelButtonToClose(bool bMakeDefault,
 	// Change the text of the button.
 	SetWindowText(this->hwndCancelButton, _T("Close"));
 	this->isButtonClose = true;
+}
+
+/**
+ * Sets the path to where the file being transferred is located at.
+ *
+ * @param szFilePath Path to the file being transferred.
+ */
+void ProgressDialog::SetFilePath(LPCTSTR szFilePath) {
+	// Check if there's another path already set and free it.
+	if (this->szFilePath)
+		free(this->szFilePath);
+
+	// Duplicate the path and set it.
+	this->szFilePath = _tcsdup(szFilePath);
+}
+
+/**
+ * Sets the path to where the file being transferred is located at.
+ * 
+ * @param fb File bundle with the information about the file.
+ */
+void ProgressDialog::SetFilePath(const file_bundle_t* fb) {
+	// Check if there's another path already set and free it.
+	if (this->szFilePath)
+		free(this->szFilePath);
+
+	// Get the path from the file bundle and convert it to UTF-16.
+	this->szFilePath = utf16_mbstowcs(fb->name);
 }
 
 /**
@@ -197,6 +229,12 @@ INT_PTR CALLBACK ProgressDialog::DlgProc(HWND hDlg, UINT wMsg,
 			break;
 		case WM_COMMAND:
 			switch (LOWORD(wParam)) {
+				case IDC_OPEN_FILE:
+					// Open File button was clicked.
+					return OnOpenFile(hDlg);
+				case IDC_OPEN_FOLDER:
+					// Open Folder button was clicked.
+					return OnOpenFolder(hDlg);
 				case IDCANCEL: {
 					// Call the cancel button event handler if needed.
 					if (!isButtonClose) {
@@ -346,6 +384,58 @@ LPTSTR ProgressDialog::GetRoundedFileSize(fsize_t fsSize) {
 	}
 
 	return szBuffer;
+}
+
+/**
+ * Event handler that's called when the Open File button gets clicked.
+ *
+ * @param hDlg Dialog window handle.
+ *
+ * @return Value to be returned by the dialog's message handling procedure.
+ */
+INT_PTR ProgressDialog::OnOpenFile(HWND hDlg) {
+	// Check if we have a file to open.
+	if (this->szFilePath == NULL) {
+		MsgBoxWarning(hDlg, _T("Can't open file"),
+			_T("Couldn't open the file since it wasn't set in the dialog."));
+		return TRUE;
+	}
+
+	// Open the file using the default program and close the dialog.
+	ShellExecute(NULL, _T("open"), this->szFilePath, NULL, NULL, SW_SHOW);
+	Close(IDOK);
+
+	return TRUE;
+}
+
+/**
+ * Event handler that's called when the Open Folder button gets clicked.
+ *
+ * @param hDlg Dialog window handle.
+ *
+ * @return Value to be returned by the dialog's message handling procedure.
+ */
+INT_PTR ProgressDialog::OnOpenFolder(HWND hDlg) {
+	LPTSTR szFolder;
+	LPTSTR szBuffer;
+
+	// Check if we have a folder to open.
+	if (this->szFilePath == NULL) {
+		MsgBoxWarning(hDlg, _T("Can't open folder"),
+			_T("Couldn't open the folder since it wasn't set in the dialog."));
+		return TRUE;
+	}
+
+	// Get the folder from the file path.
+	szFolder = _tcsdup(this->szFilePath);
+	szBuffer = const_cast<LPTSTR>(PathFindFileName(szFolder)) - 1;
+	*szBuffer = _T('\0');
+
+	// Open the folder and close the dialog.
+	ShellExecute(NULL, _T("open"), szFolder, NULL, NULL, SW_SHOW);
+	Close(IDOK);
+
+	return TRUE;
 }
 
 /**

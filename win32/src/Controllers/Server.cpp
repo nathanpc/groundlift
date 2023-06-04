@@ -74,6 +74,15 @@ void Server::Restart() {
 }
 
 /**
+ * Closes any currently active client connection to the server.
+ */
+void Server::CloseConnection() {
+	gl_err_t *err = gl_server_conn_cancel(this->hndServer);
+	if (err)
+		throw GroundLift::Exception(err);
+}
+
+/**
  * Stops the server and frees its handle and any associated resources.
  */
 void Server::FreeHandle() {

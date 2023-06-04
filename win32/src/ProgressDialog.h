@@ -29,18 +29,13 @@ protected:
 	HWND hwndOpenFolderButton;
 	HWND hwndCancelButton;
 
-	bool isButtonClose;
-	UINT uRateInterval;
-
-	fsize_t fsTarget;
-	fsize_t fsCurrent;
-	bool bDivideProgress;
-	LPTSTR szTargetSize;
-
 	virtual void SetupControls(HWND hDlg);
 
 	void EnableOpenButtons(bool bEnable);
 	void SwitchCancelButtonToClose(bool bMakeDefault, bool bEnableOpen);
+
+	void SetFilePath(LPCTSTR szFilePath);
+	void SetFilePath(const file_bundle_t* fb);
 
 	void SetProgressBarMarquee(bool bEnabled);
 	void SetProgressTarget(const file_bundle_t* fb);
@@ -49,6 +44,8 @@ protected:
 	void StartTransferRateTracking();
 	void StopTransferRateTracking();
 
+	virtual INT_PTR OnOpenFile(HWND hDlg);
+	virtual INT_PTR OnOpenFolder(HWND hDlg);
 	virtual INT_PTR OnCancel(HWND hDlg);
 
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
@@ -59,6 +56,15 @@ public:
 	virtual ~ProgressDialog();
 
 private:
+	bool isButtonClose;
+	UINT uRateInterval;
+
+	LPTSTR szFilePath;
+	fsize_t fsTarget;
+	fsize_t fsCurrent;
+	bool bDivideProgress;
+	LPTSTR szTargetSize;
+
 	void SetProgressBarMax(DWORD dwMaxRange);
 	void SetProgressBarValue(DWORD dwValue);
 	void SetProgressBarValue(fsize_t fsValue);

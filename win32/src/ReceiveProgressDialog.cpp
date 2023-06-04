@@ -170,6 +170,9 @@ void ReceiveProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
 	pThis->SetProgressValue(fb->size, true);
 	pThis->StopTransferRateTracking();
 
+	// Set the path to the newly downloaded file.
+	pThis->SetFilePath(fb);
+
 	// Change the cancel button into a close button.
 	pThis->SwitchCancelButtonToClose(true, true);
 }
@@ -184,7 +187,7 @@ void ReceiveProgressDialog::OnSuccess(const file_bundle_t *fb, void *arg) {
  */
 INT_PTR ReceiveProgressDialog::OnCancel(HWND hDlg) {
 	// Cancel the transfer.
-	// TODO: this->glServer->Cancel();
+	this->glServer->CloseConnection();
 
 	// Update some controls on the window.
 	SetWindowText(this->hwndContextLabel, _T("File transfer canceled"));
