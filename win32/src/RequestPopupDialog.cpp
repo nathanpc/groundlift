@@ -25,6 +25,9 @@ RequestPopupDialog::RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	this->hwndAcceptButton = NULL;
 	this->hwndDeclineButton = NULL;
 
+	this->glPeer = NULL;
+	this->lpFB = NULL;
+
 	// Setup our progress dialog.
 	this->dlgProgress = new ReceiveProgressDialog(this->hInst, hwndParent);
 }
@@ -33,8 +36,12 @@ RequestPopupDialog::RequestPopupDialog(HINSTANCE& hInst, HWND& hwndParent) :
  * Frees up any resources allocated by this object.
  */
 RequestPopupDialog::~RequestPopupDialog() {
+	if (this->glPeer)
+		delete this->glPeer;
+	if (this->lpFB)
+		file_bundle_free(this->lpFB);
 	if (this->dlgProgress)
-		delete dlgProgress;
+		delete this->dlgProgress;
 }
 
 /**
@@ -77,12 +84,8 @@ INT_PTR CALLBACK RequestPopupDialog::DlgProc(HWND hDlg, UINT wMsg,
 	// Handle messages.
 	switch (wMsg) {
 		case WM_INITDIALOG:
-			// Get the handle of every useful control in the window.
-			this->hwndInfoLabel = GetDlgItem(hDlg, IDC_STATIC_NOTIFICATION);
-			this->hwndAcceptButton = GetDlgItem(hDlg, IDOK);
-			this->hwndDeclineButton = GetDlgItem(hDlg, IDCANCEL);
-
-			// Move ourselves into position.
+			// Setup the controls and move ourselves into position.
+			SetupControls();
 			MoveIntoPosition();
 			break;
 		case WM_CTLCOLORDLG:
@@ -101,6 +104,19 @@ INT_PTR CALLBACK RequestPopupDialog::DlgProc(HWND hDlg, UINT wMsg,
 
 	// Pass the message to the default message handler.
 	return DefaultDlgProc(hDlg, wMsg, wParam, lParam);
+}
+
+/**
+ * Sets up the initial state of the controls in the dialog.
+ */
+void RequestPopupDialog::SetupControls() {
+	// Get the handle of every useful control in the window.
+	this->hwndInfoLabel = GetDlgItem(this->hDlg, IDC_STATIC_NOTIFICATION);
+	this->hwndAcceptButton = GetDlgItem(this->hDlg, IDOK);
+	this->hwndDeclineButton = GetDlgItem(this->hDlg, IDCANCEL);
+
+	// Populate the notification with some context.
+	PopulateNotification();
 }
 
 /**
@@ -130,6 +146,55 @@ void RequestPopupDialog::MoveIntoPosition() {
 }
 
 /**
+ * Populates the notification with some context.
+ */
+void RequestPopupDialog::PopulateNotification() {
+	float fSize;
+	char cPrefix;
+	LPTSTR szFilename;
+	LPTSTR szIP;
+
+	// Get a human-readable file size and IP address.
+	fSize = file_size_readable(this->lpFB->size, &cPrefix);
+	szFilename = utf16_mbstowcs(this->lpFB->base);
+	szIP = this->glPeer->IPAddress();
+
+	// Set a nice notification message.
+	if (cPrefix != 'B') {
+		SetWindowFormatText(this->hwndInfoLabel,
+			_T("%s (%s) wants to send you %s (%.0f bytes)"),
+			glPeer->Hostname(), szIP, szFilename, fSize, cPrefix);
+	} else {
+		SetWindowFormatText(this->hwndInfoLabel,
+			_T("%s (%s) wants to send you %s (%.2f %cB)"),
+			glPeer->Hostname(), szIP, szFilename, fSize, cPrefix);
+	}
+
+	// Free our temporary buffers.
+	free(szFilename);
+	free(szIP);
+}
+
+/**
+ * Sets the context of the notification that's about to be shown.
+ * 
+ * @param fb   Information about the file to be transferred.
+ * @param peer Pointer to a peer object that will be stored by us.
+ */
+void RequestPopupDialog::SetNotificationContext(const file_bundle_t* fb,
+												GroundLift::Peer* peer) {
+	// Copy over the file bundle.
+	if (this->lpFB)
+		file_bundle_free(this->lpFB);
+	this->lpFB = file_bundle_dup(fb);
+
+	// Set the peer object.
+	if (this->glPeer)
+		delete this->glPeer;
+	this->glPeer = peer;
+}
+
+/**
  * Handles the Client Transfer Request event.
  *
  * @param req Information about the client and its request.
@@ -140,42 +205,22 @@ void RequestPopupDialog::MoveIntoPosition() {
  */
 int RequestPopupDialog::OnTransferRequested(const gl_server_conn_req_t* req,
 											void* arg) {
-	float fSize;
-	char cPrefix;
-	LPTSTR szFilename;
-	LPTSTR szIP;
 	int nAccepted;
 
 	// Get ourselves from the optional argument.
 	RequestPopupDialog* pThis = GetOurObjectPointer(arg);
 
-	// Get a human-readable file size and construct a peer object.
-	fSize = file_size_readable(req->fb->size, &cPrefix);
-	GroundLift::Peer peer("?", req->hostname,
+	// Create our peer object and set our context.
+	GroundLift::Peer* peer = new GroundLift::Peer("?", req->hostname,
 		(const struct sockaddr*)&req->conn->addr, req->conn->addr_size);
-	szFilename = utf16_mbstowcs(req->fb->base);
-	szIP = peer.IPAddress();
-
-	// Set a nice notification message.
-	if (cPrefix != 'B') {
-		SetWindowFormatText(pThis->hwndInfoLabel,
-							_T("%s (%s) wants to send you %s (%.0f bytes)"),
-							peer.Hostname(), szIP, szFilename, fSize, cPrefix);
-	} else {
-		SetWindowFormatText(pThis->hwndInfoLabel,
-							_T("%s (%s) wants to send you %s (%.2f %cB)"),
-							peer.Hostname(), szIP, szFilename, fSize, cPrefix);
-	}
-
-	// Free our temporary buffers.
-	free(szFilename);
-	free(szIP);
+	pThis->SetNotificationContext(req->fb, peer);
 
 	// Send the message to show the notification popup.
 	nAccepted = 0;
 	SendMessage(pThis->hwndParent, WM_SHOWPOPUP, 0,
 				reinterpret_cast<LPARAM>(&nAccepted));
-	pThis->dlgProgress->InitiateTransfer(peer, req->fb);
+	if (nAccepted)
+		pThis->dlgProgress->InitiateTransfer(*peer, req->fb);
 
 	return nAccepted;
 }

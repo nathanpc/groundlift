@@ -37,7 +37,11 @@ protected:
 	HWND hwndInfoLabel;
 	HWND hwndAcceptButton;
 	HWND hwndDeclineButton;
+
 	ReceiveProgressDialog* dlgProgress;
+	
+	GroundLift::Peer *glPeer;
+	file_bundle_t *lpFB;
 
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);
@@ -51,7 +55,12 @@ public:
 	void SetupEventHandlers(GroundLift::Server* glServer);
 
 private:
+	void SetupControls();
 	void MoveIntoPosition();
+
+	void PopulateNotification();
+	void SetNotificationContext(const file_bundle_t* fb,
+								GroundLift::Peer* peer);
 
 	static int OnTransferRequested(const gl_server_conn_req_t* req, void* arg);
 
