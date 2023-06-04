@@ -48,6 +48,7 @@ file_bundle_t *file_bundle_new_empty(void) {
 
 /**
  * Creates a fully populated file bundle from a file path.
+ * @warning This function allocates memory that must be free'd by you.
  *
  * @param fname Path to the file to get information from.
  *
@@ -80,6 +81,30 @@ file_bundle_t *file_bundle_new(const char *fname) {
 	}
 
 	return fb;
+}
+
+/**
+ * Duplicates a file bundle.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param fb Original file bundle to be duplicated.
+ *
+ * @return Duplicated file bundle object or NULL if an error occurred.
+ */
+file_bundle_t *file_bundle_dup(const file_bundle_t *fb) {
+	file_bundle_t *newfb;
+
+	/* Allocate a new file bundle. */
+	newfb = file_bundle_new_empty();
+	if (newfb == NULL)
+		return NULL;
+
+	/* Copy the data over. */
+	newfb->name = strdup(fb->name);
+	newfb->base = strdup(fb->base);
+	newfb->size = fb->size;
+
+	return newfb;
 }
 
 /**
