@@ -22,27 +22,6 @@
 #include "defaults.h"
 #include "error.h"
 
-/* Cross-platform socket function return error code. */
-#ifndef SOCKET_ERROR
-	#define SOCKET_ERROR (-1)
-#endif /* !SOCKET_ERROR */
-
-/* Cross-platform representation of an invalid socket file descriptor. */
-#ifndef INVALID_SOCKET
-	#ifdef _WIN32
-		#define INVALID_SOCKET (SOCKET)(~0)
-	#else
-		#define INVALID_SOCKET (-1)
-	#endif /* _WIN32 */
-#endif /* !INVALID_SOCKET */
-
-/* Cross-platform shim for socket error codes. */
-#ifdef _WIN32
-#define sockerrno WSAGetLastError()
-#else
-#define sockerrno errno
-#endif /* _WIN32 */
-
 /**
  * Creates a brand new server handle object.
  * @warning This function allocates memory that must be free'd by you.

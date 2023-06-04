@@ -198,7 +198,6 @@ gl_err_t *gl_server_start(server_handle_t *handle) {
  */
 gl_err_t *gl_server_conn_cancel(server_handle_t *handle) {
 	gl_err_t *err;
-	tcp_err_t tcp_err;
 
 	/* Do we even need to do stuff? */
 	if ((handle == NULL) || (handle->conn == NULL))

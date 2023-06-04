@@ -27,12 +27,31 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-/* Shim things that Microsoft forgot to include in their implementation. */
+	/* Shim things that Microsoft forgot to include in their implementation. */
+	#ifndef in_addr_t
+		typedef unsigned long in_addr_t;
+	#endif /* in_addr_t */
+#endif /* _WIN32 */
 
-#ifndef in_addr_t
-typedef unsigned long in_addr_t;
-#endif /* in_addr_t */
+/* Cross-platform socket function return error code. */
+#ifndef SOCKET_ERROR
+	#define SOCKET_ERROR (-1)
+#endif /* !SOCKET_ERROR */
 
+/* Cross-platform representation of an invalid socket file descriptor. */
+#ifndef INVALID_SOCKET
+	#ifdef _WIN32
+		#define INVALID_SOCKET (SOCKET)(~0)
+	#else
+		#define INVALID_SOCKET (-1)
+	#endif /* _WIN32 */
+#endif /* !INVALID_SOCKET */
+
+/* Cross-platform shim for socket error codes. */
+#ifdef _WIN32
+	#define sockerrno WSAGetLastError()
+#else
+	#define sockerrno errno
 #endif /* _WIN32 */
 
 /* TCP error codes. */
