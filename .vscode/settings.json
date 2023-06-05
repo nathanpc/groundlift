@@ -6,6 +6,7 @@
 	"cSpell.words": [
 		"bcaddr",
 		"BITUTILS",
+		"brdaddr",
 		"disconn",
 		"DISCV",
 		"EBIND",
@@ -19,6 +20,8 @@
 		"ESOCKET",
 		"fhlength",
 		"fileutils",
+		"GETIFADDR",
+		"ipaw",
 		"itos",
 		"ltos",
 		"MAKELANGID",

@@ -69,6 +69,9 @@ typedef enum {
 	SOCK_ERR_ERECV,
 	TCP_ERR_ECONNECT,
 	SOCK_ERR_ESHUTDOWN,
+#ifndef SINGLE_IFACE_MODE
+	IFACE_ERR_GETIFADDR,
+#endif /* !SINGLE_IFACE_MODE */
 	TCP_ERR_UNKNOWN
 } tcp_err_t;
 
@@ -78,6 +81,21 @@ typedef struct {
 	struct sockaddr_in addr_in;
 	socklen_t addr_in_size;
 } sock_bundle_t;
+
+#ifndef SINGLE_IFACE_MODE
+/* Network interface information object. */
+typedef struct {
+	char *name;
+	struct sockaddr *ifaddr;
+	struct sockaddr *brdaddr;
+} iface_info_t;
+
+/* Network interface information object list. */
+typedef struct {
+	iface_info_t **ifaces;
+	uint8_t count;
+} iface_info_list_t;
+#endif /* !SINGLE_IFACE_MODE */
 
 /* Server handle. */
 typedef struct {
@@ -154,6 +172,14 @@ tcp_err_t socket_close(int sockfd);
 tcp_err_t socket_shutdown(int sockfd);
 bool socket_itos(char **buf, const struct sockaddr *sock_addr);
 in_addr_t socket_inet_addr(const char *ipaddr);
+
+#ifndef SINGLE_IFACE_MODE
+/* Network interface management. */
+iface_info_t *socket_iface_info_new(void);
+tcp_err_t socket_iface_info_list(iface_info_list_t **if_list);
+void socket_iface_info_list_free(iface_info_list_t *if_list);
+void socket_iface_info_free(iface_info_t *iface);
+#endif /* !SINGLE_IFACE_MODE */
 
 /* Misc. utilities. */
 char *tcp_server_get_ipstr(const server_t *server);

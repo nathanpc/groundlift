@@ -7,13 +7,19 @@
 
 #include "sockets.h"
 
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <utils/bits.h>
 #include <utils/logging.h>
 #ifdef _WIN32
 #include <utils/utf16.h>
 #else
+#ifndef SINGLE_IFACE_MODE
+#include <ifaddrs.h>
+#include <net/if.h>
+#endif /* !SINGLE_IFACE_MODE */
 #include <sys/errno.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -1050,6 +1056,184 @@ in_addr_t socket_inet_addr(const char *ipaddr) {
 	return inet_addr(ipaddr);
 #endif /* _WIN32 */
 }
+
+#ifndef SINGLE_IFACE_MODE
+/**
+ * Allocates a brand new network interface information object.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @return Newly allocated empty network interface information object or NULL
+ *         if an error occurred.
+ *
+ * @see socket_iface_info_list
+ * @see socket_iface_info_free
+ */
+iface_info_t *socket_iface_info_new(void) {
+	iface_info_t *iface;
+
+	/* Allocate the object. */
+	iface = (iface_info_t *)malloc(sizeof(iface_info_t));
+	if (iface == NULL) {
+		log_errno(LOG_FATAL, "socket_iface_info_new@malloc");
+		return NULL;
+	}
+
+	/* Ensure the emptiness of our object. */
+	iface->name = NULL;
+	iface->ifaddr = NULL;
+	iface->brdaddr = NULL;
+
+	return iface;
+}
+
+/**
+ * Gets a list of all of the network interfaces in the system that are currently
+ * capable of broadcasting an UDP packet.
+ *
+ * @param if_list Pointer to an uninitialized network interface information list
+ *                object. (Will be allocated and populated by this function)
+ *
+ * @return SOCK_OK if the operation was successful.
+ *         IFACE_ERR_GETIFADDR if the getifaddr function failed.
+ *
+ * @see socket_iface_info_list_free
+ */
+tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
+	iface_info_list_t *list;
+	struct ifaddrs *ifa_list;
+	struct ifaddrs *ifa;
+	int ret;
+
+	/* Allocate our list object. */
+	list = (iface_info_list_t *)malloc(sizeof(iface_info_list_t));
+	if (list == NULL) {
+		log_errno(LOG_FATAL, "socket_iface_info_list@malloc");
+		*if_list = NULL;
+
+		return TCP_ERR_UNKNOWN;
+	}
+
+	/* Initialize the list. */
+	list->ifaces = NULL;
+	list->count = 0;
+
+	/* Get the linked list of network interfaces. */
+	ret = getifaddrs(&ifa_list);
+	if (ret == -1) {
+		log_errno(LOG_ERROR, "socket_iface_info_list@getifaddrs");
+		socket_iface_info_list_free(list);
+		*if_list = NULL;
+
+		return IFACE_ERR_GETIFADDR;
+	}
+
+	/* Go through the list of network interfaces. */
+	for (ifa = ifa_list; ifa != NULL; ifa = ifa->ifa_next) {
+		iface_info_t *iface;
+
+		/* Discard the ones that don't have an IP address. */
+		if (ifa->ifa_addr == NULL)
+			continue;
+
+		/* TODO: Remove this when support for IPv6 is added. */
+		/* Discard the ones that aren't IPv4. */
+		if (ifa->ifa_addr->sa_family != AF_INET)
+			continue;
+
+		/* Discard the ones that can't be broadcast. */
+		if ((ifa->ifa_flags & IFF_BROADCAST) == 0)
+			continue;
+
+		/* Build up an information object. */
+		iface = socket_iface_info_new();
+		iface->name = strdup(ifa->ifa_name);
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			iface->ifaddr = (struct sockaddr *)memdup(ifa->ifa_addr,
+				sizeof(struct sockaddr_in));
+			iface->brdaddr = (struct sockaddr *)memdup(ifa->ifa_broadaddr,
+				sizeof(struct sockaddr_in));
+		} else {
+			iface->ifaddr = (struct sockaddr *)memdup(ifa->ifa_addr,
+				sizeof(struct sockaddr_in6));
+			iface->brdaddr = (struct sockaddr *)memdup(ifa->ifa_broadaddr,
+				sizeof(struct sockaddr_in6));
+		}
+
+		/* Append the information object to the list. */
+		list->count++;
+		list->ifaces = (iface_info_t **)realloc(list->ifaces,
+			sizeof(iface_info_t *) * list->count);
+		if (list->ifaces == NULL) {
+			log_errno(LOG_ERROR, "socket_iface_info_list@realloc");
+			socket_iface_info_free(iface);
+			socket_iface_info_list_free(list);
+			*if_list = NULL;
+
+			return TCP_ERR_UNKNOWN;
+		}
+		list->ifaces[list->count - 1] = iface;
+	}
+
+	/* Free our network interface linked list. */
+	freeifaddrs(ifa_list);
+
+	/* Return our list. */
+	*if_list = list;
+
+	return SOCK_OK;
+}
+
+/**
+ * Frees up any resources allocated by a network interface information object
+ * list.
+ *
+ * @param if_list Network interface information object list to be free'd.
+ */
+void socket_iface_info_list_free(iface_info_list_t *if_list) {
+	uint8_t i;
+
+	/* Do we even have anything to do? */
+	if (if_list == NULL)
+		return;
+
+	/* Free the interface list. */
+	if (if_list->ifaces) {
+		/* Free each interface of the list. */
+		for (i = 0; i < if_list->count; i++)
+			socket_iface_info_free(if_list->ifaces[i]);
+
+		/* Free the list itself. */
+		free(if_list->ifaces);
+		if_list->ifaces = NULL;
+	}
+
+	/* Reset the count and free ourselves. */
+	if_list->count = 0;
+	free(if_list);
+}
+
+/**
+ * Frees up any resources allocated by a network interface information object.
+ *
+ * @param iface Network interface information object to be free'd.
+ */
+void socket_iface_info_free(iface_info_t *iface) {
+	/* Do we even have anything to do? */
+	if (iface == NULL)
+		return;
+
+	/* Free its parameters. */
+	if (iface->name)
+		free(iface->name);
+	if (iface->ifaddr)
+		free(iface->ifaddr);
+	if (iface->brdaddr)
+		free(iface->brdaddr);
+
+	/* Free ourselves. */
+	free(iface);
+}
+#endif /* !SINGLE_IFACE_MODE */
 
 /**
  * Gets the IP address that the TCP server is currently bound to in a string
