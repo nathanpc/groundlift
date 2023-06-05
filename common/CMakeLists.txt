@@ -1,5 +1,6 @@
 # Define source files.
 set(GROUNDLIFT_COMMON_SOURCES
+	utils/bits.c
 	utils/utf16.c
 	utils/filesystem.c
 	utils/threads.c

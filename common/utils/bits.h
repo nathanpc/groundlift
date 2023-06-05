@@ -1,6 +1,6 @@
 /**
  * bits.h
- * Some utility and helper macros to shuffle around in bit land.
+ * Some helper macros and functions to shuffle around in bit land.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,6 +86,9 @@ extern "C" {
  */
 #define U8BUF_TO_U32(buf) \
 	BYTES_TO_U32((*buf), *((buf) + 1), *((buf) + 2), *((buf) + 3))
+
+/* Memory copying operations. */
+void *memdup(const void *p, size_t len);
 
 #ifdef __cplusplus
 }
