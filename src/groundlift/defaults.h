@@ -30,7 +30,7 @@ extern "C" {
 
 /* Timeout of UDP communications in milliseconds. */
 #ifndef UDP_TIMEOUT_MS
-#define UDP_TIMEOUT_MS 5000
+#define UDP_TIMEOUT_MS 1000
 #endif /* UDP_TIMEOUT_MS */
 
 /* OBEX protocol version to be disclosed to clients. */
