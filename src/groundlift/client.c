@@ -269,15 +269,18 @@ discovery_client_t *gl_client_discovery_new(void) {
 /**
  * Sets up the socket for the peer discovery operation.
  *
- * @param handle Peer discovery client handle object.
- * @param port   UDP port to send to/listen on for discovery packets.
+ * @param handle  Peer discovery client handle object.
+ * @param in_addr Broadcast IP address to connect/bind to already in the
+ *                internal structure's format.
+ * @param port    UDP port to send to/listen on for discovery packets.
  *
  * @return Error information or NULL if the operation was successful. This
  *         pointer must be free'd by you.
  *
  * @see gl_client_discover_peers
  */
-gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
+gl_err_t *gl_client_discovery_setup(discovery_client_t *handle,
+									in_addr_t in_addr, uint16_t port) {
 	tcp_err_t tcp_err;
 
 	/* Sanity check. */
@@ -286,15 +289,8 @@ gl_err_t *gl_client_discovery_setup(discovery_client_t *handle, uint16_t port) {
 							EMSG("Invalid handle object"));
 	}
 
-	/*
-	 * TODO: Use INADDR_BROADCAST as fallback, but in modern platforms go
-	 *       through network interfaces and broadcast using the subnet mask.
-	 *       Create another function to handle this modern scenario and leave
-	 *       this function for the fallback.
-	 */
-
 	/* Initialize the discovery packet broadcaster. */
-	tcp_err = udp_discovery_init(&handle->sock, false, INADDR_BROADCAST, port,
+	tcp_err = udp_discovery_init(&handle->sock, false, in_addr, port,
 								 UDP_TIMEOUT_MS);
 	if (tcp_err) {
 		return gl_error_new(ERR_TYPE_TCP, (int8_t)tcp_err,
