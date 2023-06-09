@@ -70,39 +70,11 @@ int main(int argc, char **argv) {
 		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
 	} else if ((argc < 2) || (argv[1][0] == 'l')) {
 		/* List peers on the network. */
-		err = client_list_peers();
-	} else if ((argc < 2) || (argv[1][0] == 'i')) {
-		/* Test the network interface listing. */
-		iface_info_list_t *if_list;
-		tcp_err_t tcp_err;
-
-		tcp_err = socket_iface_info_list(&if_list);
-		if (tcp_err) {
-			ret = 1;
-		} else {
-			uint8_t i;
-
-			/* Go through the network interfaces. */
-			printf("Network interfaces:\n");
-			for (i = 0; i < if_list->count; i++) {
-				iface_info_t *iface;
-				char *addr;
-				char *brdcast;
-
-				/* Get the IP addresses. */
-				iface = if_list->ifaces[i];
-				socket_itos(&addr, iface->ifaddr);
-				socket_itos(&brdcast, iface->brdaddr);
-
-				printf("%s addr %s brdcast %s\n", iface->name, addr, brdcast);
-
-				free(addr);
-				free(brdcast);
-			}
-
-			/* Free our network interface list. */
-			socket_iface_info_list_free(if_list);
-		}
+#ifndef SINGLE_IFACE_MODE
+		err = client_list_peers_ifs();
+#else
+		err = client_list_peers(NULL, true);
+#endif /* !SINGLE_IFACE_MODE */
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		ret = 1;
