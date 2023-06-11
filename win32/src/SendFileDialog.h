@@ -56,8 +56,8 @@ private:
 	INT_PTR ListClientsOnNotify(HWND hDlg, WPARAM wParam, LPARAM lParam);
 	INT_PTR ButtonBrowseOnCommand(HWND hDlg, WPARAM wParam, LPARAM lParam);
 
-	static void PeerDiscoveryEventHandler(const gl_discovery_peer_t *peer,
-										  void *arg);
+	static void OnPeerDiscovered(const gl_discovery_peer_t *peer,
+								 void *arg);
 
 	INT_PTR CALLBACK DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 							 LPARAM lParam);

@@ -25,9 +25,8 @@ SendFileDialog::SendFileDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	this->hwndFilePathEdit = NULL;
 
 	// Setup the peer discovery event handler.
-	this->peerDiscovery.SetPeerDiscoveredEvent(
-		SendFileDialog::PeerDiscoveryEventHandler,
-		reinterpret_cast<void *>(this));
+	this->peerDiscovery.SetPeerDiscoveredEvent(SendFileDialog::OnPeerDiscovered,
+											   reinterpret_cast<void *>(this));
 }
 
 /**
@@ -50,9 +49,8 @@ void SendFileDialog::RefreshPeerList() {
 #ifdef SINGLE_IFACE_MODE
 	this->peerDiscovery.Scan();
 #else
-	this->peerDiscovery.ScanAllNetworks(
-		SendFileDialog::PeerDiscoveryEventHandler,
-		reinterpret_cast<void *>(this));
+	this->peerDiscovery.ScanAllNetworks(SendFileDialog::OnPeerDiscovered,
+										reinterpret_cast<void *>(this));
 #endif	// SINGLE_IFACE_MODE
 }
 
@@ -219,6 +217,8 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
  * @param hDlg   Dialog window handle.
  * @param wParam Message parameter.
  * @param lParam Message parameter.
+ *
+ * @return TRUE if the message was handled by the function, FALSE otherwise.
  */
 INT_PTR SendFileDialog::ListClientsOnNotify(HWND hDlg, WPARAM wParam,
 											LPARAM lParam) {
@@ -247,6 +247,8 @@ INT_PTR SendFileDialog::ListClientsOnNotify(HWND hDlg, WPARAM wParam,
  * @param hDlg   Dialog window handle.
  * @param wParam Message parameter.
  * @param lParam Message parameter.
+ *
+ * @return TRUE if the message was handled by the function, FALSE otherwise.
  */
 INT_PTR SendFileDialog::ButtonBrowseOnCommand(HWND hDlg, WPARAM wParam,
 											  LPARAM lParam) {
@@ -326,8 +328,8 @@ void SendFileDialog::ClearPeersVector() {
  * @param peer Discovered peer object.
  * @param arg  Optional data set by the event handler setup.
  */
-void SendFileDialog::PeerDiscoveryEventHandler(const gl_discovery_peer_t *peer,
-											   void *arg) {
+void SendFileDialog::OnPeerDiscovered(const gl_discovery_peer_t *peer,
+									  void *arg) {
 	SendFileDialog *pThis;
 	GroundLift::Peer *glPeer;
 	LPTSTR szHostname;
