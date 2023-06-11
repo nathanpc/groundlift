@@ -47,7 +47,13 @@ void SendFileDialog::RefreshPeerList() {
 	ClearPeersVector();
 
 	// Start scanning around for peers.
+#ifdef SINGLE_IFACE_MODE
 	this->peerDiscovery.Scan();
+#else
+	this->peerDiscovery.ScanAllNetworks(
+		SendFileDialog::PeerDiscoveryEventHandler,
+		reinterpret_cast<void *>(this));
+#endif	// SINGLE_IFACE_MODE
 }
 
 /**

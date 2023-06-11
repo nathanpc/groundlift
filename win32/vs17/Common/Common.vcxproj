@@ -32,6 +32,7 @@
     <ClInclude Include="..\..\..\common\win32\stdshim.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\common\utils\bits.c" />
     <ClCompile Include="..\..\..\common\utils\capabilities.c" />
     <ClCompile Include="..\..\..\common\utils\filesystem.c" />
     <ClCompile Include="..\..\..\common\utils\logging.c" />

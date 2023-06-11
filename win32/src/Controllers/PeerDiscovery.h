@@ -23,13 +23,25 @@ class PeerDiscovery {
 private:
 	discovery_client_t *hndClient;
 
+#ifndef SINGLE_IFACE_MODE
+	static void OnFinished(void* arg);
+#endif	// !SINGLE_IFACE_MODE
+
 public:
 	PeerDiscovery();
 	virtual ~PeerDiscovery();
 
 	void Scan();
+	void Scan(const struct sockaddr* sock_addr);
+#ifndef SINGLE_IFACE_MODE
+	static void ScanAllNetworks(gl_client_evt_discovery_peer_func func,
+								void* arg);
+#endif // !SINGLE_IFACE_MODE
+
 	void SetPeerDiscoveredEvent(gl_client_evt_discovery_peer_func func,
-								void *arg);
+								void* arg);
+	void SetDiscoveredFinishedEvent(gl_client_evt_discovery_end_func func,
+									void* arg);
 
 	discovery_client_t *Handle();
 };

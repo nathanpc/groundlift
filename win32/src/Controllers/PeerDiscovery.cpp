@@ -58,15 +58,48 @@ PeerDiscovery::~PeerDiscovery() {
 }
 
 /**
- * Scans the network for peers.
+ * Scans the network for peers using a classic broadcast to the INADDR_BROADCAST
+ * address.
  * 
  * @see SetPeerDiscoveredEvent
  */
 void PeerDiscovery::Scan() {
+	Scan(NULL);
+}
+
+/**
+ * Scans the network for peers using a specific broadcast address.
+ * 
+ * @param sock_addr Broadcast IP address to connect/bind to or NULL if the
+ *                  address should be INADDR_BROADCAST.
+ *
+ * @see SetPeerDiscoveredEvent
+ */
+void PeerDiscovery::Scan(const struct sockaddr* sock_addr) {
 	gl_err_t *err = NULL;
 
 	// Setup the peer discovery service socket.
-	err = gl_client_discovery_setup(this->hndClient, UDPSERVER_PORT);
+	if (sock_addr == NULL) {
+		// Use the 255.255.255.255 IP address for broadcasting.
+		err = gl_client_discovery_setup(this->hndClient, INADDR_BROADCAST,
+										UDPSERVER_PORT);
+	} else {
+		// Use a specific broadcast IP address for a specific network.
+		switch (sock_addr->sa_family) {
+			case AF_INET:
+				err = gl_client_discovery_setup(this->hndClient,
+					reinterpret_cast<const struct sockaddr_in *>(sock_addr)
+						->sin_addr.s_addr, UDPSERVER_PORT);
+				break;
+			case AF_INET6:
+			default:
+				err = gl_error_new(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+								   EMSG("Discovery service only works with IPv4"));
+				break;
+		}
+	}
+
+	// Check for errors.
 	if (err)
 		throw Exception(err);
 
@@ -76,6 +109,57 @@ void PeerDiscovery::Scan() {
 		throw Exception(err);
 }
 
+#ifndef SINGLE_IFACE_MODE
+/**
+ * Scans all networks for peers throughout all of the network interfaces.
+ *
+ * @param func Peer Discovered event callback function.
+ * @param arg  Optional parameter to be sent to the event handler.
+ */
+void PeerDiscovery::ScanAllNetworks(gl_client_evt_discovery_peer_func func,
+									void* arg) {
+	iface_info_list_t *if_list;
+	tcp_err_t tcp_err;
+	uint8_t i;
+
+	// Get the list of network interfaces.
+	tcp_err = socket_iface_info_list(&if_list);
+	if (tcp_err) {
+		throw GroundLift::Exception(
+			gl_error_new_errno(ERR_TYPE_TCP, (int8_t)tcp_err,
+				EMSG("Failed to get the list of network interfaces"))
+		);
+	}
+
+	// Go through the network interfaces.
+	for (i = 0; i < if_list->count; i++) {
+		// Get the network interface and create a new object of us.
+		iface_info_t *iface = if_list->ifaces[i];
+		PeerDiscovery *discovery = new PeerDiscovery();
+
+		// Setup the event handler and search for peers on this network.
+		discovery->SetPeerDiscoveredEvent(func, arg);
+		discovery->SetDiscoveredFinishedEvent(OnFinished,
+			reinterpret_cast<void *>(discovery));
+		discovery->Scan(iface->brdaddr);
+	}
+
+	// Free our network interface list.
+	socket_iface_info_list_free(if_list);
+}
+
+/**
+ * Handles the proper destruction of a PeerDiscovery object when discoverying
+ * peers on multiple network interfaces.
+ *
+ * @param arg Pointer to our own PeerDiscovery object to be destroyed.
+ */
+void PeerDiscovery::OnFinished(void *arg) {
+	PeerDiscovery *discovery = reinterpret_cast<PeerDiscovery *>(arg);
+	delete discovery;
+}
+#endif // !SINGLE_IFACE_MODE
+
 /**
  * Sets the Peer Discovered event handler.
  *
@@ -83,8 +167,19 @@ void PeerDiscovery::Scan() {
  * @param arg  Optional parameter to be sent to the event handler.
  */
 void PeerDiscovery::SetPeerDiscoveredEvent(
-		gl_client_evt_discovery_peer_func func, void *arg) {
+		gl_client_evt_discovery_peer_func func, void* arg) {
 	gl_client_evt_discovery_peer_set(this->hndClient, func, arg);
+}
+
+/**
+ * Sets the Peer Discovery Finished event handler.
+ *
+ * @param func Peer Discovery Finished event callback function.
+ * @param arg  Optional parameter to be sent to the event handler.
+ */
+void PeerDiscovery::SetDiscoveredFinishedEvent(
+		gl_client_evt_discovery_end_func func, void* arg) {
+	gl_client_evt_discovery_end_set(this->hndClient, func, arg);
 }
 
 /**

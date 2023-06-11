@@ -68,5 +68,8 @@
     <ClCompile Include="..\..\..\common\utils\capabilities.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\common\utils\bits.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
