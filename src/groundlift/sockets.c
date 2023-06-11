@@ -7,7 +7,6 @@
 
 #include "sockets.h"
 
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +17,7 @@
 #else
 #ifndef SINGLE_IFACE_MODE
 #include <ifaddrs.h>
+#include <netinet/in.h>
 #include <net/if.h>
 #endif /* !SINGLE_IFACE_MODE */
 #include <sys/errno.h>
@@ -1100,9 +1100,17 @@ iface_info_t *socket_iface_info_new(void) {
  */
 tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	iface_info_list_t *list;
+	int ret;
+#ifdef _WIN32
+	SOCKET sock;
+	INTERFACE_INFO aifi[20];
+	DWORD dwSize;
+	ULONG ulInterfaces;
+	UINT8 i;
+#else
 	struct ifaddrs *ifa_list;
 	struct ifaddrs *ifa;
-	int ret;
+#endif /* _WIN32 */
 
 	/* Allocate our list object. */
 	list = (iface_info_list_t *)malloc(sizeof(iface_info_list_t));
@@ -1117,10 +1125,84 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	list->ifaces = NULL;
 	list->count = 0;
 
+#ifdef _WIN32
+	/* Create a dummy socket for querying. */
+	sock = WSASocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, 0);
+	if (sock == INVALID_SOCKET) {
+		log_sockerrno(LOG_ERROR, "socket_iface_info_list@WSASocket",
+					  sockerrno);
+		socket_iface_info_list_free(list);
+		*if_list = NULL;
+
+		return SOCK_ERR_ESOCKET;
+	}
+
+	/* Get network interface list. */
+	ret = WSAIoctl(sock, SIO_GET_INTERFACE_LIST, 0, 0, &aifi, sizeof(aifi),
+				   &dwSize, 0, 0);
+	if (ret == SOCKET_ERROR) {
+		log_sockerrno(LOG_ERROR, "socket_iface_info_list@WSAIoctl",
+					  sockerrno);
+		socket_iface_info_list_free(list);
+		*if_list = NULL;
+
+		return SOCK_ERR_EIOCTL;
+	}
+
+	/* Get the number of interfaces returned and go through them. */
+	ulInterfaces = dwSize / sizeof(INTERFACE_INFO);
+	for (i = 0; i < ulInterfaces; i++) {
+		struct sockaddr *sa;
+		ULONG ulFlags;
+
+		/* Check if the interface is active and usable for discovery. */
+		sa = (struct sockaddr *)&aifi[i].iiAddress;
+		ulFlags = aifi[i].iiFlags;
+		if ((ulFlags & IFF_UP) && (ulFlags & IFF_BROADCAST) &&
+				!(ulFlags & IFF_LOOPBACK)) {
+			INTERFACE_INFO ii;
+			iface_info_t *iface;
+
+			/* Get the current interface info object. */
+			ii = aifi[i];
+
+			/* Build up an information object. */
+			iface = socket_iface_info_new();
+			iface->name = NULL;
+			if (sa->sa_family == AF_INET) {
+				/* Duplicate the IPv4 sockaddr objects. */
+				iface->ifaddr = (struct sockaddr *)memdup(&ii.iiAddress,
+					sizeof(struct sockaddr_in));
+				iface->brdaddr = (struct sockaddr *)memdup(&ii.iiAddress,
+					sizeof(struct sockaddr_in));
+
+				/* Calculate the broadcast address since Windows can't. */
+				((struct sockaddr_in *)(iface->brdaddr))->sin_addr.s_addr |=
+					~((struct sockaddr_in *)(&ii.iiNetmask))->sin_addr.s_addr;
+			} else {
+				/* Duplicate the IPv6 sockaddr objects. */
+				iface->ifaddr = (struct sockaddr *)memdup(&ii.iiAddress,
+					sizeof(struct sockaddr_in6));
+				iface->brdaddr = (struct sockaddr *)memdup(
+					&ii.iiBroadcastAddress, sizeof(struct sockaddr_in6));
+			}
+
+			/* Append the information object to the list. */
+			if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
+				log_errno(LOG_ERROR, "socket_iface_info_list@list_push");
+				socket_iface_info_list_free(list);
+				*if_list = NULL;
+
+				return TCP_ERR_UNKNOWN;
+			}
+		}
+	}
+#else
 	/* Get the linked list of network interfaces. */
 	ret = getifaddrs(&ifa_list);
 	if (ret == -1) {
-		log_errno(LOG_ERROR, "socket_iface_info_list@getifaddrs");
+		log_sockerrno(LOG_ERROR, "socket_iface_info_list@getifaddrs",
+					  sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
@@ -1160,25 +1242,49 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 		}
 
 		/* Append the information object to the list. */
-		list->count++;
-		list->ifaces = (iface_info_t **)realloc(list->ifaces,
-			sizeof(iface_info_t *) * list->count);
-		if (list->ifaces == NULL) {
-			log_errno(LOG_ERROR, "socket_iface_info_list@realloc");
-			socket_iface_info_free(iface);
+		if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
+			log_errno(LOG_ERROR, "socket_iface_info_list@list_push");
 			socket_iface_info_list_free(list);
 			*if_list = NULL;
 
 			return TCP_ERR_UNKNOWN;
 		}
-		list->ifaces[list->count - 1] = iface;
 	}
 
 	/* Free our network interface linked list. */
 	freeifaddrs(ifa_list);
+#endif /* _WIN32 */
 
 	/* Return our list. */
 	*if_list = list;
+
+	return SOCK_OK;
+}
+
+/**
+ * Appends an network interface information object into the network interfaces
+ * list.
+ *
+ * @param if_list Network interface information object list.
+ * @param iface   Network interface information object to be appended.
+ *
+ * @return SOCK_OK if the operation was successful.
+ */
+tcp_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
+									  iface_info_t *iface) {
+	/* Resize the list. */
+	if_list->count++;
+	if_list->ifaces = (iface_info_t **)realloc(if_list->ifaces,
+		sizeof(iface_info_t *) * if_list->count);
+	if (if_list->ifaces == NULL) {
+		log_errno(LOG_ERROR, "socket_iface_info_list_push@realloc");
+		socket_iface_info_free(iface);
+
+		return TCP_ERR_UNKNOWN;
+	}
+
+	/* Append the network interface information object to the list. */
+	if_list->ifaces[if_list->count - 1] = iface;
 
 	return SOCK_OK;
 }

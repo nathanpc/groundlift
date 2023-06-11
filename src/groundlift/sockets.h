@@ -69,6 +69,7 @@ typedef enum {
 	SOCK_ERR_ERECV,
 	TCP_ERR_ECONNECT,
 	SOCK_ERR_ESHUTDOWN,
+	SOCK_ERR_EIOCTL,
 #ifndef SINGLE_IFACE_MODE
 	IFACE_ERR_GETIFADDR,
 #endif /* !SINGLE_IFACE_MODE */
@@ -177,6 +178,8 @@ in_addr_t socket_inet_addr(const char *ipaddr);
 /* Network interface management. */
 iface_info_t *socket_iface_info_new(void);
 tcp_err_t socket_iface_info_list(iface_info_list_t **if_list);
+tcp_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
+									  iface_info_t *iface);
 void socket_iface_info_list_free(iface_info_list_t *if_list);
 void socket_iface_info_free(iface_info_t *iface);
 #endif /* !SINGLE_IFACE_MODE */
