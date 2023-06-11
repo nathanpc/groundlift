@@ -101,6 +101,13 @@ typedef void (*gl_client_evt_discovery_peer_func)(
 	const gl_discovery_peer_t *peer, void *arg);
 
 /**
+ * Peer discovery finished event callback function pointer type definition.
+ *
+ * @param arg Optional data set by the event handler setup.
+ */
+typedef void (*gl_client_evt_discovery_end_func)(void *arg);
+
+/**
  * Client handle object.
  */
 typedef struct {
@@ -150,11 +157,13 @@ typedef struct {
 	/* Event handlers. */
 	struct {
 		gl_client_evt_discovery_peer_func discovered_peer;
+		gl_client_evt_discovery_end_func finished;
 	} events;
 
 	/* Event handler arguments. */
 	struct {
 		void *discovered_peer;
+		void *finished;
 	} event_args;
 } discovery_client_t;
 
@@ -195,6 +204,9 @@ void gl_client_evt_put_succeed_set(client_handle_t *handle,
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
 									  gl_client_evt_discovery_peer_func func,
 									  void *arg);
+void gl_client_evt_discovery_end_set(discovery_client_t *handle,
+									 gl_client_evt_discovery_end_func func,
+									 void *arg);
 
 #ifdef __cplusplus
 }

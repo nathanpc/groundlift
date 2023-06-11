@@ -261,7 +261,9 @@ discovery_client_t *gl_client_discovery_new(void) {
 	handle->thread = NULL;
 	handle->mutexes.client = thread_mutex_new();
 	handle->events.discovered_peer = NULL;
+	handle->events.finished = NULL;
 	handle->event_args.discovered_peer = NULL;
+	handle->event_args.finished = NULL;
 
 	return handle;
 }
@@ -785,7 +787,7 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 			
 			/* Call the event handler and free the peer object. */
 			handle->events.discovered_peer(peer,
-										   handle->event_args.discovered_peer);
+				handle->event_args.discovered_peer);
 			free(peer);
 		}
 
@@ -795,6 +797,10 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 
 	/* Close our UDP socket. */
 	err = gl_client_discovery_abort(handle);
+
+	/* Trigger the discovery finished event handler. */
+	if (handle->events.finished)
+		handle->events.finished(handle->event_args.finished);
 
 	return (void *)err;
 }
@@ -868,10 +874,10 @@ void gl_client_evt_put_succeed_set(client_handle_t *handle,
 }
 
 /**
- * Sets the Send File Operation Succeeded event callback function.
+ * Sets the Peer Discovered event callback function.
  *
  * @param handle Client's handle object.
- * @param func   Send File Operation Succeeded event callback function.
+ * @param func   Peer Discovered event callback function.
  * @param arg    Optional parameter to be sent to the event handler.
  */
 void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
@@ -879,4 +885,18 @@ void gl_client_evt_discovery_peer_set(discovery_client_t *handle,
 									  void *arg) {
 	handle->events.discovered_peer = func;
 	handle->event_args.discovered_peer = arg;
+}
+
+/**
+ * Sets the Peer Discovery Finished event callback function.
+ *
+ * @param handle Client's handle object.
+ * @param func   Peer Discovery Finished event callback function.
+ * @param arg    Optional parameter to be sent to the event handler.
+ */
+void gl_client_evt_discovery_end_set(discovery_client_t *handle,
+									 gl_client_evt_discovery_end_func func,
+									 void *arg) {
+	handle->events.finished = func;
+	handle->event_args.finished = arg;
 }
