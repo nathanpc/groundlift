@@ -23,8 +23,7 @@ HWND hwndMain;
 TCHAR szWindowClass[MAX_LOADSTRING];
 TCHAR szAppTitle[MAX_LOADSTRING];
 GroundLift::Server *glServer;
-SendFileDialog *dlgSendFile = NULL;
-RequestPopupDialog *dlgRequestPopup = NULL;
+RequestPopupDialog *dlgRequestPopup = NULL; // TODO: Refactor to self disposal.
 
 /**
  * Application's main entry point.
@@ -245,7 +244,6 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	conf_init();
 
 	// Initialize any common dialogs.
-	dlgSendFile = new SendFileDialog(hInst, hwndMain);
 	dlgRequestPopup = new RequestPopupDialog(hInst, hwndMain);
 
 	// Setup the server and start it up!
@@ -274,7 +272,7 @@ LRESULT WndMainCommand(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 			AboutDialog(hInst, hWnd).ShowModal();
 			break;
 		case IDM_FILE_SEND:
-			dlgSendFile->Show();
+			OpenSendFileDialog();
 			break;
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
@@ -313,8 +311,6 @@ LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	DestroyWindow(hWnd);
 
 	// Call any destructors that might be needed.
-	if (dlgSendFile)
-		delete dlgSendFile;
 	if (dlgRequestPopup)
 		delete dlgRequestPopup;
 	if (glServer)
@@ -366,4 +362,13 @@ LRESULT WndMainShowPopup(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 void ServerSetup() {
 	glServer = new GroundLift::Server();
 	dlgRequestPopup->SetupEventHandlers(glServer);
+}
+
+/**
+ * Opens a brand new, blank, send file dialog.
+ */
+void OpenSendFileDialog() {
+	SendFileDialog* dlgSendFile = new SendFileDialog(hInst, hwndMain);
+	dlgSendFile->EnableSelfDisposal();
+	dlgSendFile->Show();
 }

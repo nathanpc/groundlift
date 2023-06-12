@@ -24,13 +24,14 @@ DialogWindow::DialogWindow(HINSTANCE& hInst, HWND& hwndParent, WORD wResID) :
 	this->wResID = wResID;
 	this->hDlg = NULL;
 	this->bIsModal = false;
+	this->bIsDisposable = false;
 }
 
 /**
  * Closes the dialog if needed and handles the object destruction.
  */
 DialogWindow::~DialogWindow() {
-	Close(-1);
+	Close(-1, false);
 }
 
 /**
@@ -75,6 +76,16 @@ INT_PTR DialogWindow::ShowModal() {
  * @param nResult Return value of the dialog.
  */
 void DialogWindow::Close(INT_PTR nResult) {
+	Close(nResult, true);
+}
+
+/**
+ * Closes the dialog window.
+ *
+ * @param nResult      Return value of the dialog.
+ * @param bSelfDispose Are we allowed to self dispose if asked to?
+ */
+void DialogWindow::Close(INT_PTR nResult, bool bSelfDispose) {
 	// Ensure we have a dialog currently opened.
 	if (this->hDlg == NULL)
 		return;
@@ -88,6 +99,18 @@ void DialogWindow::Close(INT_PTR nResult) {
 
 	// Invalidate our dialog window handle.
 	this->hDlg = NULL;
+
+	// Self destruct automagically.
+	if (bSelfDispose && this->bIsDisposable)
+		delete this;
+}
+
+/**
+ * Enables this object to self destruct automatically after the window has been
+ * closed.
+ */
+void DialogWindow::EnableSelfDisposal() {
+	this->bIsDisposable = true;
 }
 
 /**

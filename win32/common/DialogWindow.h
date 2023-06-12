@@ -24,8 +24,11 @@ protected:
 	HWND hDlg;
 	WORD wResID;
 	bool bIsModal;
+	bool bIsDisposable;
 
 	void RegisterHandle(HWND hDlg);
+
+	void Close(INT_PTR nResult, bool bSelfDispose);
 
 	INT_PTR CALLBACK DefaultDlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 									LPARAM lParam);
@@ -35,6 +38,8 @@ protected:
 public:
 	DialogWindow(HINSTANCE& hInst, HWND& hwndParent, WORD wResID);
 	virtual ~DialogWindow();
+
+	void EnableSelfDisposal();
 
 	virtual bool Show();
 	virtual INT_PTR ShowModal();

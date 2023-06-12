@@ -34,4 +34,7 @@ LRESULT WndMainShowPopup(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
 // GroundLift server.
 void ServerSetup();
 
+// UI operations.
+void OpenSendFileDialog();
+
 #endif // _WINGL_H
