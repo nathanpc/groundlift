@@ -13,6 +13,7 @@
 #endif // _MSC_VER > 1000
 
 #include <groundlift/client.h>
+#include <vector>
 
 namespace GroundLift {
 
@@ -22,6 +23,7 @@ namespace GroundLift {
 class PeerDiscovery {
 private:
 	discovery_client_t *hndClient;
+	bool bFinished;
 
 #ifndef SINGLE_IFACE_MODE
 	static void OnFinished(void* arg);
@@ -34,8 +36,8 @@ public:
 	void Scan();
 	void Scan(const struct sockaddr* sock_addr);
 #ifndef SINGLE_IFACE_MODE
-	static void ScanAllNetworks(gl_client_evt_discovery_peer_func func,
-								void* arg);
+	static std::vector<PeerDiscovery*>* ScanAllNetworks(
+		gl_client_evt_discovery_peer_func func, void* arg);
 #endif // !SINGLE_IFACE_MODE
 
 	void SetPeerDiscoveredEvent(gl_client_evt_discovery_peer_func func,

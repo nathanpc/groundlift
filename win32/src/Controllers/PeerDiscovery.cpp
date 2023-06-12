@@ -30,6 +30,7 @@ using namespace GroundLift;
  * Constructs a new object.
  */
 PeerDiscovery::PeerDiscovery() {
+	// Allocate a new discovery client.
 	this->hndClient = gl_client_discovery_new();
 	if (this->hndClient == NULL) {
 		throw GroundLift::Exception(
@@ -37,6 +38,10 @@ PeerDiscovery::PeerDiscovery() {
 				EMSG("Failed to construct the discovery client handle object"))
 		);
 	}
+
+	// Setup the finished flag.
+	this->bFinished = false;
+	SetDiscoveredFinishedEvent(OnFinished, this);
 }
 
 /**
@@ -115,48 +120,53 @@ void PeerDiscovery::Scan(const struct sockaddr* sock_addr) {
  *
  * @param func Peer Discovered event callback function.
  * @param arg  Optional parameter to be sent to the event handler.
+ * 
+ * @return A list with all the used peer discovery objects for disposal.
  */
-void PeerDiscovery::ScanAllNetworks(gl_client_evt_discovery_peer_func func,
-									void* arg) {
-	iface_info_list_t *if_list;
-	tcp_err_t tcp_err;
-	uint8_t i;
+std::vector<PeerDiscovery *>* PeerDiscovery::ScanAllNetworks(
+		gl_client_evt_discovery_peer_func func, void* arg) {
+	std::vector<PeerDiscovery *> *vecDiscovery;
+	iface_info_list_t *iil;
 
 	// Get the list of network interfaces.
-	tcp_err = socket_iface_info_list(&if_list);
-	if (tcp_err) {
+	tcp_err_t err = socket_iface_info_list(&iil);
+	if (err) {
 		throw GroundLift::Exception(
-			gl_error_new_errno(ERR_TYPE_TCP, (int8_t)tcp_err,
+			gl_error_new_errno(ERR_TYPE_TCP, (int8_t)err,
 				EMSG("Failed to get the list of network interfaces"))
 		);
 	}
 
 	// Go through the network interfaces.
-	for (i = 0; i < if_list->count; i++) {
+	vecDiscovery = new std::vector<PeerDiscovery *>();
+	for (int i = 0; i < iil->count; ++i) {
 		// Get the network interface and create a new object of us.
-		iface_info_t *iface = if_list->ifaces[i];
+		iface_info_t *iface = iil->ifaces[i];
 		PeerDiscovery *discovery = new PeerDiscovery();
 
 		// Setup the event handler and search for peers on this network.
 		discovery->SetPeerDiscoveredEvent(func, arg);
-		discovery->SetDiscoveredFinishedEvent(OnFinished,
-			reinterpret_cast<void *>(discovery));
 		discovery->Scan(iface->brdaddr);
+
+		// Append our discovery object to the list.
+		vecDiscovery->push_back(discovery);
 	}
 
 	// Free our network interface list.
-	socket_iface_info_list_free(if_list);
+	socket_iface_info_list_free(iil);
+
+	return vecDiscovery;
 }
 
 /**
- * Handles the proper destruction of a PeerDiscovery object when discoverying
+ * Handles the proper destruction of a PeerDiscovery object when discovering
  * peers on multiple network interfaces.
  *
- * @param arg Pointer to our own PeerDiscovery object to be destroyed.
+ * @param arg Pointer to our own PeerDiscovery object to be marked as finished.
  */
 void PeerDiscovery::OnFinished(void *arg) {
 	PeerDiscovery *discovery = reinterpret_cast<PeerDiscovery *>(arg);
-	delete discovery;
+	discovery->bFinished = true;
 }
 #endif // !SINGLE_IFACE_MODE
 

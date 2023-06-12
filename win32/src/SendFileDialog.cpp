@@ -24,16 +24,27 @@ SendFileDialog::SendFileDialog(HINSTANCE& hInst, HWND& hwndParent) :
 	this->hwndPeerList = NULL;
 	this->hwndFilePathEdit = NULL;
 
+#ifdef SINGLE_IFACE_MODE
 	// Setup the peer discovery event handler.
 	this->peerDiscovery.SetPeerDiscoveredEvent(SendFileDialog::OnPeerDiscovered,
 											   reinterpret_cast<void *>(this));
+#else
+	// Initialize the peer discovery services vector.
+	this->vecDiscovery = NULL;
+#endif // SINGLE_IFACE_MODE
 }
 
 /**
  * Frees up any resources allocated by this object.
  */
 SendFileDialog::~SendFileDialog() {
+	// Clear the peers vector.
 	ClearPeersVector();
+
+#ifndef SINGLE_IFACE_MODE
+	// Clear our peer discovery services vector.
+	ClearPeerDiscoveryVector();
+#endif	// !SINGLE_IFACE_MODE
 }
 
 /**
@@ -45,12 +56,16 @@ void SendFileDialog::RefreshPeerList() {
 	ListView_DeleteAllItems(this->hwndPeerList);
 	ClearPeersVector();
 
-	// Start scanning around for peers.
 #ifdef SINGLE_IFACE_MODE
+	// Start scanning around for peers.
 	this->peerDiscovery.Scan();
 #else
-	this->peerDiscovery.ScanAllNetworks(SendFileDialog::OnPeerDiscovered,
-										reinterpret_cast<void *>(this));
+	// Clear any previous instances of the services.
+	ClearPeerDiscoveryVector();
+
+	// Start up the peer discovery services and scan around.
+	this->vecDiscovery = GroundLift::PeerDiscovery::ScanAllNetworks(
+		SendFileDialog::OnPeerDiscovered, reinterpret_cast<void *>(this));
 #endif	// SINGLE_IFACE_MODE
 }
 
@@ -86,8 +101,9 @@ void SendFileDialog::SendFile(HWND hDlg) {
 
 	// TODO: Check if the IP corresponds to a peer so that we can pass it over.
 	
-	// TODO: Make a factory so that we can properly dispose of this later.
+	// Open the dialog to monitor the transfer's progress.
 	dlgProgress = new SendProgressDialog(this->hInst, this->hwndParent);
+	dlgProgress->EnableSelfDisposal();
 	dlgProgress->Show();
 
 	// Send the file.
@@ -321,6 +337,27 @@ void SendFileDialog::ClearPeersVector() {
 	// Clear the vector.
 	this->vecPeers.clear();
 }
+
+#ifndef SINGLE_IFACE_MODE
+/**
+ * Clears the contents of the peer discovery services vector and deallocates it
+ * as well. Any resources allocated by it will be properly free'd.
+ */
+void SendFileDialog::ClearPeerDiscoveryVector() {
+	// Check if we even have anything to do.
+	if (this->vecDiscovery == NULL)
+		return;
+
+	// Free all of the objects contained inside the vector.
+	for (int i = 0; i < this->vecDiscovery->size(); ++i) {
+		delete this->vecDiscovery->at(i);
+	}
+
+	// Free the vector itself;
+	delete this->vecDiscovery;
+	this->vecDiscovery = NULL;
+}
+#endif	// !SINGLE_IFACE_MODE
 
 /**
  * Handles the Peer Discovered event.

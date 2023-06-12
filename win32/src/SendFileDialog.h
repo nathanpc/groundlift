@@ -28,7 +28,11 @@ protected:
 	HWND hwndPeerList;
 	HWND hwndFilePathEdit;
 
+#ifdef SINGLE_IFACE_MODE
 	GroundLift::PeerDiscovery peerDiscovery;
+#else
+	std::vector<GroundLift::PeerDiscovery *> *vecDiscovery;
+#endif	// SINGLE_IFACE_MODE
 	std::vector<GroundLift::Peer *> vecPeers;
 
 	enum ColIndex {
@@ -51,7 +55,11 @@ private:
 	void AddPeerToList(int iRow, GroundLift::Peer *peer);
 	void AddPeerToList(int iRow, LPCTSTR szDeviceType, LPCTSTR szHostname,
 					   LPCTSTR szIPAddress);
+
 	void ClearPeersVector();
+#ifndef SINGLE_IFACE_MODE
+	void ClearPeerDiscoveryVector();
+#endif	// !SINGLE_IFACE_MODE
 
 	INT_PTR ListClientsOnNotify(HWND hDlg, WPARAM wParam, LPARAM lParam);
 	INT_PTR ButtonBrowseOnCommand(HWND hDlg, WPARAM wParam, LPARAM lParam);
