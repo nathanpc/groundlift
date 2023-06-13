@@ -84,20 +84,66 @@ void SendFileDialog::AppendPeerToList(GroundLift::Peer *peer) {
 }
 
 /**
+ * Validates the input fields before a initiating a transfer and automatically 
+ * shows the error message if the validations checks didn't pass.
+ * 
+ * @param szIP       IP address from the input field.
+ * @param szFilePath Path to the file to be transferred from the input field.
+ * 
+ * @return TRUE if everything that the user did input is valid.
+ */
+bool SendFileDialog::ValidateInputs(LPCTSTR szIP, LPCTSTR szFilePath) {
+	DWORD dwAttrib;
+
+	// Check if we have an IP address.
+	if (_tcslen(szIP) == 0) {
+		MsgBoxError(this->hDlg, _T("Missing Required Field"),
+			_T("The IP address of the peer is required for a transfer."));
+		return false;
+	}
+
+	// Check if we have a file path.
+	if (_tcslen(szFilePath) == 0) {
+		MsgBoxError(this->hDlg, _T("Missing Required Field"),
+					_T("The file path is required for a transfer."));
+		return false;
+	}
+
+	// Check if the file actually exists.
+	dwAttrib = GetFileAttributes(szFilePath);
+	if ((dwAttrib == INVALID_FILE_ATTRIBUTES) ||
+		(dwAttrib & FILE_ATTRIBUTE_DIRECTORY)) {
+		MsgBoxError(this->hDlg, _T("File Not Found"),
+			_T("Couldn't locate or don't have permissions to read the ")
+			_T("specified file."));
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * Sends the selected file to the selected peer.
  *
  * @param hDlg Dialog window handle.
+ * 
+ * @return TRUE if the transfer started, FALSE otherwise.
  */
-void SendFileDialog::SendFile(HWND hDlg) {
+INT_PTR SendFileDialog::SendFile(HWND hDlg) {
 	SendProgressDialog *dlgProgress;
 	LPTSTR szIP;
 	LPTSTR szFilePath;
+	INT_PTR bResult;
 
 	// Get the necessary information from our dialog.
 	szIP = GetWindowTextAlloc(this->hwndAddressEdit);
 	szFilePath = GetWindowTextAlloc(this->hwndFilePathEdit);
 
-	// TODO: Perform validation checks.
+	// Perform validation checks.
+	if (!ValidateInputs(szIP, szFilePath)) {
+		bResult = FALSE;
+		goto cleanup;
+	}
 
 	// TODO: Check if the IP corresponds to a peer so that we can pass it over.
 	
@@ -108,10 +154,14 @@ void SendFileDialog::SendFile(HWND hDlg) {
 
 	// Send the file.
 	dlgProgress->SendFile(szIP, szFilePath);
+	bResult = TRUE;
 
+cleanup:
 	// Free up our temporary buffers.
 	free(szIP);
 	free(szFilePath);
+
+	return bResult;
 }
 
 /**
@@ -210,7 +260,8 @@ INT_PTR CALLBACK SendFileDialog::DlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
 				case IDC_BUTTON_BROWSE:
 					return ButtonBrowseOnCommand(hDlg, wParam, lParam);
 				case IDOK:
-					SendFile(hDlg);
+					if (!SendFile(hDlg))
+						return FALSE;
 					break;
 			}
 			break;

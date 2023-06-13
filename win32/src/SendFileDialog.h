@@ -48,8 +48,6 @@ public:
 	void RefreshPeerList();
 	void AppendPeerToList(GroundLift::Peer *peer);
 
-	void SendFile(HWND hDlg);
-
 private:
 	void SetupPeerList();
 	void AddPeerToList(int iRow, GroundLift::Peer *peer);
@@ -60,6 +58,9 @@ private:
 #ifndef SINGLE_IFACE_MODE
 	void ClearPeerDiscoveryVector();
 #endif	// !SINGLE_IFACE_MODE
+
+	INT_PTR SendFile(HWND hDlg);
+	bool ValidateInputs(LPCTSTR szIP, LPCTSTR szFilePath);
 
 	INT_PTR ListClientsOnNotify(HWND hDlg, WPARAM wParam, LPARAM lParam);
 	INT_PTR ButtonBrowseOnCommand(HWND hDlg, WPARAM wParam, LPARAM lParam);
