@@ -1,7 +1,11 @@
 # Define source files.
 set(GROUNDLIFT_DBUS_SOURCES
 	main.c
-	gdbus.c)
+	gdbus.c
+	client.c)
+
+# Use a newer standard of the C language since this is Linux.
+set(CMAKE_C_STANDARD 99)
 
 # Build the D-bus service.
 add_executable(gld
