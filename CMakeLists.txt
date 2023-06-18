@@ -7,6 +7,11 @@ project(groundlift VERSION 0.1.0
 # Ensure we can easily debug things.
 #set(CMAKE_VERBOSE_MAKEFILE on)
 
+# Ensure we know if we are running under Linux.
+if(UNIX AND NOT APPLE)
+	set(LINUX TRUE)
+endif()
+
 # Generate the compile commands for SonarLint.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INCLUDE_HEADERS_IN_COMPILE_COMMANDS ON)
@@ -23,3 +28,8 @@ add_subdirectory(src)
 
 # Add the included server/client command-line utility.
 add_subdirectory(cli)
+
+# Add the D-Bus service if running Linux.
+if(LINUX)
+	add_subdirectory(linux/dbus)
+endif()

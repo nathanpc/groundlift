@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<node name="/"
+	xmlns:doc="http://www.freedesktop.org/dbus/1.0/doc.dtd">
+	<interface name="com.innoveworkshop.Groundlift">
+		<method name="Send">
+			<arg name="ipaddr" type="s" direction="in" />
+			<arg name="path" type="s" direction="in" />
+		</method>
+
+		<method name="DiscoverPeers"></method>
+
+		<signal name="ConnectionRequest">
+			<arg name="hostname" type="s" />
+			<arg name="ipaddr" type="s" />
+			<arg name="filename" type="s" />
+			<arg name="filesize" type="t" />
+		</signal>
+
+		<signal name="PeerDiscovered" />
+	</interface>
+</node>
