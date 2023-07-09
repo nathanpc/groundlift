@@ -31,5 +31,6 @@ add_subdirectory(cli)
 
 # Add the D-Bus service if running Linux.
 if(LINUX)
-	add_subdirectory(linux/dbus)
+	#add_subdirectory(linux/dbus)
+	add_subdirectory(linux/gtk2)
 endif()
