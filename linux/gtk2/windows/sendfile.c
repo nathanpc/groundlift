@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* Define GObject type. */
+G_DEFINE_TYPE(SendFileWindow, sendfile_window, GTK_TYPE_WINDOW)
+
 /**
  * Columns of the peers Tree.
  */
@@ -22,11 +25,20 @@ typedef enum {
 } peer_list_cols_t;
 
 /**
- * Creates a brand new Send File window.
+ * Send File window class initializer.
  *
- * @return Send File's GTK window object.
+ * @param klass Send File window class.
  */
-GtkWidget *gl_gtk_sendfile_window_new(void) {
+static void sendfile_window_class_init(SendFileWindowClass *klass) {
+	/* This space was intentionally left blank. */
+}
+
+/**
+ * Send File window object initializer.
+ *
+ * @param self Send file window object.
+ */
+static void sendfile_window_init(SendFileWindow *self) {
 	GtkWidget *window;
 	GtkWidget *vbox;
 	GtkWidget *hbox;
@@ -41,7 +53,7 @@ GtkWidget *gl_gtk_sendfile_window_new(void) {
 	GtkCellRenderer *renderer;
 
 	/* Create the root window. */
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	window = GTK_WIDGET(self);
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(window), 350, 300);
 	gtk_window_set_title(GTK_WINDOW(window), "Send File");
@@ -98,6 +110,13 @@ GtkWidget *gl_gtk_sendfile_window_new(void) {
 
 	/* Show window and its widgets. */
 	gtk_widget_show_all(window);
+}
 
-	return window;
+/**
+ * Send File window object constructor.
+ *
+ * @return Send File window object cast to a GtkWidget.
+ */
+GtkWidget *sendfile_window_new(void) {
+	return GTK_WIDGET(g_object_new(SENDFILE_TYPE_WINDOW, NULL));
 }
