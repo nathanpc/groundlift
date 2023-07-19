@@ -30,7 +30,7 @@ typedef enum {
 
 /* Private methods. */
 static void sendfile_window_finalize(GObject *gobject);
-void cancel_button_clicked(GtkWidget *widget, gpointer data);
+void cancel_button_clicked(const GtkWidget *widget, gpointer data);
 void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
 void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
 
@@ -190,11 +190,9 @@ void sendfile_window_peers_discover(SendFileWindow *window) {
 
 	/* Go through the network interfaces. */
 	for (i = 0; i < if_list->count; i++) {
-		iface_info_t *iface;
-
 		/* Get the network interface and search for peers on the network. */
-		iface = if_list->ifaces[i];
-		sendfile_window_peers_discover_with_addr(window, iface->brdaddr);
+		sendfile_window_peers_discover_with_addr(window,
+												 if_list->ifaces[i]->brdaddr);
 	}
 
 cleanup:
@@ -342,7 +340,7 @@ void tree_selection_changed(GtkTreeSelection *selection, gpointer data) {
  * @param widget Widget that triggered this event handler.
  * @param data   Pointer to the window's widget.
  */
-void cancel_button_clicked(GtkWidget *widget, gpointer data) {
+void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
 	(void)widget;
 	gtk_widget_destroy(GTK_WIDGET(data));
 }
