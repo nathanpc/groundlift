@@ -1,6 +1,7 @@
 # Define source files.
 set(GROUNDLIFT_GTK2_SOURCES
 	main.c
+	comdlg.c
 	windows/sendfile.c)
 
 # Use a newer standard of the C language since this is Linux.
