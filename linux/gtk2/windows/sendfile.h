@@ -8,6 +8,7 @@
 #ifndef _GL_GTK_WINDOWS_SENDFILE_H
 #define _GL_GTK_WINDOWS_SENDFILE_H
 
+#include <groundlift/client.h>
 #include <gtk/gtk.h>
 
 #ifdef __cplusplus
@@ -31,14 +32,34 @@ typedef struct _SendFileWindowClass SendFileWindowClass;
 
 struct _SendFileWindow {
 	GtkWindow parent_instance;
+
+	discovery_client_t *gl_discovery_client;
+
+	GtkWidget *ipaddr_entry;
+	GtkWidget *file_button;
+
+	GtkListStore *peer_list_store;
+	GtkWidget *peer_tree;
 };
 
 struct _SendFileWindowClass {
 	GtkWindowClass parent_class;
 };
 
+/* Constructor */
 GType sendfile_window_get_type(void);
 GtkWidget *sendfile_window_new(void);
+
+/* Peer list operations. */
+void sendfile_window_peers_discover(SendFileWindow *window);
+void sendfile_window_peers_discover_with_addr(SendFileWindow *window,
+											  const struct sockaddr *sock_addr);
+void sendfile_window_peers_clear(SendFileWindow *window);
+void sendfile_window_peers_append(SendFileWindow *window,
+								  const gl_discovery_peer_t *peer);
+void sendfile_window_peers_append_with_values(SendFileWindow *window,
+											  const gchar *hostname,
+											  const gchar *ipaddr);
 
 #ifdef __cplusplus
 }
