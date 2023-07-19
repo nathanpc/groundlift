@@ -1,4 +1,0 @@
-# Ignore gdbus-codegen generated files.
-gdbus.c
-gdbus.h
-
