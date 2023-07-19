@@ -56,8 +56,6 @@ int main(int argc, char **argv) {
 
 cleanup:
 	/* Free up any resources. */
-	//gl_server_free(g_server);
-	//gl_client_free(g_client);
 	gl_error_free(err);
 	conf_free();
 
