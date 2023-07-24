@@ -28,10 +28,20 @@ typedef enum {
 	N_COLUMNS
 } peer_list_cols_t;
 
+/**
+ * A helper structure to pass the window object along with some data to another
+ * thread function.
+ */
+typedef struct {
+	SendFileWindow *window;
+	gpointer data;
+} thread_data_t;
+
 /* Private methods. */
 static void sendfile_window_finalize(GObject *gobject);
 void cancel_button_clicked(const GtkWidget *widget, gpointer data);
 void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
+gboolean sendfile_window_peers_append_thread_wrapper(gpointer data);
 void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
 
 /**
@@ -293,7 +303,7 @@ void sendfile_window_peers_clear(SendFileWindow *window) {
  * @param peer   Peer object to be appended to the list.
  */
 void sendfile_window_peers_append(SendFileWindow *window,
-								  const gl_discovery_peer_t *peer) {
+								  const gl_peer_t *peer) {
 	gtk_list_store_insert_with_values(window->peer_list_store, NULL, -1,
 		HOSTNAME_COLUMN, peer->name,
 		IPADDR_COLUMN, inet_ntoa(peer->sock->addr_in.sin_addr), -1);
@@ -311,6 +321,25 @@ void sendfile_window_peers_append_with_values(SendFileWindow *window,
 											  const gchar *ipaddr) {
 	gtk_list_store_insert_with_values(window->peer_list_store, NULL, -1,
 		HOSTNAME_COLUMN, hostname, IPADDR_COLUMN, ipaddr, -1);
+}
+
+/**
+ * GLib thread-safe wrapper function to append a peer to the peer list.
+ *
+ * @param data Thread data object with window and peer object.
+ *
+ * @return G_SOURCE_REMOVE to mark this operation as finalized.
+ */
+gboolean sendfile_window_peers_append_thread_wrapper(gpointer data) {
+	thread_data_t *td = (thread_data_t *)data;
+	gl_peer_t *peer = (gl_peer_t *)td->data;
+
+	/* Append the peer to the peer list and free resources. */
+	sendfile_window_peers_append(td->window, peer);
+	gl_peer_free(peer);
+	free(td);
+
+	return G_SOURCE_REMOVE;
 }
 
 /**
@@ -352,5 +381,13 @@ void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
  * @param arg  Send File Window object.
  */
 void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg) {
-	sendfile_window_peers_append(SENDFILE_WINDOW(arg), peer);
+	thread_data_t *td;
+
+	/* Prepares the data to be passed to the thread wrapper. */
+	td = malloc(sizeof(thread_data_t));
+	td->window = SENDFILE_WINDOW(arg);
+	td->data = (void *)gl_peer_dup(peer);
+
+	/* Appends the peer to the peer list using a wrapper function. */
+	g_idle_add(sendfile_window_peers_append_thread_wrapper, (void *)td);
 }

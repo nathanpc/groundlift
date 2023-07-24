@@ -56,7 +56,7 @@ void sendfile_window_peers_discover_with_addr(SendFileWindow *window,
 											  const struct sockaddr *sock_addr);
 void sendfile_window_peers_clear(SendFileWindow *window);
 void sendfile_window_peers_append(SendFileWindow *window,
-								  const gl_discovery_peer_t *peer);
+								  const gl_peer_t *peer);
 void sendfile_window_peers_append_with_values(SendFileWindow *window,
 											  const gchar *hostname,
 											  const gchar *ipaddr);
