@@ -1342,6 +1342,48 @@ void socket_iface_info_free(iface_info_t *iface) {
 #endif /* !SINGLE_IFACE_MODE */
 
 /**
+ * Creates a full copy of a socket bundle object.
+ *
+ * @warning This function allocates memory that must be free'd by you.
+ * @warning A new socket descriptor isn't created, so be careful if you're
+ *          relying on it or using it in any way since it may become invalid at
+ *          any moment.
+ *
+ * @param sock Socket bundle object to be duplicated.
+ *
+ * @return Duplicate socket bundle object or NULL if an error occurred.
+ *
+ * @see socket_bundle_free
+ */
+sock_bundle_t *socket_bundle_dup(const sock_bundle_t *sock) {
+	sock_bundle_t *dup;
+
+	/* Allocate some memory for the duplicate socket bundle object. */
+	dup = (sock_bundle_t *)malloc(sizeof(sock_bundle_t));
+	if (dup == NULL) {
+		log_errno(LOG_ERROR,
+				  EMSG("Failed to allocate the socket bundle object"));
+		return NULL;
+	}
+
+	/* Populate the socket bundle object. */
+	dup->sockfd = sock->sockfd;
+	dup->addr_in = sock->addr_in;
+	dup->addr_in_size = sock->addr_in_size;
+
+	return dup;
+}
+
+/**
+ * Frees any resources allocated for a socket bundle object, including itself.
+ *
+ * @param sock Socket bundle to be free'd.
+ */
+void socket_bundle_free(sock_bundle_t *sock) {
+	free(sock);
+}
+
+/**
  * Gets the IP address that the TCP server is currently bound to in a string
  * representation.
  *

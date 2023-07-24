@@ -184,6 +184,10 @@ void socket_iface_info_list_free(iface_info_list_t *if_list);
 void socket_iface_info_free(iface_info_t *iface);
 #endif /* !SINGLE_IFACE_MODE */
 
+/* Socket bundle operations. */
+sock_bundle_t *socket_bundle_dup(const sock_bundle_t *sock);
+void socket_bundle_free(sock_bundle_t *sock);
+
 /* Misc. utilities. */
 char *tcp_server_get_ipstr(const server_t *server);
 char *udp_server_get_ipstr(const server_t *server);
