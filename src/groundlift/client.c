@@ -6,6 +6,7 @@
  */
 
 #include "client.h"
+#include "sockets.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -784,7 +785,7 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 			/* Populate the discovered peer object. */
 			peer->name = header->value.string.text;
 			peer->sock = &handle->sock;
-			
+
 			/* Call the event handler and free the peer object. */
 			handle->events.discovered_peer(peer,
 				handle->event_args.discovered_peer);
@@ -803,6 +804,48 @@ void *peer_discovery_thread_func(void *handle_ptr) {
 		handle->events.finished(handle->event_args.finished);
 
 	return (void *)err;
+}
+
+/**
+ * Creates a full copy of a peer object.
+ * @warning This function allocates memory that must be free'd by you.
+ *
+ * @param peer Peer object to be duplicated.
+ *
+ * @return Duplicate peer object or NULL if an error occurred.
+ *
+ * @see gl_peer_free
+ */
+gl_peer_t *gl_peer_dup(const gl_discovery_peer_t *peer) {
+	gl_peer_t *dup;
+
+	/* Allocate some memory for the duplicate peer object. */
+	dup = (gl_peer_t *)malloc(sizeof(gl_peer_t));
+	if (dup == NULL) {
+		log_errno(LOG_ERROR,
+				  EMSG("Failed to allocate the discovered peer object"));
+		return NULL;
+	}
+
+	/* Populate the duplicate object. */
+	dup->name = strdup(peer->name);
+	dup->sock = socket_bundle_dup(peer->sock);
+
+	return dup;
+}
+
+/**
+ * Frees any resources allocated for a peer object, including itself.
+ *
+ * @param peer Peer object to be free'd.
+ */
+void gl_peer_free(gl_peer_t *peer) {
+	/* Free the object's properties. */
+	free(peer->name);
+	socket_bundle_free(peer->sock);
+
+	/* Free the peer object itself. */
+	free(peer);
 }
 
 /**

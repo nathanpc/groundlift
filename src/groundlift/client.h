@@ -44,6 +44,15 @@ typedef struct {
 } gl_discovery_peer_t;
 
 /**
+ * Structure holding editable information about a peer. Think of this as a
+ * persistent version of the gl_discovery_peer_t object.
+ */
+typedef struct {
+	char *name;
+	sock_bundle_t *sock;
+} gl_peer_t;
+
+/**
  * Client connected to server event callback function pointer type definition.
  *
  * @param client Client connection handle object.
@@ -186,6 +195,10 @@ gl_err_t *gl_client_discover_peers(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_abort(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_thread_join(discovery_client_t *handle);
 gl_err_t *gl_client_discovery_free(discovery_client_t *handle);
+
+/* Discovery peer object manipulation. */
+gl_peer_t *gl_peer_dup(const gl_discovery_peer_t *peer);
+void gl_peer_free(gl_peer_t *peer);
 
 /* Event handler setters. */
 void gl_client_evt_conn_set(client_handle_t *handle,
