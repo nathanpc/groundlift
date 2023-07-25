@@ -527,7 +527,8 @@ gl_err_t *gl_client_send_put_file(client_handle_t *handle) {
 		chunks++;
 
 #ifdef DEBUG
-	printf("file size %ld csize %u chunks %u\n", handle->fsize, csize, chunks);
+	printf("file size %ld csize %u chunks %u\n", handle->fb->size, csize,
+		   chunks);
 #endif
 
 	/* Open the file. */
