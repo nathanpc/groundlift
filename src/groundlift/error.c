@@ -13,7 +13,12 @@
 #include <utils/logging.h>
 #ifdef _WIN32
 #include <stdshim.h>
+#else
+#include <signal.h>
 #endif /* _WIN32 */
+
+/* Private methods. */
+void gl_error_raise_exception(void);
 
 /**
  * Creates a brand new error reporting object.
@@ -106,6 +111,9 @@ gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
 	/* Copy over the entire message. */
 	snprintf(report->msg, len, "%s: %s", prefix, msg);
 
+	/* Raise a software exception. */
+	gl_error_raise_exception();
+
 	return report;
 }
 
@@ -165,4 +173,17 @@ void gl_error_print(gl_err_t *err) {
 	/* Print the error out. */
 	log_printf(LOG_ERROR, "%s (err type %d code %d)\n", err->msg, err->type,
 			err->error.generic);
+}
+
+/**
+ * Raises a software exception in debug builds.
+ */
+void gl_error_raise_exception(void) {
+#ifdef DEBUG
+#ifdef _WIN32
+	__debugbreak();
+#else
+	raise(SIGTRAP);
+#endif /* _WIN32 */
+#endif /* DEBUG */
 }
