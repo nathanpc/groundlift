@@ -1,6 +1,7 @@
 # Define source files.
 set(GROUNDLIFT_GTK2_SOURCES
 	main.c
+	server.c
 	comdlg.c
 	windows/sendfile.c)
 
@@ -27,6 +28,11 @@ pkg_search_module(GLIB REQUIRED glib-2.0)
 pkg_search_module(GTK REQUIRED gtk+-2.0)
 target_include_directories(gl-gtk2 PRIVATE ${GLIB_INCLUDE_DIRS} ${GTK_INCLUDE_DIRS})
 target_link_libraries(gl-gtk2 PUBLIC ${GLIB_LDFLAGS} ${GTK_LDFLAGS})
+
+# Ensure we have AppIndicators.
+pkg_search_module(APPINDICATORS REQUIRED ayatana-appindicator-0.1)
+target_include_directories(gl-gtk2 PRIVATE ${APPINDICATORS_INCLUDE_DIRS})
+target_link_libraries(gl-gtk2 PUBLIC ${APPINDICATORS_LDFLAGS})
 
 # Ensure we have our common components and main library in the include path.
 target_link_libraries(gl-gtk2 PUBLIC glcommon)

@@ -1,0 +1,269 @@
+/**
+ * server.c
+ * GroundLift server GTK application helper.
+ *
+ * @author Nathan Campos <nathan@innoveworkshop.com>
+ */
+
+#include "server.h"
+
+#include <groundlift/defaults.h>
+#include <utils/filesystem.h>
+#include <utils/logging.h>
+#include "groundlift/error.h"
+
+/* Server instance. */
+static server_handle_t *gl_server;
+
+/* Server operations. */
+gl_err_t *server_run(const char *ip, uint16_t port);
+
+/* Server event handlers. */
+void event_started(const server_t *server, void *arg);
+int event_conn_req(const gl_server_conn_req_t *req, void *arg);
+void event_stopped(void *arg);
+
+/* Server client's connection event handlers. */
+void event_conn_accepted(const server_conn_t *conn, void *arg);
+void event_conn_download_progress(const gl_server_conn_progress_t *progress,
+								  void *arg);
+void event_conn_download_success(const file_bundle_t *fb, void *arg);
+void event_conn_closed(void *arg);
+
+/**
+ * Starts up the server daemon.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
+gl_err_t *server_daemon_start(void) {
+	/* TODO: Start the server in all interfaces. */
+	return server_run(NULL, TCPSERVER_PORT);
+}
+
+/**
+ * Stops the server daemon.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
+gl_err_t *server_daemon_stop(void) {
+	gl_err_t *err = NULL;
+
+	/* Stop the server instance. */
+	err = gl_server_stop(gl_server);
+	if (err)
+		gl_error_print(err);
+
+	/* Wait for the discovery server thread to return. */
+	err = gl_server_discovery_thread_join(gl_server);
+	if (err) {
+		log_printf(LOG_ERROR,
+				   "Discovery server thread returned with errors.\n");
+		goto cleanup;
+	}
+
+	/* Wait for the main server thread to return. */
+	err = gl_server_thread_join(gl_server);
+	if (err) {
+		log_printf(LOG_ERROR, "Server thread returned with errors.\n");
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free up any resources. */
+	gl_server_free(gl_server);
+
+	return err;
+}
+
+/**
+ * Starts up the server and wait for it to be shutdown.
+ *
+ * @param ip   Server's IP to send the data to.
+ * @param port Server port to talk to.
+ *
+ * @return An error report if something unexpected happened or NULL if the
+ *         operation was successful.
+ */
+gl_err_t *server_run(const char *ip, uint16_t port) {
+	gl_err_t *err = NULL;
+
+	/* Construct the server handle object. */
+	gl_server = gl_server_new();
+	if (gl_server == NULL) {
+		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to construct the server handle object."));
+	}
+
+	/* Setup event handlers. */
+	gl_server_evt_start_set(gl_server, event_started, NULL);
+	gl_server_evt_client_conn_req_set(gl_server, event_conn_req, NULL);
+	gl_server_evt_stop_set(gl_server, event_stopped, NULL);
+	gl_server_conn_evt_accept_set(gl_server, event_conn_accepted, NULL);
+	gl_server_conn_evt_download_progress_set(gl_server,
+											 event_conn_download_progress,
+											 NULL);
+	gl_server_conn_evt_download_success_set(gl_server,
+											event_conn_download_success, NULL);
+	gl_server_conn_evt_close_set(gl_server, event_conn_closed, NULL);
+
+	/* Initialize the server. */
+	err = gl_server_setup(gl_server, ip, port);
+	if (err) {
+		log_printf(LOG_ERROR, "Server setup failed.\n");
+		goto cleanup;
+	}
+
+	/* Start the main server up. */
+	err = gl_server_start(gl_server);
+	if (err) {
+		log_printf(LOG_ERROR, "Server thread failed to start.\n");
+		goto cleanup;
+	}
+
+	/* Start the discovery server. */
+	err = gl_server_discovery_start(gl_server, UDPSERVER_PORT);
+	if (err) {
+		log_printf(LOG_ERROR, "Discovery server thread failed to start.\n");
+		goto cleanup;
+	}
+
+	/* Check if the server started successfully. */
+	if (err == NULL)
+		return NULL;
+
+cleanup:
+	/* Free up any resources. */
+	gl_server_free(gl_server);
+
+	return err;
+}
+
+/**
+ * Handles the server started event.
+ *
+ * @param server Server handle object.
+ * @param arg    Optional data set by the event handler setup.
+ */
+void event_started(const server_t *server, void *arg) {
+	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	/* Print some information about the current state of the server. */
+	ipstr = tcp_server_get_ipstr(server);
+	printf("Server listening on %s port %u (discovery %u)\n", ipstr,
+		   ntohs(server->tcp.addr_in.sin_port),
+		   ntohs(server->udp.addr_in.sin_port));
+
+	free(ipstr);
+}
+
+/**
+ * Handles the server client connection requested event.
+ *
+ * @param req Information about the client and its request.
+ * @param arg Optional data set by the event handler setup.
+ *
+ * @return 0 to refuses the request. Anything else will be treated as accepting.
+ */
+int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
+	int c;
+	float fsize;
+	char prefix;
+
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	/* Get a human-readable file size. */
+	fsize = file_size_readable(req->fb->size, &prefix);
+
+	/* Ask the user for permission to accept the transfer of the file. */
+	if (prefix != 'B') {
+		printf("%s wants to send you the file '%s' (%.2f %cB). Accept? [y/n]? ",
+			   req->hostname, req->fb->base, fsize, prefix);
+	} else {
+		printf("%s wants to send you the file '%s' (%.0f bytes). Accept? "
+			   "[y/n]? ", req->hostname, req->fb->base, fsize);
+	}
+
+	/* Wait for the user to reply. */
+	do {
+		c = getc(stdin);
+	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
+
+	return (c != 'n') && (c != 'N');
+}
+
+/**
+ * Handles the server stopped event.
+ *
+ * @param arg Optional data set by the event handler setup.
+ */
+void event_stopped(void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	printf("Server stopped\n");
+}
+
+/**
+ * Handles the server connection accepted event.
+ *
+ * @param conn Client connection handle object.
+ * @param arg  Optional data set by the event handler setup.
+ */
+void event_conn_accepted(const server_conn_t *conn, void *arg) {
+	char *ipstr;
+
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	/* Print out some client information. */
+	ipstr = tcp_server_conn_get_ipstr(conn);
+	printf("Client at %s connection accepted\n", ipstr);
+
+	free(ipstr);
+}
+
+/**
+ * Handles the server connection download progress event.
+ *
+ * @param progress Structure containing all the information about the progress.
+ * @param arg      Optional data set by the event handler setup.
+ */
+void event_conn_download_progress(const gl_server_conn_progress_t *progress,
+								  void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	printf("Receiving file... (%u/%lu)\n", progress->recv_bytes,
+		   progress->fb->size);
+}
+
+/**
+ * Handles the server connection download finished event.
+ *
+ * @param fb  File bundle of the downloaded file.
+ * @param arg Optional data set by the event handler setup.
+ */
+void event_conn_download_success(const file_bundle_t *fb, void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	printf("Finished receiving %s\n", fb->base);
+}
+
+/**
+ * Handles the server connection closed event.
+ *
+ * @param arg Optional data set by the event handler setup.
+ */
+void event_conn_closed(void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	printf("Client connection closed\n");
+}

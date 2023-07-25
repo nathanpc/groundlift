@@ -14,6 +14,7 @@
 #include <string.h>
 #include <utils/capabilities.h>
 
+#include "server.h"
 #include "windows/sendfile.h"
 
 /**
@@ -38,10 +39,12 @@ int main(int argc, char **argv) {
 	obex_init();
 	conf_init();
 
-	/* Check if we had any errors to report. */
-	gl_error_print(err);
+	/* Start the server daemon. */
+	err = server_daemon_start();
 	if (err != NULL) {
+		gl_error_print(err);
 		ret = 1;
+
 		goto cleanup;
 	}
 
@@ -55,6 +58,12 @@ int main(int argc, char **argv) {
 	gtk_main();
 
 cleanup:
+	err = server_daemon_stop();
+	if (err != NULL) {
+		gl_error_print(err);
+		ret = 1;
+	}
+
 	/* Free up any resources. */
 	gl_error_free(err);
 	conf_free();
