@@ -39,10 +39,10 @@ typedef struct {
 
 /* Private methods. */
 static void sendfile_window_finalize(GObject *gobject);
-void cancel_button_clicked(const GtkWidget *widget, gpointer data);
-void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
-gboolean sendfile_window_peers_append_thread_wrapper(gpointer data);
-void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
+static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
+static void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
+static gboolean sendfile_window_peers_append_thread_wrapper(gpointer data);
+static void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
 
 /**
  * Send File window class initializer.
@@ -330,7 +330,7 @@ void sendfile_window_peers_append_with_values(SendFileWindow *window,
  *
  * @return G_SOURCE_REMOVE to mark this operation as finalized.
  */
-gboolean sendfile_window_peers_append_thread_wrapper(gpointer data) {
+static gboolean sendfile_window_peers_append_thread_wrapper(gpointer data) {
 	thread_data_t *td = (thread_data_t *)data;
 	gl_peer_t *peer = (gl_peer_t *)td->data;
 
@@ -348,7 +348,7 @@ gboolean sendfile_window_peers_append_thread_wrapper(gpointer data) {
  * @param selection Selected item in the peer list.
  * @param data      Pointer to the window's widget.
  */
-void tree_selection_changed(GtkTreeSelection *selection, gpointer data) {
+static void tree_selection_changed(GtkTreeSelection *selection, gpointer data) {
 	GtkTreeIter iter;
 	GtkTreeModel *model;
 	gchar *ipaddr;
@@ -369,7 +369,7 @@ void tree_selection_changed(GtkTreeSelection *selection, gpointer data) {
  * @param widget Widget that triggered this event handler.
  * @param data   Pointer to the window's widget.
  */
-void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
+static void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
 	(void)widget;
 	gtk_widget_destroy(GTK_WIDGET(data));
 }
@@ -380,7 +380,8 @@ void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
  * @param peer Discovered peer object.
  * @param arg  Send File Window object.
  */
-void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg) {
+static void gl_event_peer_discovered(const gl_discovery_peer_t *peer,
+									 void *arg) {
 	thread_data_t *td;
 
 	/* Prepares the data to be passed to the thread wrapper. */
