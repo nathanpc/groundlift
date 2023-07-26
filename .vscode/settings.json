@@ -27,6 +27,7 @@
 		"gboolean",
 		"gchar",
 		"GETIFADDR",
+		"gint",
 		"gobject",
 		"Groundlift",
 		"hbox",

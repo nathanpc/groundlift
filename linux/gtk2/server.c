@@ -8,9 +8,18 @@
 #include "server.h"
 
 #include <groundlift/defaults.h>
+#include <stdio.h>
 #include <utils/filesystem.h>
 #include <utils/logging.h>
-#include "groundlift/error.h"
+
+/**
+ * Transfer request thread data structure.
+ */
+typedef struct {
+	const gl_server_conn_req_t *req;
+	gint response;
+	gboolean running;
+} conn_req_thread_data_t;
 
 /* Server instance. */
 static server_handle_t *gl_server;
@@ -20,6 +29,7 @@ gl_err_t *server_run(const char *ip, uint16_t port);
 
 /* Server event handlers. */
 void event_started(const server_t *server, void *arg);
+gboolean event_conn_req_thread_wrapper(gpointer data);
 int event_conn_req(const gl_server_conn_req_t *req, void *arg);
 void event_stopped(void *arg);
 
@@ -141,6 +151,49 @@ cleanup:
 }
 
 /**
+ * GLib thread-safe wrapper function to handle a peer's transfer request.
+ *
+ * @param data conn_req_thread_data_t object.
+ *
+ * @return G_SOURCE_REMOVE to mark this operation as finalized.
+ */
+gboolean event_conn_req_thread_wrapper(gpointer data) {
+	conn_req_thread_data_t *td;
+	GtkWidget *dialog;
+	float fsize;
+	char prefix;
+
+	/* Get thread data object. */
+	td = (conn_req_thread_data_t *)data;
+
+	/* Get a human-readable file size. */
+	fsize = file_size_readable(td->req->fb->size, &prefix);
+
+	/* Setup the message dialog. */
+	dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_DESTROY_WITH_PARENT,
+									GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+									"%s wants to send you a file. Accept?",
+									td->req->hostname);
+
+	/* Add some information about the file to be transferred. */
+	if (prefix != 'B') {
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+			"%s (%.2f %cB)", td->req->fb->base, fsize, prefix);
+	} else {
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+												 "%s (%.0f bytes)",
+												 td->req->fb->base, fsize);
+	}
+
+	/* Display the dialog, get the user's response, and free our resources. */
+	td->response = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
+	td->running = false;
+
+	return G_SOURCE_REMOVE;
+}
+
+/**
  * Handles the server started event.
  *
  * @param server Server handle object.
@@ -170,31 +223,25 @@ void event_started(const server_t *server, void *arg) {
  * @return 0 to refuses the request. Anything else will be treated as accepting.
  */
 int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
-	int c;
-	float fsize;
-	char prefix;
+	conn_req_thread_data_t *td;
+	int response;
 
-	/* Ignore unused arguments. */
-	(void)arg;
+	/* Prepares the data to be passed to the thread wrapper. */
+	td = malloc(sizeof(conn_req_thread_data_t));
+	td->req = req;
+	td->running = true;
+	td->response = GTK_RESPONSE_NO;
 
-	/* Get a human-readable file size. */
-	fsize = file_size_readable(req->fb->size, &prefix);
+	/* Notifies the user using a thread wrapper function. */
+	g_idle_add(event_conn_req_thread_wrapper, (void *)td);
+	while (td->running)
+		sleep(1);
 
-	/* Ask the user for permission to accept the transfer of the file. */
-	if (prefix != 'B') {
-		printf("%s wants to send you the file '%s' (%.2f %cB). Accept? [y/n]? ",
-			   req->hostname, req->fb->base, fsize, prefix);
-	} else {
-		printf("%s wants to send you the file '%s' (%.0f bytes). Accept? "
-			   "[y/n]? ", req->hostname, req->fb->base, fsize);
-	}
+	/* Get the user's response and free the thread wrapper. */
+	response = (td->response == GTK_RESPONSE_YES) ? 1 : 0;
+	free(td);
 
-	/* Wait for the user to reply. */
-	do {
-		c = getc(stdin);
-	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
-
-	return (c != 'n') && (c != 'N');
+	return response;
 }
 
 /**

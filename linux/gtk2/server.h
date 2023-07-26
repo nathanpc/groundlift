@@ -14,6 +14,9 @@
 extern "C" {
 #endif
 
+#include <groundlift/server.h>
+#include <gtk/gtk.h>
+
 /* Daemon operations. */
 gl_err_t *server_daemon_start(void);
 gl_err_t *server_daemon_stop(void);
