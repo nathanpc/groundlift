@@ -3,10 +3,13 @@ set(GROUNDLIFT_GTK2_SOURCES
 	main.c
 	server.c
 	comdlg.c
-	windows/sendfile.c)
+	windows/sendfile.c
+	windows/transfer.c)
 
 # Use a newer standard of the C language since this is Linux.
 set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_EXTENSIONS ON)
+add_compile_definitions(_GNU_SOURCE)
 
 # Build the GTK2 application.
 add_executable(gl-gtk2
