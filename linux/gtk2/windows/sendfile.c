@@ -135,7 +135,7 @@ static void sendfile_window_init(SendFileWindow *self) {
 	hbox = gtk_hbutton_box_new();
 	gtk_button_box_set_spacing(GTK_BOX(hbox), 5);
 	gtk_button_box_set_layout(GTK_BUTTON_BOX(hbox), GTK_BUTTONBOX_END);
-	gtk_box_pack_start(GTK_BOX(vbox), hbox, false, false, 0);
+	gtk_box_pack_end(GTK_BOX(vbox), hbox, false, false, 0);
 	button = gtk_button_new_from_stock(GTK_STOCK_CANCEL);
 	g_signal_connect(G_OBJECT(button), "clicked",
 					 G_CALLBACK(cancel_button_clicked), self);
