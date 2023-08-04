@@ -42,6 +42,7 @@ static void receiving_window_finalize(GObject *gobject);
 /* GroundLift event handler GTK thread wrappers. */
 static gboolean event_transfer_progress(gpointer data);
 static gboolean event_transfer_success(gpointer data);
+static gboolean event_transfer_cancelled(gpointer data);
 
 /* GroundLift event handlers. */
 static void gl_event_download_progress(
@@ -52,6 +53,7 @@ static void gl_event_conn_closed(void *arg);
 /* Widget event handlers. */
 static void open_file_button_clicked(const GtkWidget *widget, gpointer data);
 static void open_folder_button_clicked(const GtkWidget *widget, gpointer data);
+static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
 
 /**
  * File transfer window class initializer.
@@ -103,6 +105,8 @@ static void receiving_window_constructed(GObject *gobject) {
 					 "clicked", G_CALLBACK(open_file_button_clicked), self);
 	g_signal_connect(G_OBJECT(self->parent_instance.open_folder_button),
 					 "clicked", G_CALLBACK(open_folder_button_clicked), self);
+	g_signal_connect(G_OBJECT(self->parent_instance.cancel_button), "clicked",
+					 G_CALLBACK(cancel_button_clicked), self);
 }
 
 /**
@@ -236,6 +240,33 @@ static gboolean event_transfer_success(gpointer data) {
 }
 
 /**
+ * GTK transfer cancelled event handler.
+ *
+ * @param data Thread data object with window object.
+ *
+ * @return G_SOURCE_REMOVE to mark this operation as finalized.
+ */
+static gboolean event_transfer_cancelled(gpointer data) {
+	thread_data_t *td = (thread_data_t *)data;
+	gboolean running;
+
+	/* Check if the transfer was canceled or simply finished. */
+	running = gtk_widget_get_visible(td->window->parent_instance.cancel_button);
+	if (!running)
+		return G_SOURCE_REMOVE;
+
+	/* Set the information label. */
+	transfer_window_set_info_label(TRANSFER_WINDOW(td->window),
+								   "Transfer cancelled by sender");
+
+	/* Hide the cancel button and free our resources. */
+	transfer_window_cancel_button_hide(TRANSFER_WINDOW(td->window));
+	free(td);
+
+	return G_SOURCE_REMOVE;
+}
+
+/**
  * Handles the server connection download progress event.
  *
  * @param progress Structure containing all the information about the progress.
@@ -283,10 +314,15 @@ static void gl_event_download_success(const file_bundle_t *fb, void *arg) {
  * @param arg Optional data set by the event handler setup.
  */
 static void gl_event_conn_closed(void *arg) {
-	/* Ignore unused arguments. */
-	(void)arg;
+	thread_data_t *td;
 
-	printf("Client connection closed\n");
+	/* Prepares the data to be passed to the thread wrapper. */
+	td = malloc(sizeof(thread_data_t));
+	td->window = RECEIVING_WINDOW(arg);
+	td->data = NULL;
+
+	/* Appends the peer to the peer list using a wrapper function. */
+	g_idle_add(event_transfer_cancelled, (void *)td);
 }
 
 /**
@@ -331,4 +367,22 @@ static void open_folder_button_clicked(const GtkWidget *widget, gpointer data) {
 
 	/* Close ourselves. */
 	gtk_widget_destroy(GTK_WIDGET(data));
+}
+
+/**
+ * Cancel button clicked event handler.
+ *
+ * @param widget Widget that triggered this event handler.
+ * @param data   Pointer to the window's widget.
+ */
+static void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
+	(void)widget;
+
+	/* Hide the cancel button. */
+	transfer_window_cancel_button_hide(TRANSFER_WINDOW(data));
+
+	/* Cancel the transfer and set the information label. */
+	gl_server_conn_cancel(RECEIVING_WINDOW(data)->gl_server);
+	transfer_window_set_info_label(TRANSFER_WINDOW(data),
+								   "Transfer cancelled by user");
 }

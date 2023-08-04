@@ -44,7 +44,6 @@ static char *get_rounded_file_size(fsize_t fsize);
 
 /* Event handlers. */
 static gboolean event_timer_update_progress(gpointer data);
-static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
 
 /**
  * File transfer window class initializer.
@@ -180,8 +179,6 @@ static void transfer_window_populate(TransferWindow *self) {
 	gtk_box_pack_start(GTK_BOX(hbox), button, false, false, 0);
 	self->open_file_button = button;
 	button = gtk_button_new_from_stock(GTK_STOCK_CANCEL);
-	g_signal_connect(G_OBJECT(button), "clicked",
-					 G_CALLBACK(cancel_button_clicked), self);
 	gtk_box_pack_start(GTK_BOX(hbox), button, false, false, 0);
 	self->cancel_button = button;
 }
@@ -361,17 +358,4 @@ static gboolean event_timer_update_progress(gpointer data) {
 
 	/* Continue updating the progress until the cancel button is hidden. */
 	return running;
-}
-
-/**
- * Cancel button clicked event handler.
- *
- * @param widget Widget that triggered this event handler.
- * @param data   Pointer to the window's widget.
- */
-static void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
-	(void)widget;
-
-	transfer_window_cancel_button_hide(TRANSFER_WINDOW(data));
-	transfer_window_open_buttons_show(TRANSFER_WINDOW(data));
 }
