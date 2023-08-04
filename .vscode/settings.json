@@ -43,6 +43,7 @@
 		"MAKELANGID",
 		"OBEX",
 		"recvnorm",
+		"recvprogress",
 		"SETPATH",
 		"sfsize",
 		"sockerrno",

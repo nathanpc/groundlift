@@ -12,6 +12,8 @@
 #include <utils/filesystem.h>
 #include <utils/logging.h>
 
+#include "windows/recvprogress.h"
+
 /**
  * Transfer request thread data structure.
  */
@@ -25,20 +27,17 @@ typedef struct {
 static server_handle_t *gl_server;
 
 /* Server operations. */
-gl_err_t *server_run(const char *ip, uint16_t port);
+static gl_err_t *server_run(const char *ip, uint16_t port);
+static void server_setup_receiving_window(const gl_server_conn_req_t *req);
 
 /* Server event handlers. */
-void event_started(const server_t *server, void *arg);
-gboolean event_conn_req_thread_wrapper(gpointer data);
-int event_conn_req(const gl_server_conn_req_t *req, void *arg);
-void event_stopped(void *arg);
+static void gl_event_started(const server_t *server, void *arg);
+static void gl_event_stopped(void *arg);
 
 /* Server client's connection event handlers. */
-void event_conn_accepted(const server_conn_t *conn, void *arg);
-void event_conn_download_progress(const gl_server_conn_progress_t *progress,
-								  void *arg);
-void event_conn_download_success(const file_bundle_t *fb, void *arg);
-void event_conn_closed(void *arg);
+static void gl_event_conn_accepted(const server_conn_t *conn, void *arg);
+static gboolean event_conn_req_thread_wrapper(gpointer data);
+static int gl_event_conn_req(const gl_server_conn_req_t *req, void *arg);
 
 /**
  * Starts up the server daemon.
@@ -47,7 +46,7 @@ void event_conn_closed(void *arg);
  *         operation was successful.
  */
 gl_err_t *server_daemon_start(void) {
-	/* TODO: Start the server in all interfaces. */
+	/* TODO: Start the server on all interfaces. */
 	return server_run(NULL, TCPSERVER_PORT);
 }
 
@@ -96,7 +95,7 @@ cleanup:
  * @return An error report if something unexpected happened or NULL if the
  *         operation was successful.
  */
-gl_err_t *server_run(const char *ip, uint16_t port) {
+static gl_err_t *server_run(const char *ip, uint16_t port) {
 	gl_err_t *err = NULL;
 
 	/* Construct the server handle object. */
@@ -107,16 +106,10 @@ gl_err_t *server_run(const char *ip, uint16_t port) {
 	}
 
 	/* Setup event handlers. */
-	gl_server_evt_start_set(gl_server, event_started, NULL);
-	gl_server_evt_client_conn_req_set(gl_server, event_conn_req, NULL);
-	gl_server_evt_stop_set(gl_server, event_stopped, NULL);
-	gl_server_conn_evt_accept_set(gl_server, event_conn_accepted, NULL);
-	gl_server_conn_evt_download_progress_set(gl_server,
-											 event_conn_download_progress,
-											 NULL);
-	gl_server_conn_evt_download_success_set(gl_server,
-											event_conn_download_success, NULL);
-	gl_server_conn_evt_close_set(gl_server, event_conn_closed, NULL);
+	gl_server_evt_start_set(gl_server, gl_event_started, NULL);
+	gl_server_evt_client_conn_req_set(gl_server, gl_event_conn_req, NULL);
+	gl_server_evt_stop_set(gl_server, gl_event_stopped, NULL);
+	gl_server_conn_evt_accept_set(gl_server, gl_event_conn_accepted, NULL);
 
 	/* Initialize the server. */
 	err = gl_server_setup(gl_server, ip, port);
@@ -151,13 +144,27 @@ cleanup:
 }
 
 /**
+ * Sets up and displays the receiving transfer progress window.
+ *
+ * @param req Information about the client and its request.
+ */
+static void server_setup_receiving_window(const gl_server_conn_req_t *req) {
+	GtkWidget *window;
+
+	/* Setup the transfer window object. */
+	window = receiving_window_new();
+	receiving_window_set_gl_server(RECEIVING_WINDOW(window), gl_server);
+	receiving_window_set_gl_server_conn_req(RECEIVING_WINDOW(window), req);
+}
+
+/**
  * GLib thread-safe wrapper function to handle a peer's transfer request.
  *
  * @param data conn_req_thread_data_t object.
  *
  * @return G_SOURCE_REMOVE to mark this operation as finalized.
  */
-gboolean event_conn_req_thread_wrapper(gpointer data) {
+static gboolean event_conn_req_thread_wrapper(gpointer data) {
 	conn_req_thread_data_t *td;
 	GtkWidget *dialog;
 	float fsize;
@@ -185,8 +192,12 @@ gboolean event_conn_req_thread_wrapper(gpointer data) {
 												 td->req->fb->base, fsize);
 	}
 
-	/* Display the dialog, get the user's response, and free our resources. */
+	/* Ask user about the transfer and start the progress window if needed. */
 	td->response = gtk_dialog_run(GTK_DIALOG(dialog));
+	if (td->response)
+		server_setup_receiving_window(td->req);
+
+	/* Free our resources. */
 	gtk_widget_destroy(dialog);
 	td->running = false;
 
@@ -199,7 +210,7 @@ gboolean event_conn_req_thread_wrapper(gpointer data) {
  * @param server Server handle object.
  * @param arg    Optional data set by the event handler setup.
  */
-void event_started(const server_t *server, void *arg) {
+static void gl_event_started(const server_t *server, void *arg) {
 	char *ipstr;
 
 	/* Ignore unused arguments. */
@@ -222,7 +233,7 @@ void event_started(const server_t *server, void *arg) {
  *
  * @return 0 to refuses the request. Anything else will be treated as accepting.
  */
-int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
+static int gl_event_conn_req(const gl_server_conn_req_t *req, void *arg) {
 	conn_req_thread_data_t *td;
 	int response;
 
@@ -249,7 +260,7 @@ int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
  *
  * @param arg Optional data set by the event handler setup.
  */
-void event_stopped(void *arg) {
+static void gl_event_stopped(void *arg) {
 	/* Ignore unused arguments. */
 	(void)arg;
 
@@ -262,7 +273,7 @@ void event_stopped(void *arg) {
  * @param conn Client connection handle object.
  * @param arg  Optional data set by the event handler setup.
  */
-void event_conn_accepted(const server_conn_t *conn, void *arg) {
+static void gl_event_conn_accepted(const server_conn_t *conn, void *arg) {
 	char *ipstr;
 
 	/* Ignore unused arguments. */
@@ -273,44 +284,4 @@ void event_conn_accepted(const server_conn_t *conn, void *arg) {
 	printf("Client at %s connection accepted\n", ipstr);
 
 	free(ipstr);
-}
-
-/**
- * Handles the server connection download progress event.
- *
- * @param progress Structure containing all the information about the progress.
- * @param arg      Optional data set by the event handler setup.
- */
-void event_conn_download_progress(const gl_server_conn_progress_t *progress,
-								  void *arg) {
-	/* Ignore unused arguments. */
-	(void)arg;
-
-	printf("Receiving file... (%u/%lu)\n", progress->recv_bytes,
-		   progress->fb->size);
-}
-
-/**
- * Handles the server connection download finished event.
- *
- * @param fb  File bundle of the downloaded file.
- * @param arg Optional data set by the event handler setup.
- */
-void event_conn_download_success(const file_bundle_t *fb, void *arg) {
-	/* Ignore unused arguments. */
-	(void)arg;
-
-	printf("Finished receiving %s\n", fb->base);
-}
-
-/**
- * Handles the server connection closed event.
- *
- * @param arg Optional data set by the event handler setup.
- */
-void event_conn_closed(void *arg) {
-	/* Ignore unused arguments. */
-	(void)arg;
-
-	printf("Client connection closed\n");
 }
