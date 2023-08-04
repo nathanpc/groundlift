@@ -194,7 +194,7 @@ static gboolean event_conn_req_thread_wrapper(gpointer data) {
 
 	/* Ask user about the transfer and start the progress window if needed. */
 	td->response = gtk_dialog_run(GTK_DIALOG(dialog));
-	if (td->response)
+	if (td->response == GTK_RESPONSE_YES)
 		server_setup_receiving_window(td->req);
 
 	/* Free our resources. */
