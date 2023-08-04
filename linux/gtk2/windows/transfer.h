@@ -8,7 +8,6 @@
 #ifndef _GL_GTK_WINDOWS_TRANSFER_H
 #define _GL_GTK_WINDOWS_TRANSFER_H
 
-#include <groundlift/server.h>
 #include <gtk/gtk.h>
 #include <utils/filesystem.h>
 
@@ -58,12 +57,6 @@ struct _TransferWindowClass {
 /* Constructor */
 GType transfer_window_get_type(void);
 GtkWidget *transfer_window_new(void);
-
-#if 0
-/* GroundLift integration. */
-void transfer_window_gl_server_set(TransferWindow *window,
-								   server_handle_t *gl_server);
-#endif
 
 /* High-level interactions. */
 void transfer_window_set_update_interval(TransferWindow *window,

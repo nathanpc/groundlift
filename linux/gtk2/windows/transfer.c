@@ -7,13 +7,9 @@
 
 #include "transfer.h"
 
-#include <groundlift/error.h>
-#include <groundlift/server.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "../comdlg.h"
 
 /* Define GObject type. */
 G_DEFINE_TYPE(TransferWindow, transfer_window, GTK_TYPE_WINDOW)
@@ -36,10 +32,18 @@ typedef struct {
 	gpointer data;
 } thread_data_t;
 
-/* Private methods. */
+/* Object lifecycle. */
+static void transfer_window_populate(TransferWindow *self);
+static void transfer_window_constructed(GObject *gobject);
 static void transfer_window_finalize(GObject *gobject);
-void transfer_window_update_progress(TransferWindow *window);
+
+/* Private methods. */
+static void transfer_window_update_progress(TransferWindow *window,
+											gboolean update_rate);
 static char *get_rounded_file_size(fsize_t fsize);
+
+/* Event handlers. */
+static gboolean event_timer_update_progress(gpointer data);
 static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
 
 /**
@@ -51,6 +55,7 @@ static void transfer_window_class_init(TransferWindowClass *klass) {
 	GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
 	/* Handle some standard object events. */
+	object_class->constructed = transfer_window_constructed;
 	object_class->finalize = transfer_window_finalize;
 }
 
@@ -60,6 +65,64 @@ static void transfer_window_class_init(TransferWindowClass *klass) {
  * @param self Send file window object.
  */
 static void transfer_window_init(TransferWindow *self) {
+	/* Set some defaults. */
+	self->update_interval = 1000;
+	self->transferred = 0;
+	self->target_fsize = 0;
+	self->target_text_cache = NULL;
+}
+
+/**
+ * File transfer window object constructor.
+ *
+ * @return File transfer window object cast to a GtkWidget.
+ */
+GtkWidget *transfer_window_new(void) {
+	return GTK_WIDGET(g_object_new(TRANSFER_TYPE_WINDOW, NULL));
+}
+
+/**
+ * Handle the object's constructed event.
+ *
+ * @param gobject File transfer window object.
+ */
+static void transfer_window_constructed(GObject *gobject) {
+	TransferWindow *self = TRANSFER_WINDOW(gobject);
+
+	/* Always chain up to the parent class. */
+	G_OBJECT_CLASS(transfer_window_parent_class)->constructed(gobject);
+
+	/* Populate the window. */
+	transfer_window_populate(self);
+
+	/* Show window and its widgets. */
+	gtk_widget_show_all(GTK_WIDGET(self));
+	gtk_widget_hide(self->open_folder_button);
+	gtk_widget_hide(self->open_file_button);
+}
+
+/**
+ * Handle the object's destruction and frees up any resources.
+ *
+ * @param gobject File transfer window object.
+ */
+static void transfer_window_finalize(GObject *gobject) {
+	TransferWindow *self = TRANSFER_WINDOW(gobject);
+
+	/* Free up our resources. */
+	if (self->target_text_cache)
+		free(self->target_text_cache);
+
+	/* Always chain up to the parent class. */
+	G_OBJECT_CLASS(transfer_window_parent_class)->finalize(gobject);
+}
+
+/**
+ * Populates the window with widgets and sets up object defaults.
+ *
+ * @param self File transfer window object.
+ */
+static void transfer_window_populate(TransferWindow *self) {
 	GtkWidget *window;
 	GtkWidget *vbox;
 	GtkWidget *hbox;
@@ -67,12 +130,6 @@ static void transfer_window_init(TransferWindow *self) {
 	GtkWidget *label;
 	GtkWidget *progress;
 	GtkWidget *button;
-
-	/* Set some defaults. */
-	self->update_interval = 300;
-	self->transferred = 0;
-	self->target_fsize = 0;
-	self->target_text_cache = NULL;
 
 	/* Create the root window. */
 	window = GTK_WIDGET(self);
@@ -107,6 +164,7 @@ static void transfer_window_init(TransferWindow *self) {
 	progress = gtk_progress_bar_new();
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 0.5);
 	gtk_box_pack_start(GTK_BOX(vbox), progress, false, false, 0);
+	self->progress = progress;
 
 	/* Dialog buttons. */
 	hbox = gtk_hbutton_box_new();
@@ -126,36 +184,6 @@ static void transfer_window_init(TransferWindow *self) {
 					 G_CALLBACK(cancel_button_clicked), self);
 	gtk_box_pack_start(GTK_BOX(hbox), button, false, false, 0);
 	self->cancel_button = button;
-
-	/* Show window and its widgets. */
-	gtk_widget_show_all(window);
-	gtk_widget_hide(self->open_folder_button);
-	gtk_widget_hide(self->open_file_button);
-}
-
-/**
- * File transfer window object constructor.
- *
- * @return File transfer window object cast to a GtkWidget.
- */
-GtkWidget *transfer_window_new(void) {
-	return GTK_WIDGET(g_object_new(TRANSFER_TYPE_WINDOW, NULL));
-}
-
-/**
- * Handle the object's destruction and frees up any resources.
- *
- * @param gobject File transfer window object.
- */
-static void transfer_window_finalize(GObject *gobject) {
-	TransferWindow *self = TRANSFER_WINDOW(gobject);
-
-	/* Free up our resources. */
-	if (self->target_text_cache)
-		free(self->target_text_cache);
-
-	/* Always chain up to the parent class. */
-	G_OBJECT_CLASS(transfer_window_parent_class)->finalize(gobject);
 }
 
 /**
@@ -181,23 +209,37 @@ void transfer_window_set_target(TransferWindow *window, fsize_t target) {
 	window->target_fsize = target;
 	window->target_text_cache = strdup(get_rounded_file_size(target));
 
-	/* Update the progress. */
-	transfer_window_update_progress(window);
+	/* Start the progress update timer. */
+	transfer_window_update_progress(window, true);
+	g_timeout_add(window->update_interval, event_timer_update_progress, window);
 }
 
 /**
- * Updates all of the widgets related to the progress.
+ * Sets the current amount of transferred bytes.
  *
- * @param window File transfer window object.
+ * @param window      File transfer window object.
+ * @param transferred Current amount of transferred bytes.
  */
-void transfer_window_update_progress(TransferWindow *window) {
+void transfer_window_set_progress(TransferWindow *window, fsize_t transferred) {
+	window->transferred = transferred;
+	transfer_window_update_progress(window, false);
+}
+
+/**
+ * Forcefully updates all of the widgets related to the progress.
+ *
+ * @param window      File transfer window object.
+ * @param update_rate Update the transfer rate label?
+ */
+static void transfer_window_update_progress(TransferWindow *window,
+											gboolean update_rate) {
 	static fsize_t prev_size;
 
 	/* Calculate and display the speed of the transfer. */
-	if ((window->transferred == 0) || (window->target_fsize == 0)) {
+	if (window->transferred == 0) {
 		prev_size = 0;
 		gtk_label_set_text(GTK_LABEL(window->speed_label), "");
-	} else {
+	} else if (update_rate) {
 		gchar *speed;
 		fsize_t rate;
 
@@ -209,31 +251,16 @@ void transfer_window_update_progress(TransferWindow *window) {
 		/* Set the label text and free our temporary buffer. */
 		gtk_label_set_text(GTK_LABEL(window->speed_label), speed);
 		free(speed);
+
+		/* Update our previous value. */
+		prev_size = window->transferred;
 	}
 
 	/* Update the widgets. */
 	transfer_window_set_progress_label(window, window->transferred);
 	transfer_window_set_progress_bar_value(window,
 		((gdouble)window->transferred / (gdouble)window->target_fsize));
-
-	/* Update our previous value. */
-	prev_size = window->transferred;
 }
-
-#if 0
-/**
- * Sets the server object reference for the window.
- *
- * @param window File transfer window object.
- * @param server GroundLift server handle object.
- */
-void transfer_window_gl_server_set(TransferWindow *window,
-								   server_handle_t *server) {
-	window->gl_server = server;
-
-	/* TODO: Do more about GL here. */
-}
-#endif
 
 /**
  * Sets the text of the transfer's information label (the one at the top).
@@ -317,6 +344,23 @@ static char *get_rounded_file_size(fsize_t fsize) {
 	buf[14] = '\0';
 
 	return buf;
+}
+
+/**
+ * Handles the timer event for updating the transfer progress.
+ *
+ * @param data File transfer window object.
+ */
+static gboolean event_timer_update_progress(gpointer data) {
+	TransferWindow *window = TRANSFER_WINDOW(data);
+	gboolean running = gtk_widget_get_visible(window->cancel_button);
+
+	/* Update the progress in the window. */
+	if (running)
+		transfer_window_update_progress(window, true);
+
+	/* Continue updating the progress until the cancel button is hidden. */
+	return running;
 }
 
 /**
