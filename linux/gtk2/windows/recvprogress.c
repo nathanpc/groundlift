@@ -18,15 +18,6 @@
 G_DEFINE_TYPE(ReceivingWindow, receiving_window, TRANSFER_TYPE_WINDOW)
 
 /**
- * Columns of the peers Tree.
- */
-typedef enum {
-	HOSTNAME_COLUMN = 0,
-	IPADDR_COLUMN,
-	N_COLUMNS
-} peer_list_cols_t;
-
-/**
  * A helper structure to pass the window object along with some data to another
  * thread function.
  */
