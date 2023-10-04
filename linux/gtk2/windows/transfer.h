@@ -1,6 +1,6 @@
 /**
  * windows/transfer.h
- * File transfer base window.
+ * File transfer (sending and receiving) common base window.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */

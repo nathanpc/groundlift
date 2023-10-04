@@ -1,6 +1,6 @@
 /**
  * windows/transfer.c
- * File transfer base window.
+ * File transfer (sending and receiving) common base window.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
@@ -93,11 +93,6 @@ static void transfer_window_constructed(GObject *gobject) {
 
 	/* Populate the window. */
 	transfer_window_populate(self);
-
-	/* Show window and its widgets. */
-	gtk_widget_show_all(GTK_WIDGET(self));
-	gtk_widget_hide(self->open_folder_button);
-	gtk_widget_hide(self->open_file_button);
 }
 
 /**
