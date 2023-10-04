@@ -15,6 +15,7 @@
 #include <stdlib.h>
 
 #include "../comdlg.h"
+#include "sendprogress.h"
 
 /* Define GObject type. */
 G_DEFINE_TYPE(SendFileWindow, sendfile_window, GTK_TYPE_WINDOW)
@@ -37,12 +38,20 @@ typedef struct {
 	gpointer data;
 } thread_data_t;
 
-/* Private methods. */
+/* Object lifecycle. */
 static void sendfile_window_finalize(GObject *gobject);
-static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
-static void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
+
+/* GroundLift event handler GTK thread wrappers. */
 static gboolean sendfile_window_peers_append_thread_wrapper(gpointer data);
-static void gl_event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
+
+/* GroundLift event handlers. */
+static void gl_event_peer_discovered(const gl_discovery_peer_t *peer,
+									 void *arg);
+
+/* Widget event handlers. */
+static void tree_selection_changed(GtkTreeSelection *selection, gpointer data);
+static void cancel_button_clicked(const GtkWidget *widget, gpointer data);
+static void send_button_clicked(const GtkWidget *widget, gpointer data);
 
 /**
  * Send File window class initializer.
@@ -142,6 +151,8 @@ static void sendfile_window_init(SendFileWindow *self) {
 	gtk_box_pack_start(GTK_BOX(hbox), button, false, false, 0);
 	button = gtk_button_new_from_stock(GTK_STOCK_CONNECT);
 	gtk_button_set_label(GTK_BUTTON(button), "Send");
+	g_signal_connect(G_OBJECT(button), "clicked",
+					 G_CALLBACK(send_button_clicked), self);
 	gtk_box_pack_start(GTK_BOX(hbox), button, false, false, 0);
 
 	/* Show window and its widgets. */
@@ -371,6 +382,29 @@ static void tree_selection_changed(GtkTreeSelection *selection, gpointer data) {
  */
 static void cancel_button_clicked(const GtkWidget *widget, gpointer data) {
 	(void)widget;
+	gtk_widget_destroy(GTK_WIDGET(data));
+}
+
+/**
+ * Send button clicked event handler.
+ *
+ * @param widget Widget that triggered this event handler.
+ * @param data   Pointer to the window's widget.
+ */
+static void send_button_clicked(const GtkWidget *widget, gpointer data) {
+	/* Get the window object and construct the send progress window. */
+	SendFileWindow *window = SENDFILE_WINDOW(data);
+	SendingWindow *sending = SENDING_WINDOW(sending_window_new());
+
+	/* Ignore unused arguments. */
+	(void)widget;
+
+	/* Start the file transfer. */
+	sending_window_send_file(
+		sending, gtk_entry_get_text(GTK_ENTRY(window->ipaddr_entry)),
+		gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(window->file_button)));
+
+	/* Close ourselves. */
 	gtk_widget_destroy(GTK_WIDGET(data));
 }
 

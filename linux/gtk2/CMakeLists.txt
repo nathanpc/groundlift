@@ -5,7 +5,8 @@ set(GROUNDLIFT_GTK2_SOURCES
 	comdlg.c
 	windows/sendfile.c
 	windows/transfer.c
-	windows/recvprogress.c)
+	windows/recvprogress.c
+	windows/sendprogress.c)
 
 # Use a newer standard of the C language since this is Linux.
 set(CMAKE_C_STANDARD 99)

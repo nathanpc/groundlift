@@ -51,8 +51,8 @@ int main(int argc, char **argv) {
 	/* Initialize GTK and create the root window. */
 	gtk_init(&argc, &argv);
 	window = sendfile_window_new();
-	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit),
-					 G_OBJECT(window));
+	//g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit),
+	//				 G_OBJECT(window));
 
 	/* Enter GTK's main loop. */
 	gtk_main();
