@@ -98,6 +98,11 @@ static void receiving_window_constructed(GObject *gobject) {
 					 "clicked", G_CALLBACK(open_folder_button_clicked), self);
 	g_signal_connect(G_OBJECT(self->parent_instance.cancel_button), "clicked",
 					 G_CALLBACK(cancel_button_clicked), self);
+
+	/* Show window and its widgets. */
+	gtk_widget_show_all(GTK_WIDGET(self));
+	gtk_widget_hide(self->parent_instance.open_folder_button);
+	gtk_widget_hide(self->parent_instance.open_file_button);
 }
 
 /**
