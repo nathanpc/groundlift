@@ -1,7 +1,7 @@
 {
 	"C_Cpp.default.cStandard": "c89",
 	"C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, TabWidth: 4, UseTab: Always, ColumnLimit: 0 }",
-	"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+	"C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
 	"sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
 	"cSpell.words": [
 		"bcaddr",

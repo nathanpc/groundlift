@@ -14,25 +14,22 @@ $(BUILDDIR)/stamp:
 	$(TOUCH) $@
 
 compiledb: clean
-	bear --output .vscode/compile_commands.json -- make all
-
-run: test
+	bear --output .vscode/compile_commands.json -- make debug
 
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean compile
-	$(GDB) $(TESTCMD) s
+debug: clean all
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
-memcheck: clean compile
+memcheck: clean all
 	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
-		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log $(TESTCMD) s
+		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log ./build/bin/gl s
 	cat $(BUILDDIR)/valgrind.log
 
-cli:
-	cd cli/ && $(MAKE)
+cli: $(BUILDDIR)/stamp
+	cd cli/ && $(MAKE) $(MAKECMDGOALS)
 
-gtk2:
-	cd linux/gtk2/ && $(MAKE)
+gtk2: $(BUILDDIR)/stamp
+	cd linux/gtk2/ && $(MAKE) $(MAKECMDGOALS)
 
 clean:
 	$(RM) -r $(BUILDDIR)

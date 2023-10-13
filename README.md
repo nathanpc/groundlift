@@ -9,22 +9,20 @@ packages. In case you're using a Debian-based system just run the following
 command and you'll be all set:
 
 ```bash
-sudo apt install build-essential cmake
+sudo apt install build-essential
 ```
 
 ## Compiling
 
 Compiling this project is a very simple task thanks to the
-[CMake](https://cmake.org/) build system. All you have to do is this:
+[GNU Make](https://www.gnu.org/software/make/) build system. All you have to do
+is this:
 
 ```bash
-mkdir build
-cd build
-cmake ..
 make
 ```
 
-Now you should have the command line executable `build/cli/gl` that you can use
+Now you should have the command line executable `build/bin/gl` that you can use
 to test the project out.
 
 ## License
