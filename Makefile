@@ -6,7 +6,7 @@
 include variables.mk
 
 .PHONY: all compiledb cli gtk2 debug memcheck clean
-all: $(BUILDDIR)/stamp cli gtk2
+all: $(BUILDDIR)/stamp cli
 
 $(BUILDDIR)/stamp:
 	$(MKDIR) $(@D)
@@ -17,19 +17,19 @@ compiledb: clean
 	bear --output .vscode/compile_commands.json -- make debug
 
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean all
+debug: clean cli
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
-memcheck: clean all
+memcheck: clean cli
 	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
 		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log ./build/bin/gl s
 	cat $(BUILDDIR)/valgrind.log
 
 cli: $(BUILDDIR)/stamp
-	cd cli/ && $(MAKE) $(MAKECMDGOALS)
+	cd cli/ && $(MAKE)
 
 gtk2: $(BUILDDIR)/stamp
-	cd linux/gtk2/ && $(MAKE) $(MAKECMDGOALS)
+	cd linux/gtk2/ && $(MAKE)
 
 clean:
 	$(RM) -r $(BUILDDIR)
