@@ -42,7 +42,7 @@ need any other additional information to tell them apart.
 
 #### Multi-byte Values
 
-All multi-byte values **MUST** be in
+All multi-byte values **MUST** always be in
 [network byte order](https://www.rfc-editor.org/ien/ien137.txt) (big-endian)
 when transferred.
 
@@ -112,6 +112,18 @@ interpreted as a cancelation.
 
 ### Sending URLs
 
-A `send-client` will send a special message type with the URL as a header item.
-**No confirmation or `ACK` will be expected** from the `recv-server` that
-receives this message.
+A `send-client` will send a `U` type message with the `URL` encoded as a
+`string` in the first header field. **No confirmation or `ACK` will be
+expected** from the `recv-server` that receives this message.
+
+#### Message Example
+
+| Data | Hex | Length | Description |
+| :---: | :---: | :---: | :--- |
+| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
+| `'U'` | `55` | 1 | URL message type identifier |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `26` | `00 1A` | 2 | Length of the entire message |
+| `'\|'` | `7C` | 1 | **URL** header field start marker |
+| `17` | `00 11` | 2 | Length of the string |
+| `"http://test.com/"` | ... | 17 | URL as a string with a `NUL` terminator |
