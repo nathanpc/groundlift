@@ -31,7 +31,7 @@ ensuring backwards compatibility.
 ### Unique Peer Identifier
 
 In order to easily identify a peer on the network without having to rely on
-their IP address, each peer will store in its configuration a 64-bit unique
+their IP address, each peer will store in its configuration a `uint64` unique
 identifier, hereby called `GLUPI` (GroundLift Unique Peer Identifier), which
 **MUST** be sent as the first header field on all messages.
 
@@ -83,6 +83,32 @@ properly dealt with on platforms that don't support UTF-8.
 Given that URLs can be extremely long, specially given many URL parameters, they
 work exactly like the string header except that their length is given as a
 `uint16`, allowing for any imaginable URL to be sent inside this header field.
+
+#### Common Message Structure
+
+Every single message exchanged with this protocol will have a common message
+structure, which will be the basis of every single other message in the system.
+Meaning all messages start almost (except for the type and length fields)
+identically and each message type only appends more headers to the end of this
+common structure.
+
+The start of every message will look like this example:
+
+| Data | Hex | Length | Description |
+| :---: | :---: | :---: | :--- |
+| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
+| `'?'` | `3F` | 1 | Message type identifier character |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `31` | `00 1F` | 2 | Length of the entire message |
+| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
+| ... | ... | 8 | GroundLift Unique Peer Identifier |
+| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
+| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
+| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
+| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
+| ... | ... | ... | ... |
 
 ## Transaction Examples
 
@@ -148,7 +174,7 @@ broadcast address** with the following structure:
 | Data | Hex | Length | Description |
 | :---: | :---: | :---: | :--- |
 | `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'D'` | `44` | 1 | Discovery message type identifier |
+| `'D'` | `44` | 1 | `Peer Discovery` message type identifier |
 | `NUL` | `00` | 1 | `NUL` separator |
 | `31` | `00 1F` | 2 | Length of the entire message |
 | `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
@@ -177,7 +203,7 @@ expected** from the `recv-server` that receives this message.
 | Data | Hex | Length | Description |
 | :---: | :---: | :---: | :--- |
 | `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'U'` | `55` | 1 | URL message type identifier |
+| `'U'` | `55` | 1 | `Send URL` message type identifier |
 | `NUL` | `00` | 1 | `NUL` separator |
 | `35` | `00 23` | 2 | Length of the entire message |
 | `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
