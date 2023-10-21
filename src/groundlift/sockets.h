@@ -1,12 +1,12 @@
 /**
  * sockets.h
- * Socket server/client that forms the basis of the communication between nodes.
+ * Platform-independent abstraction layer over the sockets API.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#ifndef _SOCKSERVERCLIENT_H
-#define _SOCKSERVERCLIENT_H
+#ifndef _GL_SOCKETS_H
+#define _GL_SOCKETS_H
 
 #ifdef _WIN32
 #include <windows.h>
@@ -47,6 +47,15 @@ extern "C" {
 	#endif /* _WIN32 */
 #endif /* !INVALID_SOCKET */
 
+/* Cross-platform socket file descriptor. */
+#ifndef SOCKFD
+	#ifdef _WIN32
+		#define SOCKFD SOCKET
+	#else
+		#define SOCKFD int
+	#endif /* _WIN32 */
+#endif /* !SOCKFD */
+
 /* Cross-platform shim for socket error codes. */
 #ifdef _WIN32
 	#define sockerrno WSAGetLastError()
@@ -63,24 +72,25 @@ typedef enum {
 	SOCK_ERR_ESOCKET,
 	SOCK_ERR_ESETSOCKOPT,
 	SOCK_ERR_EBIND,
-	TCP_ERR_ELISTEN,
+	SOCK_ERR_ELISTEN,
 	SOCK_ERR_ECLOSE,
 	SOCK_ERR_ESEND,
 	SOCK_ERR_ERECV,
-	TCP_ERR_ECONNECT,
+	SOCK_ERR_ECONNECT,
 	SOCK_ERR_ESHUTDOWN,
 	SOCK_ERR_EIOCTL,
 #ifndef SINGLE_IFACE_MODE
 	IFACE_ERR_GETIFADDR,
 #endif /* !SINGLE_IFACE_MODE */
-	TCP_ERR_UNKNOWN
-} tcp_err_t;
+	SOCK_ERR_UNKNOWN
+} sock_err_t;
 
 /* Socket bundle handle. */
 typedef struct {
-	int sockfd;
-	struct sockaddr_in addr_in;
-	socklen_t addr_in_size;
+	SOCKFD fd;
+
+	struct sockaddr *addr;
+	socklen_t addr_len;
 } sock_bundle_t;
 
 #ifndef SINGLE_IFACE_MODE
@@ -98,107 +108,51 @@ typedef struct {
 } iface_info_list_t;
 #endif /* !SINGLE_IFACE_MODE */
 
-/* Server handle. */
-typedef struct {
-	sock_bundle_t tcp;
-	sock_bundle_t udp;
-} server_t;
-
-/* Server client connection handle. */
-typedef struct {
-	int sockfd;
-	struct sockaddr_storage addr;
-	socklen_t addr_size;
-
-	uint16_t packet_len;
-} server_conn_t;
-
-/* Client handle. */
-typedef struct {
-	int sockfd;
-	struct sockaddr_in addr_in;
-	socklen_t addr_in_size;
-
-	uint16_t packet_len;
-} tcp_client_t;
-
 /* Initialization and destruction. */
-server_t *sockets_server_new(const char *addr, uint16_t port);
-tcp_client_t *tcp_client_new(const char *addr, uint16_t port);
-void sockets_server_free(server_t *server);
-void tcp_server_conn_free(server_conn_t *conn);
-void tcp_client_free(tcp_client_t *client);
+sock_bundle_t *socket_new();
+sock_bundle_t *socket_dup(const sock_bundle_t *sock);
+void socket_free(sock_bundle_t *sock);
+void socket_setaddr(sock_bundle_t *sock, const char *addr, uint16_t port);
+void socket_setaddr_inaddr(sock_bundle_t *sock, in_addr_t inaddr,
+						   uint16_t port);
 
-/* Server lifecycle. */
-tcp_err_t sockets_server_start(server_t *server);
-tcp_err_t sockets_server_stop(server_t *server);
-tcp_err_t sockets_server_shutdown(server_t *server);
+/* Socket setup. */
+sock_err_t socket_setup_tcp(sock_bundle_t *sock, bool server);
+sock_err_t socket_setup_udp(sock_bundle_t *sock, bool server,
+							uint32_t timeout_ms);
 
-/* Discovery service. */
-tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
-							 in_addr_t inaddr, uint16_t port,
-							 uint32_t timeout_ms);
+/* Socket operations. */
+sock_bundle_t *socket_accept(sock_bundle_t *server);
+sock_err_t socket_connect(sock_bundle_t *sock);
+sock_err_t socket_send(const sock_bundle_t *sock, const void *buf, size_t len,
+					   size_t *sent_len);
+sock_err_t socket_sendto(const sock_bundle_t *sock, const void *buf, size_t len,
+						 const struct sockaddr *sock_addr, socklen_t sock_len,
+						 size_t *sent_len);
+sock_err_t socket_recv(const sock_bundle_t *sock, void *buf, size_t buf_len,
+					   size_t *recv_len, bool peek);
+sock_err_t socket_recvfrom(const sock_bundle_t *sock, void *buf, size_t buf_len,
+						   struct sockaddr *sock_addr, socklen_t *sock_len,
+						   size_t *recv_len, bool peek);
+sock_err_t socket_close(sock_bundle_t *sock);
+sock_err_t socket_shutdown(sock_bundle_t *sock);
 
-/* Connection handling. */
-server_conn_t *tcp_server_conn_accept(const server_t *server);
-tcp_err_t tcp_client_connect(tcp_client_t *client);
-tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf,
-							   size_t len);
-tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf,
-						  size_t len);
-tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf,
-							   size_t buf_len, size_t *recv_len, bool peek);
-tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
-						  size_t *recv_len, bool peek);
-tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn);
-tcp_err_t tcp_client_close(tcp_client_t *client);
-tcp_err_t tcp_client_shutdown(tcp_client_t *client);
-
-/* Direct socket interactions. */
-socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
-							  uint16_t port);
-socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
-					   uint16_t port);
-tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
-						  size_t *sent_len);
-tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
-						  const struct sockaddr *sock_addr, socklen_t sock_len,
-						  size_t *sent_len);
-tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
-						  size_t *recv_len, bool peek);
-tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
-						  struct sockaddr *sock_addr, socklen_t *sock_len,
-						  size_t *recv_len, bool peek);
-tcp_err_t socket_close(int sockfd);
-tcp_err_t socket_shutdown(int sockfd);
+/* Socket string conversions. */
 bool socket_itos(char **buf, const struct sockaddr *sock_addr);
 in_addr_t socket_inet_addr(const char *ipaddr);
 
 #ifndef SINGLE_IFACE_MODE
 /* Network interface management. */
 iface_info_t *socket_iface_info_new(void);
-tcp_err_t socket_iface_info_list(iface_info_list_t **if_list);
-tcp_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
+sock_err_t socket_iface_info_list(iface_info_list_t **if_list);
+sock_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
 									  iface_info_t *iface);
 void socket_iface_info_list_free(iface_info_list_t *if_list);
 void socket_iface_info_free(iface_info_t *iface);
 #endif /* !SINGLE_IFACE_MODE */
 
-/* Socket bundle operations. */
-sock_bundle_t *socket_bundle_dup(const sock_bundle_t *sock);
-void socket_bundle_free(sock_bundle_t *sock);
-
-/* Misc. utilities. */
-char *tcp_server_get_ipstr(const server_t *server);
-char *udp_server_get_ipstr(const server_t *server);
-char *tcp_server_conn_get_ipstr(const server_conn_t *conn);
-char *tcp_client_get_ipstr(const tcp_client_t *client);
-
-/* Debugging */
-void socket_print_net_buffer(const void *buf, size_t len);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _SOCKSERVERCLIENT_H */
+#endif /* _GL_SOCKETS_H */

@@ -25,7 +25,7 @@ extern "C" {
 
 /* Number of connections in the TCP server queue. */
 #ifndef TCPSERVER_BACKLOG
-#define TCPSERVER_BACKLOG 10
+#define TCPSERVER_BACKLOG 1
 #endif /* TCPSERVER_BACKLOG */
 
 /* Timeout of UDP communications in milliseconds. */

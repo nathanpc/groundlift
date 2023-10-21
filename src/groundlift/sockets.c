@@ -1,6 +1,6 @@
 /**
  * sockets.c
- * Socket server/client that forms the basis of the communication between nodes.
+ * Platform-independent abstraction layer over the sockets API.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
@@ -13,146 +13,149 @@
 #include <utils/bits.h>
 #include <utils/logging.h>
 #ifdef _WIN32
-#include <utils/utf16.h>
+	#include <utils/utf16.h>
 #else
-#ifndef SINGLE_IFACE_MODE
-#include <ifaddrs.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#endif /* !SINGLE_IFACE_MODE */
-#include <sys/errno.h>
-#include <sys/time.h>
-#include <unistd.h>
+	#ifndef SINGLE_IFACE_MODE
+		#include <ifaddrs.h>
+		#include <netinet/in.h>
+		#include <net/if.h>
+	#endif /* !SINGLE_IFACE_MODE */
+
+	#include <sys/errno.h>
+	#include <sys/time.h>
+	#include <unistd.h>
 #endif /* _WIN32 */
 
 #include "defaults.h"
 #include "error.h"
 
 /**
- * Creates a brand new server handle object.
+ * Creates a brand new socket handle object.
+ *
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param addr Address to bind ourselves to or NULL to use INADDR_ANY.
- * @param port TCP port to listen on for file transfers.
- *
- * @return Newly allocated server handle object or NULL if we couldn't allocate
+ * @return Newly allocated socket handle object or NULL if we couldn't allocate
  *         the object.
  *
- * @see sockets_server_free
+ * @see socket_setup
+ * @see socket_setup_inaddr
+ * @see socket_free
  */
-server_t *sockets_server_new(const char *addr, uint16_t port) {
-	server_t *server;
+sock_bundle_t *socket_new() {
+	sock_bundle_t *sock;
 
 	/* Allocate some memory for our handle object. */
-	server = (server_t *)malloc(sizeof(server_t));
-	if (server == NULL)
+	sock = (sock_bundle_t *)malloc(sizeof(sock_bundle_t));
+	if (sock == NULL)
 		return NULL;
 
-	/* Ensure we have a known invalid state for our socket file descriptors. */
-	server->tcp.sockfd = INVALID_SOCKET;
-	server->udp.sockfd = INVALID_SOCKET;
+	/* Ensure we have a known invalid state. */
+	sock->fd = INVALID_SOCKET;
+	sock->addr = NULL;
+	sock->addr_len = 0;
 
-	/* Setup the socket address structure for binding. */
-	server->tcp.addr_in_size = socket_setup(&server->tcp.addr_in, addr, port);
-
-	return server;
+	return sock;
 }
 
 /**
- * Creates a brand new client handle object.
+ * Creates a full copy of a socket handle object.
+ *
  * @warning This function allocates memory that must be free'd by you.
+ * @warning A new socket descriptor isn't created, so be careful if you're
+ *          relying on it or using it in any way since it may become invalid at
+ *          any moment.
  *
- * @param addr IP address to connect to.
- * @param port Port to connect on.
+ * @param sock Socket handle object to be duplicated.
  *
- * @return Newly allocated client handle object or NULL if we couldn't allocate
- *         the object.
+ * @return Duplicate socket handle object or NULL if an error occurred.
  *
- * @see tcp_client_free
+ * @see socket_free
  */
-tcp_client_t *tcp_client_new(const char *addr, uint16_t port) {
-	tcp_client_t *client;
+sock_bundle_t *socket_dup(const sock_bundle_t *sock) {
+	sock_bundle_t *dup = socket_new();
 
-	/* Allocate some memory for our handle object. */
-	client = (tcp_client_t *)malloc(sizeof(tcp_client_t));
-	if (client == NULL)
-		return NULL;
+	/* Populate the socket bundle object. */
+	dup->fd = sock->fd;
+	dup->addr = sock->addr;
+	dup->addr_len = sock->addr_len;
 
-	/* Ensure we have a known invalid state for our socket file descriptor. */
-	client->sockfd = INVALID_SOCKET;
-	client->packet_len = OBEX_MAX_PACKET_SIZE;
-
-	/* Setup the socket address structure for connecting. */
-	client->addr_in_size = socket_setup(&client->addr_in, addr, port);
-
-	return client;
+	return dup;
 }
 
 /**
- * Frees up any resources allocated by the server.
+ * Frees up any resources allocated by the socket handle object.
  *
- * @param server Server handle object to be free'd.
+ * @warning This function won't close the socket, just frees up memory.
  *
- * @see sockets_server_stop
+ * @param sock Socket handle object to be free'd.
  */
-void sockets_server_free(server_t *server) {
-	/* Do we even need to do something? */
-	if (server == NULL)
+void socket_free(sock_bundle_t *sock) {
+	/* Do we even have anything to do? */
+	if (sock == NULL)
 		return;
 
-	/* Free the object and NULL it out. */
-	free(server);
-	server = NULL;
+	/* Free the address structure. */
+	if (sock->addr != NULL) {
+		free(sock->addr);
+		sock->addr = NULL;
+		sock->addr_len = 0;
+	}
+
+	/* Free ourselves. */
+	free(sock);
 }
 
 /**
- * Frees up any resources allocated by a server connection object.
+ * Sets up the address of a socket handle object using a network address string.
  *
- * @param conn Server client connection handle object to be free'd.
+ * @param sock Socket handle object to be setup.
+ * @param addr Network address to bind/connect to as a string.
+ * @param port Port to bind/connect to.
  *
- * @see server_conn_close
+ * @see socket_setup_inaddr
  */
-void tcp_server_conn_free(server_conn_t *conn) {
-	/* Do we even need to do something? */
-	if (conn == NULL)
-		return;
-
-	/* Free the object and NULL it out. */
-	free(conn);
-	conn = NULL;
+void socket_setaddr(sock_bundle_t *sock, const char *addr, uint16_t port) {
+	socket_setaddr_inaddr(sock,
+		(addr == NULL) ? INADDR_ANY : socket_inet_addr(addr), port);
 }
 
 /**
- * Frees up any resources allocated by the client connection.
+ * Sets up the address of a socket handle object using an IPv4 address.
  *
- * @param server Client handle object to be free'd.
- *
- * @see tcp_client_close
+ * @param sock   Socket handle object to be setup.
+ * @param inaddr IPv4 address to connect/bind to already in the internal
+ *               structure's format.
+ * @param port   Port to bind/connect to.
  */
-void tcp_client_free(tcp_client_t *client) {
-	/* Do we even need to do something? */
-	if (client == NULL)
-		return;
+void socket_setaddr_inaddr(sock_bundle_t *sock, in_addr_t inaddr,
+						   uint16_t port) {
+	struct sockaddr_in *addr;
 
-	/* Free the object and NULL it out. */
-	free(client);
-	client = NULL;
+	/* Allocate the address structure. */
+	sock->addr_len = sizeof(struct sockaddr_in);
+	sock->addr = (struct sockaddr *)malloc(sock->addr_len);
+	memset(sock->addr, 0, sock->addr_len);
+
+	/* Setup the structure. */
+	addr = (struct sockaddr_in *)sock->addr;
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
+	addr->sin_addr.s_addr = inaddr;
 }
 
 /**
- * Starts up the server.
+ * Sets up a TCP socket.
  *
- * @param server Server handle object.
+ * @param sock   Socket handle object.
+ * @param server Should we start listening on the socket?
  *
  * @return SOCK_OK if the initialization was successful.
  *         SOCK_ERR_ESOCKET if the socket function failed.
  *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  *         TCP_ERR_ELISTEN if the listen function failed.
- *
- * @see sockets_server_stop
  */
-tcp_err_t sockets_server_start(server_t *server) {
+sock_err_t socket_setup_tcp(sock_bundle_t *sock, bool server) {
 #ifdef _WIN32
 	char reuse;
 #else
@@ -160,118 +163,56 @@ tcp_err_t sockets_server_start(server_t *server) {
 #endif /* _WIN32 */
 
 	/* Create a new TCP socket file descriptor. */
-	server->tcp.sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (server->tcp.sockfd == INVALID_SOCKET) {
-		log_sockerrno(LOG_FATAL, "sockets_server_start@socket", sockerrno);
+	sock->fd = socket(PF_INET, SOCK_STREAM, 0);
+	if (sock->fd == INVALID_SOCKET) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to create TCP socket"),
+					  sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
+	/* Should we start listening on this socket or not? */
+	if (!server)
+		return SOCK_OK;
+
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
-	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING,
-			"sockets_server_start@setsockopt(SO_REUSEADDR)", sockerrno);
+		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket address reuse"),
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
-	if (setsockopt(server->tcp.sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING,
-			"sockets_server_start@setsockopt(SO_REUSEPORT)", sockerrno);
+		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket port reuse"),
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
 
 	/* Bind ourselves to the TCP address. */
-	if (bind(server->tcp.sockfd, (struct sockaddr *)&server->tcp.addr_in,
-			 server->tcp.addr_in_size) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "sockets_server_start@bind", sockerrno);
+	if (bind(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to bind ourselves to the socket"),
+					  sockerrno);
 		return SOCK_ERR_EBIND;
 	}
 
 	/* Start listening on our socket. */
-	if (listen(server->tcp.sockfd, TCPSERVER_BACKLOG) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "sockets_server_start@listen", sockerrno);
-		return TCP_ERR_ELISTEN;
+	if (listen(sock->fd, TCPSERVER_BACKLOG) == SOCKET_ERROR) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to listen to the socket"),
+					  sockerrno);
+		return SOCK_ERR_ELISTEN;
 	}
 
 	return SOCK_OK;
 }
 
 /**
- * Stops the server but doesn't free the resources allocated.
+ * Sets up a UDP socket.
  *
- * @param server Server handle object.
- *
- * @return SOCK_OK if the socket was properly closed.
- *         SOCK_ERR_ECLOSE if the socket failed to close properly.
- *
- * @see sockets_server_shutdown
- * @see sockets_server_free
- */
-tcp_err_t sockets_server_stop(server_t *server) {
-	tcp_err_t err;
-
-	/* Ensure we actually have something do to. */
-	if (server == NULL)
-		return SOCK_OK;
-
-	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = socket_close(server->udp.sockfd);
-	server->udp.sockfd = INVALID_SOCKET;
-	if (err > SOCK_OK) {
-		log_printf(LOG_WARNING,
-				   "sockets_server_stop: Failed to close UDP socket.\n");
-	}
-	err = socket_close(server->tcp.sockfd);
-	server->tcp.sockfd = INVALID_SOCKET;
-
-	return err;
-}
-
-/**
- * Shutdown the server but doesn't free the resources allocated. This is similar
- * to a close, except that it'll always unblock accept and recv.
- *
- * @param server Server handle object.
- *
- * @return SOCK_OK if the socket was properly closed.
- *         SOCK_ERR_ECLOSE if the socket failed to close properly.
- *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
- *
- * @see sockets_server_stop
- * @see sockets_server_free
- */
-tcp_err_t sockets_server_shutdown(server_t *server) {
-	tcp_err_t err;
-
-	/* Ensure we actually have something do to. */
-	if (server == NULL)
-		return SOCK_OK;
-
-	/* Shutdown the socket and set it to a known invalid state. */
-	err = socket_shutdown(server->udp.sockfd);
-	server->udp.sockfd = INVALID_SOCKET;
-	if (err > SOCK_OK) {
-		log_printf(LOG_WARNING,
-				   "sockets_server_shutdown: UDP socket close failed.\n");
-	}
-	err = socket_shutdown(server->tcp.sockfd);
-	server->tcp.sockfd = INVALID_SOCKET;
-
-	return err;
-}
-
-/**
- * Initializes a discovery service UDP socket bundle structure and sets up the
- * socket.
- *
- * @param sock       Socket bundle structure.
- * @param server     Is the service being
- * @param in_addr    IP address to connect/bind to already in the internal
- *                   structure's format.
- * @param port       Port to connect/bind on.
+ * @param sock       Socket handle object.
+ * @param server     Should we start listening on the socket?
  * @param timeout_ms Timeout of the socket in milliseconds or 0 if we shouldn't
  *                   have a timeout.
  *
@@ -280,9 +221,8 @@ tcp_err_t sockets_server_shutdown(server_t *server) {
  *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  */
-tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
-							 in_addr_t in_addr, uint16_t port,
-							 uint32_t timeout_ms) {
+sock_err_t socket_setup_udp(sock_bundle_t *sock, bool server,
+							uint32_t timeout_ms) {
 	unsigned char loop;
 #ifdef _WIN32
 	char reuse;
@@ -293,39 +233,62 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	struct timeval tv;
 #endif /* _WIN32 */
 
-	/* Setup the socket bundle. */
-	sock->sockfd = INVALID_SOCKET;
-	sock->addr_in_size = socket_setup_inaddr(&sock->addr_in, in_addr, port);
-
 	/* Create a new UDP socket file descriptor. */
-	sock->sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock->sockfd == INVALID_SOCKET) {
-		log_sockerrno(LOG_FATAL, "udp_discovery_init@socket", sockerrno);
+	sock->fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sock->fd == INVALID_SOCKET) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to create UDP socket"),
+					  sockerrno);
 		return SOCK_ERR_ESOCKET;
 	}
 
+	/* Set a timeout for our packets. */
+	if (timeout_ms > 0) {
+#ifdef _WIN32
+		if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO,
+				(const char *)&timeout_ms, sizeof(DWORD)) == SOCKET_ERROR) {
+			log_sockerrno(LOG_ERROR, EMSG("Failed to set socket timeout"),
+						  sockerrno);
+			return SOCK_ERR_ESETSOCKOPT;
+		}
+#else
+		tv.tv_sec = timeout_ms / 1000;
+		tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+		if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+					   sizeof(struct timeval)) == SOCKET_ERROR) {
+			log_sockerrno(LOG_ERROR, EMSG("Failed to set socket timeout"),
+						  sockerrno);
+			return SOCK_ERR_ESETSOCKOPT;
+		}
+#endif
+	}
+
+	/* Should we start listening on this socket or not? */
+	if (!server)
+		return SOCK_OK;
+
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
-	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse,
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING,
-			"udp_discovery_init@setsockopt(SO_REUSEADDR)", sockerrno);
+		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket address reuse"),
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #ifdef SO_REUSEPORT
-	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_REUSEPORT, &reuse,
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING,
-			"udp_discovery_init@setsockopt(SO_REUSEPORT)", sockerrno);
+		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket port reuse"),
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
 
 	/* Ensure we can do UDP broadcasts. */
 	perm = 1;
-	if (setsockopt(sock->sockfd, SOL_SOCKET, SO_BROADCAST, &perm,
+	if (setsockopt(sock->fd, SOL_SOCKET, SO_BROADCAST, &perm,
 				   sizeof(perm)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "udp_discovery_init@setsockopt(SO_BROADCAST)",
+		log_sockerrno(LOG_ERROR, EMSG("Failed to enable broadcast for socket"),
 					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
@@ -333,40 +296,19 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
 	/* Ensure that we don't receive broadcasts from ourselves. */
 	loop = 0;
 #ifdef IP_MULTICAST_LOOP
-	if (setsockopt(sock->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
+	if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
 				   sizeof(loop)) == SOCKET_ERROR) {
 		log_sockerrno(LOG_WARNING,
-			"udp_discovery_init@setsockopt(IP_MULTICAST_LOOP)", sockerrno);
+					  EMSG("Failed to disable socket multicast loop"),
+					  sockerrno);
 		return SOCK_ERR_ESETSOCKOPT;
 	}
 #endif
 
-	/* Set a timeout for our packets. */
-	if (timeout_ms > 0) {
-#ifdef _WIN32
-		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-				(const char *)&timeout_ms, sizeof(DWORD)) == SOCKET_ERROR) {
-			log_sockerrno(LOG_ERROR,
-				"udp_discovery_init@setsockopt(SO_RCVTIMEO)", sockerrno);
-			return SOCK_ERR_ESETSOCKOPT;
-		}
-#else
-		tv.tv_sec = timeout_ms / 1000;
-		tv.tv_usec = (timeout_ms % 1000) * 1000;
-
-		if (setsockopt(sock->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
-					   sizeof(struct timeval)) == SOCKET_ERROR) {
-			log_sockerrno(LOG_ERROR,
-				"udp_discovery_init@setsockopt(SO_RCVTIMEO)", sockerrno);
-			return SOCK_ERR_ESETSOCKOPT;
-		}
-#endif
-	}
-
 	/* Bind ourselves to the UDP address. */
-	if (server && (bind(sock->sockfd, (struct sockaddr *)&sock->addr_in,
-						sock->addr_in_size) == SOCKET_ERROR)) {
-		log_sockerrno(LOG_ERROR, "udp_discovery_init@bind", sockerrno);
+	if (bind(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to bind ourselves to the socket"),
+					  sockerrno);
 		return SOCK_ERR_EBIND;
 	}
 
@@ -377,277 +319,76 @@ tcp_err_t udp_discovery_init(sock_bundle_t *sock, bool server,
  * Accepts an incoming connection.
  * @warning This function allocates memory that must be free'd by you.
  *
- * @param server Server handle object.
+ * @param socket Server socket handle object.
  *
- * @return Newly allocated server client connection handle object.
- *         NULL in case of an error.
- *
- * @see tcp_server_conn_free
+ * @return Newly allocated server client connection socket handle object or NULL
+ *         in case of an error.
  */
-server_conn_t *tcp_server_conn_accept(const server_t *server) {
-	server_conn_t *conn;
+sock_bundle_t *socket_accept(sock_bundle_t *server) {
+	sock_bundle_t *client;
 
 	/* Check if we even have a socket to accept things from. */
-	if (server->tcp.sockfd == INVALID_SOCKET)
+	if (server->fd == INVALID_SOCKET)
 		return NULL;
 
-	/* Allocate some memory for our handle object. */
-	conn = (server_conn_t *)malloc(sizeof(server_conn_t));
-	if (conn == NULL)
+	/* Allocate our client handle object. */
+	client = socket_new();
+	if (client == NULL)
 		return NULL;
 
 	/* Accept the new connection. */
-	conn->addr_size = sizeof(struct sockaddr_storage);
-	conn->sockfd = accept(server->tcp.sockfd, (struct sockaddr *)&conn->addr,
-						  &conn->addr_size);
-	conn->packet_len = OBEX_MAX_PACKET_SIZE;
+	client->addr_len = sizeof(struct sockaddr_storage);
+	client->fd = accept(server->fd, client->addr, &client->addr_len);
 
 	/* Handle errors. */
-	if (conn->sockfd == INVALID_SOCKET) {
+	if (client->fd == INVALID_SOCKET) {
+		bool disp_err;
+
 		/* Make sure we can handle a shutdown cleanly. */
-		if (server->tcp.sockfd == INVALID_SOCKET) {
-			free(conn);
+		if (server->fd == INVALID_SOCKET) {
+			socket_free(client);
 			return NULL;
 		}
 
 		/* Check if the error is worth displaying. */
 #ifdef _WIN32
-		if ((sockerrno != WSAEBADF) && (sockerrno != WSAECONNABORTED))
+		disp_err = (sockerrno != WSAEBADF) && (sockerrno != WSAECONNABORTED);
 #else
-		if ((errno != EBADF) && (errno != ECONNABORTED))
+		disp_err = (errno != EBADF) && (errno != ECONNABORTED);
 #endif /* _WIN32 */
-			log_sockerrno(LOG_ERROR, "tcp_server_conn_accept@accept",
+		if (disp_err) {
+			log_sockerrno(LOG_ERROR,
+						  EMSG("Failed to accept incoming connection"),
 						  sockerrno);
+		}
 	}
 
-	return conn;
+	return client;
 }
 
 /**
- * Connects to a client to a server.
+ * Creates a connection with another computer.
  *
- * @param client Client handle object.
+ * @param sock Socket handle object.
  *
  * @return SOCK_OK if the operation was successful.
- *         SOCK_ERR_ESOCKET if the socket function failed.
  *         TCP_ERR_ECONNECT if the connect function failed.
  */
-tcp_err_t tcp_client_connect(tcp_client_t *client) {
-	/* Create a new socket file descriptor. */
-	client->sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (client->sockfd == INVALID_SOCKET) {
-		log_sockerrno(LOG_FATAL, "tcp_client_connect@socket", sockerrno);
-		return SOCK_ERR_ESOCKET;
-	}
-
+sock_err_t socket_connect(sock_bundle_t *sock) {
 	/* Connect ourselves to the address. */
-	if (connect(client->sockfd, (struct sockaddr *)&client->addr_in,
-				client->addr_in_size) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "tcp_client_connect@connect", sockerrno);
-		return TCP_ERR_ECONNECT;
+	if (connect(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
+		log_sockerrno(LOG_ERROR, EMSG("Failed to connect to socket"),
+					  sockerrno);
+		return SOCK_ERR_ECONNECT;
 	}
 
 	return SOCK_OK;
 }
 
 /**
- * Send some data to a client connected to our server.
+ * Sends some data to a TCP socket.
  *
- * @param conn Server client connection handle object.
- * @param buf  Data to be sent.
- * @param len  Length of the data to be sent.
- *
- * @return SOCK_OK if the operation was successful.
- *         TCP_ERR_ESEND if the send function failed.
- *
- * @see tcp_socket_send
- */
-tcp_err_t tcp_server_conn_send(const server_conn_t *conn, const void *buf,
-							   size_t len) {
-	return tcp_socket_send(conn->sockfd, buf, len, NULL);
-}
-
-/**
- * Send some data to the server we are connected to.
- *
- * @param client Client handle object.
- * @param buf    Data to be sent.
- * @param len    Length of the data to be sent.
- *
- * @return SOCK_OK if the operation was successful.
- *         TCP_ERR_ESEND if the send function failed.
- *
- * @see tcp_socket_send
- */
-tcp_err_t tcp_client_send(const tcp_client_t *client, const void *buf,
-						  size_t len) {
-	return tcp_socket_send(client->sockfd, buf, len, NULL);
-}
-
-/**
- * Receives some data from a client connected to our server.
- *
- * @param conn     Server client connection handle object.
- * @param buf      Buffer to store the received data.
- * @param buf_len  Length of the buffer to store the data.
- * @param recv_len Pointer to store the number of bytes actually received. Will
- *                 be ignored if NULL is passed.
- * @param peek     Should we just peek at the data to be received?
- *
- * @return SOCK_OK if the operation was successful.
- *         TCP_ERR_ERECV if the recv function failed.
- *
- * @see tcp_socket_recv
- */
-tcp_err_t tcp_server_conn_recv(const server_conn_t *conn, void *buf,
-							   size_t buf_len, size_t *recv_len, bool peek) {
-	return tcp_socket_recv(conn->sockfd, buf, buf_len, recv_len, peek);
-}
-
-/**
- * Receives some data from the server we are connected to.
- *
- * @param client   Client handle object.
- * @param buf      Buffer to store the received data.
- * @param buf_len  Length of the buffer to store the data.
- * @param recv_len Pointer to store the number of bytes actually received. Will
- *                 be ignored if NULL is passed.
- * @param peek     Should we just peek at the data to be received?
- *
- * @return SOCK_OK if the operation was successful.
- *         TCP_ERR_ERECV if the recv function failed.
- *
- * @see tcp_socket_recv
- */
-tcp_err_t tcp_client_recv(const tcp_client_t *client, void *buf, size_t buf_len,
-						  size_t *recv_len, bool peek) {
-	return tcp_socket_recv(client->sockfd, buf, buf_len, recv_len, peek);
-}
-
-/**
- * Shuts down a server client's remote connection.
- *
- * @param conn Server client connection handle object.
- *
- * @return SOCK_OK if everything went fine.
- *         TCP_ERR_ECLOSE if the socket failed to shutdown properly.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
- *
- * @see tcp_server_conn_free
- */
-tcp_err_t tcp_server_conn_shutdown(server_conn_t *conn) {
-	tcp_err_t err;
-
-	/* Ensure we actually have something do to. */
-	if ((conn == NULL) || (conn->sockfd == INVALID_SOCKET))
-		return SOCK_OK;
-
-	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = socket_shutdown(conn->sockfd);
-	conn->sockfd = INVALID_SOCKET;
-
-	return err;
-}
-
-/**
- * Closes a client connection to a server.
- *
- * @param client Client connection handle object.
- *
- * @return SOCK_OK if everything went fine.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
- *
- * @see tcp_client_free
- */
-tcp_err_t tcp_client_close(tcp_client_t *client) {
-	tcp_err_t err;
-
-	/* Ensure we actually have something do to. */
-	if ((client == NULL) || (client->sockfd == INVALID_SOCKET))
-		return SOCK_OK;
-
-	/* Close the socket file descriptor and set it to a known invalid state. */
-	err = socket_close(client->sockfd);
-	client->sockfd = INVALID_SOCKET;
-
-	return err;
-}
-
-/**
- * Closes a client connection to a server. This is similar to a close, except
- * that it'll always unblock connect and recv.
- *
- * @param client Client connection handle object.
- *
- * @return SOCK_OK if the socket was properly closed.
- *         TCP_ERR_ECLOSE if the socket failed to close properly.
- *         TCP_ERR_ESHUTDOWN if the socket failed to shutdown properly.
- *
- * @see tcp_client_free
- * @see tcp_client_close
- */
-tcp_err_t tcp_client_shutdown(tcp_client_t *client) {
-	tcp_err_t err;
-
-	/* Ensure we actually have something do to. */
-	if ((client == NULL) || (client->sockfd == INVALID_SOCKET))
-		return SOCK_OK;
-
-	/* Shutdown the socket and set it to a known invalid state. */
-	err = socket_shutdown(client->sockfd);
-	client->sockfd = INVALID_SOCKET;
-
-	return err;
-}
-
-/**
- * Sets up a socket address structure.
- *
- * @param addr   Pointer to a socket address structure to be populated.
- * @param inaddr IP address to connect/bind to already in the internal
- *               structure's format.
- * @param port   Port to bind/connect to.
- *
- * @return Size of the socket address structure.
- *
- * @see sockets_server_new
- */
-socklen_t socket_setup_inaddr(struct sockaddr_in *addr, in_addr_t inaddr,
-							  uint16_t port) {
-	socklen_t addr_size;
-
-	/* Setup the structure. */
-	addr_size = sizeof(struct sockaddr_in);
-	memset(addr, 0, addr_size);
-	addr->sin_family = AF_INET;
-	addr->sin_port = htons(port);
-	addr->sin_addr.s_addr = inaddr;
-
-	return addr_size;
-}
-
-/**
- * Sets up a socket address structure using a string IP representation.
- *
- * @param addr   Pointer to a socket address structure to be populated.
- * @param ipaddr IP address to bind/connect to as a string.
- * @param port   Port to bind/connect to.
- *
- * @return Size of the socket address structure.
- *
- * @see sockets_server_new
- * @see tcp_client_new
- */
-socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
-					   uint16_t port) {
-	return socket_setup_inaddr(addr,
-		(ipaddr == NULL) ? INADDR_ANY : socket_inet_addr(ipaddr), port);
-}
-
-/**
- * Sends some data to a TCP socket file descriptor.
- *
- * @param sockfd   TCP Socket file descriptor.
+ * @param sock     TCP socket handle object.
  * @param buf      Data to be sent.
  * @param len      Length of the data to be sent.
  * @param sent_len Pointer to store the number of bytes actually sent. Ignored
@@ -658,14 +399,15 @@ socklen_t socket_setup(struct sockaddr_in *addr, const char *ipaddr,
  *
  * @see send
  */
-tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
-						  size_t *sent_len) {
+sock_err_t socket_send(const sock_bundle_t *sock, const void *buf, size_t len,
+					   size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
-	bytes_sent = send(sockfd, buf, len, 0);
+	bytes_sent = send(sock->fd, buf, len, 0);
 	if (bytes_sent == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "tcp_socket_send@send", sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to send data over TCP"),
+					  sockerrno);
 		return SOCK_ERR_ESEND;
 	}
 
@@ -677,9 +419,9 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
 }
 
 /**
- * Sends some data to a UDP socket file descriptor.
+ * Sends some data to a UDP socket.
  *
- * @param sockfd    UDP Socket file descriptor.
+ * @param sock      UDP socket handle object.
  * @param buf       Data to be sent.
  * @param len       Length of the data to be sent.
  * @param sock_addr IPv4 or IPv6 address structure.
@@ -690,17 +432,18 @@ tcp_err_t tcp_socket_send(int sockfd, const void *buf, size_t len,
  * @return SOCK_OK if the operation was successful.
  *         SOCK_ERR_ESEND if the send function failed.
  *
- * @see send
+ * @see sendto
  */
-tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
-						  const struct sockaddr *sock_addr, socklen_t sock_len,
-						  size_t *sent_len) {
+sock_err_t socket_sendto(const sock_bundle_t *sock, const void *buf, size_t len,
+						 const struct sockaddr *sock_addr, socklen_t sock_len,
+						 size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
-	bytes_sent = sendto(sockfd, buf, len, 0, sock_addr, sock_len);
+	bytes_sent = sendto(sock->fd, buf, len, 0, sock_addr, sock_len);
 	if (bytes_sent == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "udp_socket_send@sendto", sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to send data over UDP"),
+					  sockerrno);
 		return SOCK_ERR_ESEND;
 	}
 
@@ -712,9 +455,9 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
 }
 
 /**
- * Receive some data from a TCP socket file descriptor.
+ * Receive some data from a TCP socket.
  *
- * @param sockfd   TCP Socket file descriptor.
+ * @param sock     TCP socket handle object.
  * @param buf      Buffer to store the received data.
  * @param buf_len  Length of the buffer to store the data.
  * @param recv_len Pointer to store the number of bytes actually received. Will
@@ -727,18 +470,18 @@ tcp_err_t udp_socket_send(int sockfd, const void *buf, size_t len,
  *
  * @see recv
  */
-tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
-						  size_t *recv_len, bool peek) {
+sock_err_t socket_recv(const sock_bundle_t *sock, void *buf, size_t buf_len,
+					   size_t *recv_len, bool peek) {
 	size_t bytes_recv;
 	ssize_t len;
 
 	/* Check if we have a valid file descriptor. */
-	if (sockfd == INVALID_SOCKET)
+	if (sock->fd == INVALID_SOCKET)
 		return SOCK_EVT_CONN_CLOSED;
 
 	if (peek) {
 		/* Peek at the data in the queue. */
-		len = recv(sockfd, buf, buf_len, MSG_PEEK);
+		len = recv(sock->fd, buf, buf_len, MSG_PEEK);
 		if (len == SOCKET_ERROR) {
 			/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
@@ -748,7 +491,8 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 #endif /* _WIN32 */
 				return SOCK_EVT_CONN_SHUTDOWN;
 
-			log_sockerrno(LOG_ERROR, "tcp_socket_recv@recv", sockerrno);
+			log_sockerrno(LOG_ERROR, EMSG("Failed to peek at incoming TCP data"),
+						  sockerrno);
 			return SOCK_ERR_ERECV;
 		}
 
@@ -760,7 +504,7 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		bytes_recv = 0;
 		while (bytes_recv < buf_len) {
 			/* Try to read all the information from a socket. */
-			len = recv(sockfd, tmp, buf_len - bytes_recv, 0);
+			len = recv(sock->fd, tmp, buf_len - bytes_recv, 0);
 			if (len == SOCKET_ERROR) {
 				/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
@@ -770,7 +514,9 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 #endif /* _WIN32 */
 					return SOCK_EVT_CONN_SHUTDOWN;
 
-				log_sockerrno(LOG_ERROR, "tcp_socket_recv@recv", sockerrno);
+				log_sockerrno(LOG_ERROR,
+							  EMSG("Failed to receive incoming TCP data"),
+							  sockerrno);
 				return SOCK_ERR_ERECV;
 			}
 
@@ -791,9 +537,9 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
 }
 
 /**
- * Receive some data from a UDP socket file descriptor.
+ * Receive some data from a UDP socket.
  *
- * @param sockfd    UDP Socket file descriptor.
+ * @param sock      UDP socket handle object.
  * @param buf       Buffer to store the received data.
  * @param buf_len   Length of the buffer to store the data.
  * @param sock_addr Pointer to an IPv4 or IPv6 address structure to store the
@@ -807,19 +553,19 @@ tcp_err_t tcp_socket_recv(int sockfd, void *buf, size_t buf_len,
  *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
  *         SOCK_ERR_ERECV if the recv function failed.
  *
- * @see recv
+ * @see recvfrom
  */
-tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
-						  struct sockaddr *sock_addr, socklen_t *sock_len,
-						  size_t *recv_len, bool peek) {
+sock_err_t socket_recvfrom(const sock_bundle_t *sock, void *buf, size_t buf_len,
+						   struct sockaddr *sock_addr, socklen_t *sock_len,
+						   size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
-	if (sockfd == INVALID_SOCKET)
+	if (sock->fd == INVALID_SOCKET)
 		return SOCK_EVT_CONN_CLOSED;
 
 	/* Try to read some information from a socket. */
-	bytes_recv = recvfrom(sockfd, buf, buf_len, (peek) ? MSG_PEEK : 0,
+	bytes_recv = recvfrom(sock->fd, buf, buf_len, (peek) ? MSG_PEEK : 0,
 						  sock_addr, sock_len);
 #ifdef _WIN32
 	if (bytes_recv == SOCKET_ERROR) {
@@ -839,7 +585,8 @@ tcp_err_t udp_socket_recv(int sockfd, void *buf, size_t buf_len,
 		}
 
 		/* Looks like it was a proper error. */
-		log_sockerrno(LOG_ERROR, "udp_socket_recv@recvfrom", sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to peek at incoming UDP data"),
+					  sockerrno);
 		return SOCK_ERR_ERECV;
 	}
 recvnorm:
@@ -855,7 +602,8 @@ recvnorm:
 		}
 
 		/* Looks like it was a proper error. */
-		log_sockerrno(LOG_ERROR, "udp_socket_recv@recvfrom", sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to receive incoming UDP data"),
+					  sockerrno);
 		return SOCK_ERR_ERECV;
 	}
 #endif /* _WIN32 */
@@ -872,80 +620,96 @@ recvnorm:
 }
 
 /**
- * Closes a socket file descriptor.
+ * Closes a socket handle.
  *
- * @param sockfd Socket file descriptor to be closed.
+ * @param sock Server handle object.
  *
  * @return SOCK_OK if the socket was properly closed.
  *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-tcp_err_t socket_close(int sockfd) {
+sock_err_t socket_close(sock_bundle_t *sock) {
 	int ret;
+	sock_err_t err = SOCK_OK;
 
 	/* Check if we are even needed. */
-	if (sockfd == INVALID_SOCKET)
+	if ((sock == NULL) || (sock->fd == INVALID_SOCKET))
 		return SOCK_OK;
 
 	/* Close the socket file descriptor. */
 #ifdef _WIN32
-	ret = closesocket(sockfd);
+	ret = closesocket(sock->fd);
 #else
-	ret = close(sockfd);
+	ret = close(sock->fd);
 #endif /* _WIN32 */
 
 	/* Check for errors. */
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "socket_close@close", sockerrno);
-		return SOCK_ERR_ECLOSE;
+		log_sockerrno(LOG_ERROR, EMSG("Failed to close the socket"), sockerrno);
+		err = SOCK_ERR_ECLOSE;
+
+		goto endclose;
 	}
 
-	return SOCK_OK;
+endclose:
+	/* Invalidate socket and return. */
+	sock->fd = INVALID_SOCKET;
+	return err;
 }
 
 /**
- * Closes a socket file descriptor.
+ * Shuts down a socket handle.
  *
- * @param sockfd Socket file descriptor to be closed.
+ * @param sock Server handle object.
  *
  * @return SOCK_OK if the socket was properly closed.
  *         SOCK_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-tcp_err_t socket_shutdown(int sockfd) {
+sock_err_t socket_shutdown(sock_bundle_t *sock) {
 	int ret;
+	sock_err_t err = SOCK_OK;
 
 	/* Check if we are even needed. */
-	if (sockfd == INVALID_SOCKET)
+	if ((sock == NULL) || (sock->fd == INVALID_SOCKET))
 		return SOCK_OK;
 
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
 	if ((ret == SOCKET_ERROR) && (sockerrno != WSAENOTCONN)) {
-		log_sockerrno(LOG_ERROR, "socket_shutdown@shutdown", sockerrno);
-		return SOCK_ERR_ESHUTDOWN;
+		log_sockerrno(LOG_ERROR, EMSG("Failed to shutdown socket"), sockerrno);
+		err = SOCK_ERR_ESHUTDOWN;
+		goto endshutdown;
 	}
 
 	ret = closesocket(sockfd);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "socket_shutdown@closesocket", sockerrno);
-		return SOCK_ERR_ECLOSE;
+		log_sockerrno(LOG_ERROR, EMSG("Failed to close socket after shutdown"),
+					  sockerrno);
+		err = SOCK_ERR_ECLOSE;
+		goto endshutdown;
 	}
 #else
-	ret = shutdown(sockfd, SHUT_RDWR);
+	ret = shutdown(sock->fd, SHUT_RDWR);
 	if ((ret == SOCKET_ERROR) && (errno != ENOTCONN) && (errno != EINVAL)) {
-		log_sockerrno(LOG_ERROR, "socket_shutdown@shutdown", sockerrno);
-		return SOCK_ERR_ESHUTDOWN;
+		log_sockerrno(LOG_ERROR, EMSG("Failed to shutdown socket"), sockerrno);
+		err = SOCK_ERR_ESHUTDOWN;
+		goto endshutdown;
 	}
 
-	ret = close(sockfd);
+	ret = close(sock->fd);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "socket_shutdown@close", sockerrno);
-		return SOCK_ERR_ECLOSE;
+		log_sockerrno(LOG_ERROR, EMSG("Failed to close socket after shutdown"),
+					  sockerrno);
+		err = SOCK_ERR_ECLOSE;
+		goto endshutdown;
 	}
 #endif /* _WIN32 */
 
-	return SOCK_OK;
+endshutdown:
+	/* Invalidate socket and return. */
+	sock->fd = INVALID_SOCKET;
+	return err;
 }
 
 /**
@@ -1013,7 +777,8 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 	/* Allocate space for our return string. */
 	*buf = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
 	if (*buf == NULL) {
-		log_errno(LOG_FATAL, "tcp_socket_itos@malloc");
+		log_errno(LOG_FATAL, EMSG("Failed to allocate memory for string "
+								  "representation of IP address"));
 		return false;
 	}
 
@@ -1026,9 +791,9 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 
 /**
  * Converts an IPv4 address represented as a string to its binary form.
- * 
+ *
  * @param ipaddr IPv4 address in its string representation.
- * 
+ *
  * @return Binary representation of the IPv4 address or INADDR_NONE (-1) if an
  *         error occurred.
  */
@@ -1074,7 +839,8 @@ iface_info_t *socket_iface_info_new(void) {
 	/* Allocate the object. */
 	iface = (iface_info_t *)malloc(sizeof(iface_info_t));
 	if (iface == NULL) {
-		log_errno(LOG_FATAL, "socket_iface_info_new@malloc");
+		log_errno(LOG_FATAL, EMSG("Failed to allocate memory for network "
+								  "interface information"));
 		return NULL;
 	}
 
@@ -1098,7 +864,7 @@ iface_info_t *socket_iface_info_new(void) {
  *
  * @see socket_iface_info_list_free
  */
-tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
+sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	iface_info_list_t *list;
 	int ret;
 #ifdef _WIN32
@@ -1115,10 +881,11 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Allocate our list object. */
 	list = (iface_info_list_t *)malloc(sizeof(iface_info_list_t));
 	if (list == NULL) {
-		log_errno(LOG_FATAL, "socket_iface_info_list@malloc");
+		log_errno(LOG_FATAL, EMSG("Failed to allocate memory for network "
+								  "interface information list"));
 		*if_list = NULL;
 
-		return TCP_ERR_UNKNOWN;
+		return SOCK_ERR_UNKNOWN;
 	}
 
 	/* Initialize the list. */
@@ -1129,8 +896,8 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Create a dummy socket for querying. */
 	sock = WSASocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, 0);
 	if (sock == INVALID_SOCKET) {
-		log_sockerrno(LOG_ERROR, "socket_iface_info_list@WSASocket",
-					  sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to create dummy socket for "
+									  "network interface querying"), sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
@@ -1141,7 +908,7 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	ret = WSAIoctl(sock, SIO_GET_INTERFACE_LIST, 0, 0, &aifi, sizeof(aifi),
 				   &dwSize, 0, 0);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, "socket_iface_info_list@WSAIoctl",
+		log_sockerrno(LOG_ERROR, EMSG("Failed to ioctl dummy query socket"),
 					  sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
@@ -1189,7 +956,8 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 
 			/* Append the information object to the list. */
 			if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
-				log_errno(LOG_ERROR, "socket_iface_info_list@list_push");
+				log_errno(LOG_ERROR, EMSG("Failed to push network interface "
+										  "information to the list"));
 				socket_iface_info_list_free(list);
 				*if_list = NULL;
 
@@ -1201,8 +969,8 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Get the linked list of network interfaces. */
 	ret = getifaddrs(&ifa_list);
 	if (ret == -1) {
-		log_sockerrno(LOG_ERROR, "socket_iface_info_list@getifaddrs",
-					  sockerrno);
+		log_sockerrno(LOG_ERROR, EMSG("Failed to get the network interface "
+									  "address"), sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
@@ -1218,6 +986,7 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 			continue;
 
 		/* TODO: Remove this when support for IPv6 is added. */
+		/* TODO: Look into supporting VPN interfaces. */
 		/* Discard the ones that aren't IPv4. */
 		if (ifa->ifa_addr->sa_family != AF_INET)
 			continue;
@@ -1243,11 +1012,12 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 
 		/* Append the information object to the list. */
 		if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
-			log_errno(LOG_ERROR, "socket_iface_info_list@list_push");
+			log_errno(LOG_ERROR, EMSG("Failed to push network interface "
+									  "information to the list"));
 			socket_iface_info_list_free(list);
 			*if_list = NULL;
 
-			return TCP_ERR_UNKNOWN;
+			return SOCK_ERR_UNKNOWN;
 		}
 	}
 
@@ -1270,17 +1040,18 @@ tcp_err_t socket_iface_info_list(iface_info_list_t **if_list) {
  *
  * @return SOCK_OK if the operation was successful.
  */
-tcp_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
+sock_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
 									  iface_info_t *iface) {
 	/* Resize the list. */
 	if_list->count++;
 	if_list->ifaces = (iface_info_t **)realloc(if_list->ifaces,
 		sizeof(iface_info_t *) * if_list->count);
 	if (if_list->ifaces == NULL) {
-		log_errno(LOG_ERROR, "socket_iface_info_list_push@realloc");
+		log_errno(LOG_FATAL, EMSG("Failed to reallocate memory for the network "
+								  "interface list"));
 		socket_iface_info_free(iface);
 
-		return TCP_ERR_UNKNOWN;
+		return SOCK_ERR_UNKNOWN;
 	}
 
 	/* Append the network interface information object to the list. */
@@ -1340,146 +1111,3 @@ void socket_iface_info_free(iface_info_t *iface) {
 	free(iface);
 }
 #endif /* !SINGLE_IFACE_MODE */
-
-/**
- * Creates a full copy of a socket bundle object.
- *
- * @warning This function allocates memory that must be free'd by you.
- * @warning A new socket descriptor isn't created, so be careful if you're
- *          relying on it or using it in any way since it may become invalid at
- *          any moment.
- *
- * @param sock Socket bundle object to be duplicated.
- *
- * @return Duplicate socket bundle object or NULL if an error occurred.
- *
- * @see socket_bundle_free
- */
-sock_bundle_t *socket_bundle_dup(const sock_bundle_t *sock) {
-	sock_bundle_t *dup;
-
-	/* Allocate some memory for the duplicate socket bundle object. */
-	dup = (sock_bundle_t *)malloc(sizeof(sock_bundle_t));
-	if (dup == NULL) {
-		log_errno(LOG_ERROR,
-				  EMSG("Failed to allocate the socket bundle object"));
-		return NULL;
-	}
-
-	/* Populate the socket bundle object. */
-	dup->sockfd = sock->sockfd;
-	dup->addr_in = sock->addr_in;
-	dup->addr_in_size = sock->addr_in_size;
-
-	return dup;
-}
-
-/**
- * Frees any resources allocated for a socket bundle object, including itself.
- *
- * @param sock Socket bundle to be free'd.
- */
-void socket_bundle_free(sock_bundle_t *sock) {
-	free(sock);
-}
-
-/**
- * Gets the IP address that the TCP server is currently bound to in a string
- * representation.
- *
- * @warning This function will allocate memory that must be free'd by you.
- *
- * @param server Server handle object.
- *
- * @return Server's IP address as a string or NULL if an error occurred.
- *
- * @see socket_itos
- */
-char *tcp_server_get_ipstr(const server_t *server) {
-	char *buf;
-
-	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&server->tcp.addr_in))
-		return NULL;
-
-	return buf;
-}
-
-/**
- * Gets the IP address that the UDP server is currently bound to in a string
- * representation.
- *
- * @warning This function will allocate memory that must be free'd by you.
- *
- * @param server Server handle object.
- *
- * @return Server's IP address as a string or NULL if an error occurred.
- *
- * @see socket_itos
- */
-char *udp_server_get_ipstr(const server_t *server) {
-	char *buf;
-
-	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&server->udp.addr_in))
-		return NULL;
-
-	return buf;
-}
-
-/**
- * Gets the IP address of a client connection in a string representation.
- * @warning This function will allocate memory that must be free'd by you.
- *
- * @param conn Server client connection handle object.
- *
- * @return Client's IP address as a string or NULL if an error occurred.
- *
- * @see socket_itos
- */
-char *tcp_server_conn_get_ipstr(const server_conn_t *conn) {
-	char *buf;
-
-	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&conn->addr))
-		return NULL;
-
-	return buf;
-}
-
-/**
- * Gets the IP address of a client's server in a string representation.
- * @warning This function will allocate memory that must be free'd by you.
- *
- * @param client Client handle object.
- *
- * @return Client's server IP address as a string or NULL if an error occurred.
- *
- * @see socket_itos
- */
-char *tcp_client_get_ipstr(const tcp_client_t *client) {
-	char *buf;
-
-	/* Perform the conversion. */
-	if (!socket_itos(&buf, (const struct sockaddr *)&client->addr_in))
-		return NULL;
-
-	return buf;
-}
-
-/**
- * Prints out the contents of a buffer ready to be transferred over the network.
- * Keep in mind that this means that everything will be in network byte order.
- *
- * @param buf Network byte ordered buffer to be inspected.
- * @param len Length of the buffer.
- */
-void socket_print_net_buffer(const void *buf, size_t len) {
-	size_t i;
-	const uint8_t *p;
-
-	p = buf;
-	for (i = 0; i < len; i++) {
-		printf("%02X ", p[i]);
-	}
-}
