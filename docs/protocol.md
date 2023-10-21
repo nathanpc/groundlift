@@ -70,12 +70,19 @@ style strings.
 Due to their length being defined as a `uint8` it means that there will be a
 hard limit of 253 characters (including the NUL terminator). This is an
 arbitrary constraint that may help very limited systems (embedded, DOS, etc.)
-deal with the filenames.
+deal with the filename headers. The only exception to this rule is for
+[URLs](#urls).
 
 One important aspect is that all strings are by definition UTF-8 encoded, but
 for platforms that don't support Unicode properly these **CAN** be silently
 ignored and displayed as broken characters. You're not forced to ensure they are
 properly dealt with on platforms that don't support UTF-8.
+
+#### URLs
+
+Given that URLs can be extremely long, specially given many URL parameters, they
+work exactly like the string header except that their length is given as a
+`uint16`, allowing for any imaginable URL to be sent inside this header field.
 
 ## Transaction Examples
 
@@ -121,6 +128,8 @@ prearranged length is reached. If any of the parties closes the connection at
 any point during the transfer before it being completed it **MUST** be
 interpreted as a cancellation.
 
+#### Request Message Example
+
 ### Peer Discovery
 
 Since this protocol is designed to be extremely portable and work on very
@@ -141,14 +150,14 @@ broadcast address** with the following structure:
 | `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
 | `'D'` | `44` | 1 | Discovery message type identifier |
 | `NUL` | `00` | 1 | `NUL` separator |
-| `32` | `00 20` | 2 | Length of the entire message |
+| `31` | `00 1F` | 2 | Length of the entire message |
 | `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
 | ... | ... | 8 | GroundLift Unique Peer Identifier |
 | `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
 | `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
 | `NUL` | `00` | 1 | `NUL` separator |
 | `'\|'` | `7C` | 1 | `Hostname` header field start marker |
-| `9` | `00 09` | 2 | Length of the string with the `NUL` terminator |
+| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
 | `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
 
 #### Response
@@ -174,5 +183,5 @@ expected** from the `recv-server` that receives this message.
 | `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
 | ... | ... | 8 | GroundLift Unique Peer Identifier |
 | `'\|'` | `7C` | 1 | `URL` header field start marker |
-| `17` | `00 11` | 2 | Length of the string with the `NUL` terminator |
+| `17` | `00 11` | 2 | Length of the URL with the `NUL` terminator |
 | `"http://test.com/"` | ... | 17 | URL as a string with a `NUL` terminator |
