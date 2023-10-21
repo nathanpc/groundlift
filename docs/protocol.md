@@ -156,6 +156,28 @@ interpreted as a cancellation.
 
 #### Request Message Example
 
+| Data | Hex | Length | Description |
+| :---: | :---: | :---: | :--- |
+| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
+| `'F'` | `44` | 1 | `Send File Request` message type identifier |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `47` | `00 2F` | 2 | Length of the entire message |
+| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
+| ... | ... | 8 | GroundLift Unique Peer Identifier |
+| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
+| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
+| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
+| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
+| `'\|'` | `7C` | 1 | `TCP Port` header field start marker |
+| `1651` | `06 73` | 2 | TCP port on `send-server` to get the file from |
+| `'\|'` | `7C` | 1 | `File length` header field start marker |
+| `1024` | `04 00` | 2 | Length of the contents of the file |
+| `'\|'` | `7C` | 1 | `File name` header field start marker |
+| `8` | `08` | 1 | Length of the string with the `NUL` terminator |
+| `"file.txt"` | ... | 8 | File name string with a `NUL` terminator |
+
 ### Peer Discovery
 
 Since this protocol is designed to be extremely portable and work on very
