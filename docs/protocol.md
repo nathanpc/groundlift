@@ -8,13 +8,17 @@ resources and can be ported to as many platforms as possible.
 ## Transport Layer
 
 All of the messages exchanged between the client and the server will obligatory
-use **UDP**. Since almost everything that the two devices must negociate is very
+use **UDP**. Since almost everything that the two devices must negotiate is very
 simple information (type of transfer, discovery, size, name, etc.) we don't
 need the overhead of a full TCP connection and the information sent will always
 fit in a single UDP packet.
 
 The only time when **TCP** will be used is during file transfers. More details
 about this can be found in the [Sending Files](#sending-files) section.
+
+The default network port used for general communication **MUST BE** port `1650`.
+Only TCP file transfers **MAY** use other ports in order to handle multiple
+transfers.
 
 ## Messages
 
@@ -23,6 +27,17 @@ of data that they carry. They are not versioned and **MUST always contain the
 same headers in the exact same order**. In case of future extensions, these will
 be appended to the message and won't be parsed by older versions of the program,
 ensuring backwards compatibility.
+
+### Unique Peer Identifier
+
+In order to easily identify a peer on the network without having to rely on
+their IP address, each peer will store in its configuration a 64-bit unique
+identifier, hereby called `GLUPI` (GroundLift Unique Peer Identifier), which
+**MUST** be sent as the first header field on all messages.
+
+With this unique identifier, systems that are capable of maintaining a cache of
+the peers they encounter on a network can use this UID to match additional data
+to a peer regardless of its IP address.
 
 ### Structure
 
@@ -104,11 +119,43 @@ The `recv-server` **MUST** wait for `send-server` to close the connection to
 mark the file transfer as completed and should not close the connection when the
 prearranged length is reached. If any of the parties closes the connection at
 any point during the transfer before it being completed it **MUST** be
-interpreted as a cancelation.
+interpreted as a cancellation.
 
-### Discovery
+### Peer Discovery
 
-**TODO**
+Since this protocol is designed to be extremely portable and work on very
+limited hardware, and even sometimes very limited software stacks, we've decided
+to not use multicast for discovery messages and instead opted for the
+universally available broadcast approach (at least for IPv4). This implies that
+peer discovery request messages must be sent to the **network broadcast
+address**.
+
+#### Request
+
+A `send-client` that wishes to present its user with a list of peer
+`recv-server` may send a peer discovery request message to the **network
+broadcast address** with the following structure:
+
+| Data | Hex | Length | Description |
+| :---: | :---: | :---: | :--- |
+| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
+| `'D'` | `44` | 1 | Discovery message type identifier |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `32` | `00 20` | 2 | Length of the entire message |
+| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
+| ... | ... | 8 | GroundLift Unique Peer Identifier |
+| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
+| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
+| `NUL` | `00` | 1 | `NUL` separator |
+| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
+| `9` | `00 09` | 2 | Length of the string with the `NUL` terminator |
+| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
+
+#### Response
+
+Any `recv-server` that receives a peer discovery request message **MUST** reply
+to the `send-client` that sent the request with a message that follows the exact
+same structure as the request message.
 
 ### Sending URLs
 
@@ -123,7 +170,9 @@ expected** from the `recv-server` that receives this message.
 | `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
 | `'U'` | `55` | 1 | URL message type identifier |
 | `NUL` | `00` | 1 | `NUL` separator |
-| `26` | `00 1A` | 2 | Length of the entire message |
-| `'\|'` | `7C` | 1 | **URL** header field start marker |
-| `17` | `00 11` | 2 | Length of the string |
+| `35` | `00 23` | 2 | Length of the entire message |
+| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
+| ... | ... | 8 | GroundLift Unique Peer Identifier |
+| `'\|'` | `7C` | 1 | `URL` header field start marker |
+| `17` | `00 11` | 2 | Length of the string with the `NUL` terminator |
 | `"http://test.com/"` | ... | 17 | URL as a string with a `NUL` terminator |

@@ -29,6 +29,8 @@
 		"gdouble",
 		"GETIFADDR",
 		"gint",
+		"glproto",
+		"GLUPI",
 		"gobject",
 		"Groundlift",
 		"guint",
