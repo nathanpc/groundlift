@@ -14,7 +14,7 @@ $(BUILDDIR)/stamp:
 	$(TOUCH) $@
 
 compiledb: clean
-	bear --output .vscode/compile_commands.json -- make debug
+	bear --output $(ROOT)/compile_commands.json -- make CC=clang debug
 
 debug: CFLAGS += -g3 -DDEBUG
 debug: clean cli
