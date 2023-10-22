@@ -17,63 +17,66 @@
 #include <signal.h>
 #endif /* _WIN32 */
 
+/* Private variables. */
+static gl_err_t *gl_last_error;
+
 /* Private methods. */
-void gl_error_raise_exception(void);
+static void gl_error_raise_exception(void);
 
 /**
- * Creates a brand new error reporting object.
- * @warning This function allocates memory that must be free'd by you!
+ * Initializes the error reporting subsystem.
+ */
+void gl_error_init(void) {
+	gl_last_error = NULL;
+}
+
+/**
+ * Pushes a new error report to the error stack.
  *
  * @param type Type of the error being reported.
  * @param err  Error code.
  * @param msg  Descriptive error message.
  *
- * @return Brand newly allocated, fully populated, error reporting object or
- *         NULL if we were able to allocate the necessary memory.
+ * @return Latest error reporting object or NULL if malloc failed.
  *
- * @see gl_error_free
+ * @see gl_error_pop
+ * @see gl_error_clear
  */
-gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg) {
-	return gl_error_new_prefixed(type, err, NULL, msg);
+gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg) {
+	return gl_error_push_prefix(type, err, NULL, msg);
 }
 
 /**
- * Creates a brand new error reporting object from a standardized errno error
- * message.
- *
- * @warning This function allocates memory that must be free'd by you!
+ * Creates an error report from a standardized errno error message.
  *
  * @param type   Type of the error being reported.
  * @param err    Error code.
  * @param prefix Descriptive error message prefix for the errno message string.
  *
- * @return Brand newly allocated, fully populated, error reporting object or
- *         NULL if we were able to allocate the necessary memory.
+ * @return Latest error reporting object or NULL if malloc failed.
  *
- * @see gl_error_new_prefix
- * @see gl_error_free
+ * @see gl_error_push_prefix
  */
-gl_err_t *gl_error_new_errno(err_type_t type, int8_t err, const char *prefix) {
-	return gl_error_new_prefixed(type, err, prefix, strerror(errno));
+gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *prefix) {
+	return gl_error_push_prefix(type, err, prefix, strerror(errno));
 }
 
 /**
- * Creates a brand new error reporting object.
- * @warning This function allocates memory that must be free'd by you!
+ * Pushes a new error report to the error stack with a prefix to the message.
  *
  * @param type   Type of the error being reported.
  * @param err    Error code.
  * @param prefix Prefix of the error message or NULL to not include one.
  * @param msg    Descriptive error message.
  *
- * @return Brand newly allocated, fully populated, error reporting object or
- *         NULL if we were able to allocate the necessary memory.
+ * @return Latest error reporting object or NULL if malloc failed.
  *
- * @see gl_error_new
- * @see gl_error_free
+ * @see gl_error_push
+ * @see gl_error_pop
+ * @see gl_error_clear
  */
-gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
-								const char *msg) {
+gl_err_t *gl_error_push_prefix(err_type_t type, int8_t err, const char *prefix,
+							   const char *msg) {
 	gl_err_t *report;
 	size_t len;
 
@@ -84,7 +87,11 @@ gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
 
 	/* Populate our report. */
 	report->type = type;
-	report->error.generic = err;
+	report->code.generic = err;
+
+	/* Do the stack switcheroo. */
+	report->prev = (void *)gl_last_error;
+	gl_last_error = report;
 
 	/* Just use the message if no prefix was passed. */
 	if (prefix == NULL) {
@@ -114,18 +121,21 @@ gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
 	/* Raise a software exception. */
 	gl_error_raise_exception();
 
-	return report;
+	return gl_last_error;
 }
 
 /**
- * Frees up any resources allocated by an error reporting structure.
+ * Frees up any resources allocated by an error reporting object.
  *
  * @param err Error reporting object to be free'd.
  */
-void gl_error_free(gl_err_t *err) {
+gl_err_t *gl_error_pop(gl_err_t *err) {
 	/* Do we even have anything to free? */
 	if (err == NULL)
-		return;
+		return NULL;
+
+	/* Backtrack the last error stack pointer. */
+	gl_last_error = (gl_err_t *)err->prev;
 
 	/* Free the error message string. */
 	if (err->msg)
@@ -135,6 +145,16 @@ void gl_error_free(gl_err_t *err) {
 	/* Free ourselves. */
 	free(err);
 	err = NULL;
+
+	return gl_last_error;
+}
+
+/**
+ * Clears the entire error stack.
+ */
+void gl_error_clear(void) {
+	while (gl_last_error != NULL)
+		gl_error_pop(gl_last_error);
 }
 
 /**
@@ -167,12 +187,12 @@ gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg) {
  */
 void gl_error_print(gl_err_t *err) {
 	/* Check if we need to print first. */
-	if ((err == NULL) || (err->error.generic == 0))
+	if ((err == NULL) || (err->code.generic == 0))
 		return;
 
 	/* Print the error out. */
 	log_printf(LOG_ERROR, "%s (err type %d code %d)\n", err->msg, err->type,
-			err->error.generic);
+			err->code.generic);
 }
 
 /**

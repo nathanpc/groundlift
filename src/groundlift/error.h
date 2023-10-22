@@ -12,8 +12,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "sockets.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,23 +29,35 @@ extern "C" {
 #endif /* DEBUG */
 
 /**
- * OBEX function status return codes.
+ * Socket error codes.
  */
 typedef enum {
-	OBEX_OK = 0,
-	OBEX_ERR_ENCODE,
-	OBEX_ERR_PACKET_RECV,
-	OBEX_ERR_NO_PACKET,
-	OBEX_ERR_PACKET_NEW,
-	OBEX_ERR_HEADER_NOT_FOUND,
-	OBEX_ERR_UNKNOWN
-} obex_err_t;
+	SOCK_EVT_TIMEOUT = -3,
+	SOCK_EVT_CONN_SHUTDOWN,
+	SOCK_EVT_CONN_CLOSED,
+	SOCK_OK,
+	SOCK_ERR_UNKNOWN,
+	SOCK_ERR_ESOCKET,
+	SOCK_ERR_ESETSOCKOPT,
+	SOCK_ERR_EBIND,
+	SOCK_ERR_ELISTEN,
+	SOCK_ERR_ECLOSE,
+	SOCK_ERR_ESEND,
+	SOCK_ERR_ERECV,
+	SOCK_ERR_ECONNECT,
+	SOCK_ERR_ESHUTDOWN,
+	SOCK_ERR_EIOCTL,
+#ifndef SINGLE_IFACE_MODE
+	IFACE_ERR_GETIFADDR
+#endif /* !SINGLE_IFACE_MODE */
+} sock_err_t;
 
 /**
  * Return codes for high level GroundLift functions.
  */
 typedef enum {
 	GL_OK = 0,
+	GL_ERR_UNKNOWN,
 	GL_ERR_DISCV_START,
 	GL_ERR_UNHANDLED_STATE,
 	GL_ERR_INVALID_STATE_OPCODE,
@@ -58,8 +68,7 @@ typedef enum {
 	GL_ERR_FWRITE,
 	GL_ERR_FCLOSE,
 	GL_ERR_SOCKET,
-	GL_ERR_THREAD,
-	GL_ERR_UNKNOWN
+	GL_ERR_THREAD
 } gl_ret_t;
 
 /**
@@ -68,8 +77,7 @@ typedef enum {
 typedef enum {
 	ERR_TYPE_UNKNOWN = 0,
 	ERR_TYPE_TCP,
-	ERR_TYPE_GL,
-	ERR_TYPE_OBEX
+	ERR_TYPE_GL
 } err_type_t;
 
 /**
@@ -77,23 +85,26 @@ typedef enum {
  */
 typedef struct {
 	err_type_t type;
+	char *msg;
+
 	union {
 		int8_t generic;
 
-		tcp_err_t tcp;
-		obex_err_t obex;
+		sock_err_t sock;
 		gl_ret_t gl;
-	} error;
+	} code;
 
-	char *msg;
+	void *prev;
 } gl_err_t;
 
 /* Initialization and destruction. */
-gl_err_t *gl_error_new(err_type_t type, int8_t err, const char *msg);
-gl_err_t *gl_error_new_prefixed(err_type_t type, int8_t err, const char *prefix,
-								const char *msg);
-gl_err_t *gl_error_new_errno(err_type_t type, int8_t err, const char *prefix);
-void gl_error_free(gl_err_t *err);
+void gl_error_init(void);
+gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg);
+gl_err_t *gl_error_push_prefix(err_type_t type, int8_t err, const char *prefix,
+							   const char *msg);
+gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *prefix);
+gl_err_t *gl_error_pop(gl_err_t *err);
+void gl_error_clear(void);
 
 /* Report manipulation. */
 gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg);

@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "error.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,29 +65,7 @@ extern "C" {
 	#define sockerrno errno
 #endif /* _WIN32 */
 
-/* TCP error codes. */
-typedef enum {
-	SOCK_EVT_TIMEOUT = -3,
-	SOCK_EVT_CONN_SHUTDOWN,
-	SOCK_EVT_CONN_CLOSED,
-	SOCK_OK,
-	SOCK_ERR_ESOCKET,
-	SOCK_ERR_ESETSOCKOPT,
-	SOCK_ERR_EBIND,
-	SOCK_ERR_ELISTEN,
-	SOCK_ERR_ECLOSE,
-	SOCK_ERR_ESEND,
-	SOCK_ERR_ERECV,
-	SOCK_ERR_ECONNECT,
-	SOCK_ERR_ESHUTDOWN,
-	SOCK_ERR_EIOCTL,
-#ifndef SINGLE_IFACE_MODE
-	IFACE_ERR_GETIFADDR,
-#endif /* !SINGLE_IFACE_MODE */
-	SOCK_ERR_UNKNOWN
-} sock_err_t;
-
-/* Socket bundle handle. */
+/* Socket handle. */
 typedef struct {
 	SOCKFD fd;
 
