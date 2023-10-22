@@ -12,9 +12,10 @@
 #include <string.h>
 #include <utils/logging.h>
 #ifdef _WIN32
-#include <stdshim.h>
+	#include <stdshim.h>
+	#include <utils/utf16.h>
 #else
-#include <signal.h>
+	#include <signal.h>
 #endif /* _WIN32 */
 
 /* Private variables. */
@@ -49,16 +50,61 @@ gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg) {
 /**
  * Creates an error report from a standardized errno error message.
  *
- * @param type   Type of the error being reported.
- * @param err    Error code.
- * @param prefix Descriptive error message prefix for the errno message string.
+ * @param type Type of the error being reported.
+ * @param err  Error code.
+ * @param msg  Descriptive error message prefix for the errno message string.
  *
  * @return Latest error reporting object or NULL if malloc failed.
  *
+ * @see gl_error_push_sockerr
  * @see gl_error_push_prefix
  */
-gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *prefix) {
-	return gl_error_push_prefix(type, err, prefix, strerror(errno));
+gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *msg) {
+	return gl_error_push_prefix(type, err, msg, strerror(errno));
+}
+
+/**
+ * Creates an error report from a standardized socket errno error message.
+ *
+ * @param err Error code.
+ * @param msg Descriptive error message prefix for the errno message string.
+ *
+ * @return Latest error reporting object or NULL if malloc failed.
+ *
+ * @see gl_error_push_errno
+ * @see gl_error_push_prefix
+ */
+gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg) {
+	/* Check if it's just an event that's happening. */
+	if (err <= SOCK_OK) {
+#ifdef DEBUG
+		log_sockerrno(LOG_WARNING, msg, sockerrno);
+#endif /* DEBUG */
+		return NULL;
+	}
+
+#ifdef _WIN32
+	LPTSTR szErrorMessage;
+	char *strMessage;
+
+	/* Get the descriptive error message from the system. */
+	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, err, FORMAT_MESSAGE_LANG,
+					   (LPTSTR)&szErrorMessage, 0, NULL)) {
+		szErrorMessage = _wcsdup(_T("FormatMessage failed"));
+	}
+
+	/* Convert the message to UTF-8 and push the error to the stack. */
+	strMessage = utf16_wcstombs(szErrorMessage);
+	gl_error_push_prefix(ERR_TYPE_SOCKET, err, msg, strMessage);
+
+	/* Free up any resources. */
+	LocalFree(szErrorMessage);
+	free(strMessage);
+
+	return gl_last_error;
+#else
+	return gl_error_push_prefix(ERR_TYPE_SOCKET, err, msg, strerror(errno));
+#endif /* _WIN32 */
 }
 
 /**

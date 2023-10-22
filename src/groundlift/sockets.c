@@ -41,7 +41,7 @@
  * @see socket_setup_inaddr
  * @see socket_free
  */
-sock_handle_t *socket_new() {
+sock_handle_t *socket_new(void) {
 	sock_handle_t *sock;
 
 	/* Allocate some memory for our handle object. */
@@ -149,13 +149,9 @@ void socket_setaddr_inaddr(sock_handle_t *sock, in_addr_t inaddr,
  * @param sock   Socket handle object.
  * @param server Should we start listening on the socket?
  *
- * @return SOCK_OK if the initialization was successful.
- *         SOCK_ERR_ESOCKET if the socket function failed.
- *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
- *         SOCK_ERR_EBIND if the bind function failed.
- *         TCP_ERR_ELISTEN if the listen function failed.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_setup_tcp(sock_handle_t *sock, bool server) {
+gl_err_t *socket_setup_tcp(sock_handle_t *sock, bool server) {
 #ifdef _WIN32
 	char reuse;
 #else
@@ -165,47 +161,42 @@ sock_err_t socket_setup_tcp(sock_handle_t *sock, bool server) {
 	/* Create a new TCP socket file descriptor. */
 	sock->fd = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock->fd == INVALID_SOCKET) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to create TCP socket"),
-					  sockerrno);
-		return SOCK_ERR_ESOCKET;
+		return gl_error_push_sockerr(SOCK_ERR_ESOCKET,
+									 EMSG("Failed to create TCP socket"));
 	}
 
 	/* Should we start listening on this socket or not? */
 	if (!server)
-		return SOCK_OK;
+		return NULL;
 
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket address reuse"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+			EMSG("Failed to set socket address reuse"));
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket port reuse"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+									 EMSG("Failed to set socket port reuse"));
 	}
 #endif
 
 	/* Bind ourselves to the TCP address. */
 	if (bind(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to bind ourselves to the socket"),
-					  sockerrno);
-		return SOCK_ERR_EBIND;
+		return gl_error_push_sockerr(SOCK_ERR_EBIND,
+			EMSG("Failed to bind ourselves to the socket"));
 	}
 
 	/* Start listening on our socket. */
 	if (listen(sock->fd, TCPSERVER_BACKLOG) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to listen to the socket"),
-					  sockerrno);
-		return SOCK_ERR_ELISTEN;
+		return gl_error_push_sockerr(SOCK_ERR_ELISTEN,
+									 EMSG("Failed to listen to the socket"));
 	}
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -216,13 +207,10 @@ sock_err_t socket_setup_tcp(sock_handle_t *sock, bool server) {
  * @param timeout_ms Timeout of the socket in milliseconds or 0 if we shouldn't
  *                   have a timeout.
  *
- * @return SOCK_OK if the operation was successful.
- *         SOCK_ERR_ESOCKET if the socket function failed.
- *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
- *         SOCK_ERR_EBIND if the bind function failed.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
-							uint32_t timeout_ms) {
+gl_err_t *socket_setup_udp(sock_handle_t *sock, bool server,
+						   uint32_t timeout_ms) {
 	unsigned char loop;
 #ifdef _WIN32
 	char reuse;
@@ -236,9 +224,8 @@ sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 	/* Create a new UDP socket file descriptor. */
 	sock->fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock->fd == INVALID_SOCKET) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to create UDP socket"),
-					  sockerrno);
-		return SOCK_ERR_ESOCKET;
+		return gl_error_push_sockerr(SOCK_ERR_ESOCKET,
+									 EMSG("Failed to create UDP socket"));
 	}
 
 	/* Set a timeout for our packets. */
@@ -246,9 +233,8 @@ sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 #ifdef _WIN32
 		if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO,
 				(const char *)&timeout_ms, sizeof(DWORD)) == SOCKET_ERROR) {
-			log_sockerrno(LOG_ERROR, EMSG("Failed to set socket timeout"),
-						  sockerrno);
-			return SOCK_ERR_ESETSOCKOPT;
+			return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+										 EMSG("Failed to set socket timeout"));
 		}
 #else
 		tv.tv_sec = timeout_ms / 1000;
@@ -256,31 +242,28 @@ sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 
 		if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
 					   sizeof(struct timeval)) == SOCKET_ERROR) {
-			log_sockerrno(LOG_ERROR, EMSG("Failed to set socket timeout"),
-						  sockerrno);
-			return SOCK_ERR_ESETSOCKOPT;
+			return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+										 EMSG("Failed to set socket timeout"));
 		}
 #endif
 	}
 
 	/* Should we start listening on this socket or not? */
 	if (!server)
-		return SOCK_OK;
+		return NULL;
 
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket address reuse"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+			EMSG("Failed to set socket address reuse"));
 	}
 #ifdef SO_REUSEPORT
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEPORT, &reuse,
 				   sizeof(reuse)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING, EMSG("Failed to set socket port reuse"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+									 EMSG("Failed to set socket port reuse"));
 	}
 #endif
 
@@ -288,9 +271,8 @@ sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 	perm = 1;
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_BROADCAST, &perm,
 				   sizeof(perm)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to enable broadcast for socket"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+			EMSG("Failed to enable broadcast for socket"));
 	}
 
 	/* Ensure that we don't receive broadcasts from ourselves. */
@@ -298,21 +280,18 @@ sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 #ifdef IP_MULTICAST_LOOP
 	if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop,
 				   sizeof(loop)) == SOCKET_ERROR) {
-		log_sockerrno(LOG_WARNING,
-					  EMSG("Failed to disable socket multicast loop"),
-					  sockerrno);
-		return SOCK_ERR_ESETSOCKOPT;
+		return gl_error_push_sockerr(SOCK_ERR_ESETSOCKOPT,
+			EMSG("Failed to disable socket multicast loop"));
 	}
 #endif
 
 	/* Bind ourselves to the UDP address. */
 	if (bind(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to bind ourselves to the socket"),
-					  sockerrno);
-		return SOCK_ERR_EBIND;
+		return gl_error_push_sockerr(SOCK_ERR_EBIND,
+			EMSG("Failed to bind ourselves to the socket"));
 	}
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -371,18 +350,16 @@ sock_handle_t *socket_accept(sock_handle_t *server) {
  *
  * @param sock Socket handle object.
  *
- * @return SOCK_OK if the operation was successful.
- *         TCP_ERR_ECONNECT if the connect function failed.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_connect(sock_handle_t *sock) {
+gl_err_t *socket_connect(sock_handle_t *sock) {
 	/* Connect ourselves to the address. */
 	if (connect(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to connect to socket"),
-					  sockerrno);
-		return SOCK_ERR_ECONNECT;
+		return gl_error_push_sockerr(SOCK_ERR_ECONNECT,
+									 EMSG("Failed to connect to socket"));
 	}
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -394,28 +371,26 @@ sock_err_t socket_connect(sock_handle_t *sock) {
  * @param sent_len Pointer to store the number of bytes actually sent. Ignored
  *                 if NULL is passed.
  *
- * @return SOCK_OK if the operation was successful.
- *         SOCK_ERR_ESEND if the send function failed.
+ * @return Error report or NULL if the operation was successful.
  *
  * @see send
  */
-sock_err_t socket_send(const sock_handle_t *sock, const void *buf, size_t len,
-					   size_t *sent_len) {
+gl_err_t *socket_send(const sock_handle_t *sock, const void *buf, size_t len,
+					  size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
 	bytes_sent = send(sock->fd, buf, len, 0);
 	if (bytes_sent == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to send data over TCP"),
-					  sockerrno);
-		return SOCK_ERR_ESEND;
+		return gl_error_push_sockerr(SOCK_ERR_ESEND,
+									 EMSG("Failed to send data over TCP"));
 	}
 
 	/* Return the number of bytes sent. */
 	if (sent_len != NULL)
 		*sent_len = bytes_sent;
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -429,29 +404,27 @@ sock_err_t socket_send(const sock_handle_t *sock, const void *buf, size_t len,
  * @param sent_len  Pointer to store the number of bytes actually sent. Ignored
  *                  if NULL is passed.
  *
- * @return SOCK_OK if the operation was successful.
- *         SOCK_ERR_ESEND if the send function failed.
+ * @return Error report or NULL if the operation was successful.
  *
  * @see sendto
  */
-sock_err_t socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
-						 const struct sockaddr *sock_addr, socklen_t sock_len,
-						 size_t *sent_len) {
+gl_err_t *socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
+						const struct sockaddr *sock_addr, socklen_t sock_len,
+						size_t *sent_len) {
 	ssize_t bytes_sent;
 
 	/* Try to send some information through a socket. */
 	bytes_sent = sendto(sock->fd, buf, len, 0, sock_addr, sock_len);
 	if (bytes_sent == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to send data over UDP"),
-					  sockerrno);
-		return SOCK_ERR_ESEND;
+		return gl_error_push_sockerr(SOCK_ERR_ESEND,
+									 EMSG("Failed to send data over UDP"));
 	}
 
 	/* Return the number of bytes sent. */
 	if (sent_len != NULL)
 		*sent_len = bytes_sent;
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -464,36 +437,39 @@ sock_err_t socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
  *
- * @return SOCK_OK if we received some data.
- *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
- *         SOCK_ERR_ERECV if the recv function failed.
+ * @return Error report or NULL if the operation was successful.
  *
  * @see recv
  */
-sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
-					   size_t *recv_len, bool peek) {
+gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
+					  size_t *recv_len, bool peek) {
 	size_t bytes_recv;
 	ssize_t len;
 
 	/* Check if we have a valid file descriptor. */
-	if (sock->fd == INVALID_SOCKET)
-		return SOCK_EVT_CONN_CLOSED;
+	if (sock->fd == INVALID_SOCKET) {
+		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
+									 EMSG("Socket closed prematurely"));
+	}
 
 	if (peek) {
 		/* Peek at the data in the queue. */
 		len = recv(sock->fd, buf, buf_len, MSG_PEEK);
 		if (len == SOCKET_ERROR) {
-			/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
-			if (sockerrno == WSAEBADF)
+			bool presd = sockerrno == WSAEBADF;
 #else
-			if (errno == EBADF)
+			bool presd = errno == EBADF;
 #endif /* _WIN32 */
-				return SOCK_EVT_CONN_SHUTDOWN;
 
-			log_sockerrno(LOG_ERROR, EMSG("Failed to peek at incoming TCP data"),
-						  sockerrno);
-			return SOCK_ERR_ERECV;
+			/* Check if it's just the connection being abruptly shut down. */
+			if (presd) {
+				return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
+					EMSG("Socket abruptly shutdown during TCP peek"));
+			}
+
+			return gl_error_push_sockerr(SOCK_ERR_ERECV,
+				EMSG("Failed to peek at incoming TCP data"));
 		}
 
 		bytes_recv = len;
@@ -506,18 +482,20 @@ sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 			/* Try to read all the information from a socket. */
 			len = recv(sock->fd, tmp, buf_len - bytes_recv, 0);
 			if (len == SOCKET_ERROR) {
-				/* Check if it's just the connection being abruptly shut down. */
 #ifdef _WIN32
-				if (sockerrno == WSAEBADF)
+				bool presd = sockerrno == WSAEBADF;
 #else
-				if (errno == EBADF)
+				bool presd = errno == EBADF;
 #endif /* _WIN32 */
-					return SOCK_EVT_CONN_SHUTDOWN;
 
-				log_sockerrno(LOG_ERROR,
-							  EMSG("Failed to receive incoming TCP data"),
-							  sockerrno);
-				return SOCK_ERR_ERECV;
+				/* Check if it's just the connection being abruptly shut down. */
+				if (presd) {
+					return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
+						EMSG("TCP socket abruptly shutdown"));
+				}
+
+				return gl_error_push_sockerr(SOCK_ERR_ERECV,
+					EMSG("Failed to receive incoming TCP data"));
 			}
 
 			bytes_recv += len;
@@ -530,10 +508,12 @@ sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 		*recv_len = bytes_recv;
 
 	/* Check if the connection was closed gracefully by the client. */
-	if (bytes_recv == 0)
-		return SOCK_EVT_CONN_CLOSED;
+	if (bytes_recv == 0) {
+		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
+			EMSG("Socket closed gracefully by the client"));
+	}
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -549,20 +529,20 @@ sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
  *                  be ignored if NULL is passed.
  * @param peek      Should we just peek at the data to be received?
  *
- * @return SOCK_OK if we received some data.
- *         SOCK_EVT_CONN_CLOSED if the connection was closed by the client.
- *         SOCK_ERR_ERECV if the recv function failed.
+ * @return Error report or NULL if the operation was successful.
  *
  * @see recvfrom
  */
-sock_err_t socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
-						   struct sockaddr *sock_addr, socklen_t *sock_len,
-						   size_t *recv_len, bool peek) {
+gl_err_t *socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
+						  struct sockaddr *sock_addr, socklen_t *sock_len,
+						  size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
-	if (sock->fd == INVALID_SOCKET)
-		return SOCK_EVT_CONN_CLOSED;
+	if (sock->fd == INVALID_SOCKET) {
+		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
+									 EMSG("Socket closed prematurely"));
+	}
 
 	/* Try to read some information from a socket. */
 	bytes_recv = recvfrom(sock->fd, buf, buf_len, (peek) ? MSG_PEEK : 0,
@@ -578,16 +558,17 @@ sock_err_t socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 		/* Check if the error was expected. */
 		if (sockerrno == WSAETIMEDOUT) {
 			/* Timeout occurred. */
-			return SOCK_EVT_TIMEOUT;
+			return gl_error_push_sockerr(SOCK_EVT_TIMEOUT,
+										 EMSG("UDP socket timeout occurred"));
 		} else if (sockerrno == WSAEINTR) {
 			/* Connection being abruptly shut down. */
-			return SOCK_EVT_CONN_SHUTDOWN;
+			return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
+										 EMSG("UDP socket abruptly shutdown"));
 		}
 
 		/* Looks like it was a proper error. */
-		log_sockerrno(LOG_ERROR, EMSG("Failed to peek at incoming UDP data"),
-					  sockerrno);
-		return SOCK_ERR_ERECV;
+		return gl_error_push_sockerr(SOCK_ERR_ERECV,
+			EMSG("Failed to receive incoming UDP data"));
 	}
 recvnorm:
 #else
@@ -595,16 +576,17 @@ recvnorm:
 		/* Check if the error was expected. */
 		if (errno == EAGAIN) {
 			/* Timeout occurred. */
-			return SOCK_EVT_TIMEOUT;
+			return gl_error_push_sockerr(SOCK_EVT_TIMEOUT,
+										 EMSG("UDP socket timeout occurred"));
 		} else if (errno == EBADF) {
 			/* Connection being abruptly shut down. */
-			return SOCK_EVT_CONN_SHUTDOWN;
+			return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
+										 EMSG("UDP socket abruptly shutdown"));
 		}
 
 		/* Looks like it was a proper error. */
-		log_sockerrno(LOG_ERROR, EMSG("Failed to receive incoming UDP data"),
-					  sockerrno);
-		return SOCK_ERR_ERECV;
+		return gl_error_push_sockerr(SOCK_ERR_ERECV,
+			EMSG("Failed to receive incoming UDP data"));
 	}
 #endif /* _WIN32 */
 
@@ -613,10 +595,12 @@ recvnorm:
 		*recv_len = bytes_recv;
 
 	/* Check if it's just the connection being abruptly shut down. */
-	if (bytes_recv == 0)
-		return SOCK_EVT_CONN_CLOSED;
+	if (bytes_recv == 0) {
+		return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
+									 EMSG("UDP socket abruptly shutdown"));
+	}
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -624,16 +608,15 @@ recvnorm:
  *
  * @param sock Server handle object.
  *
- * @return SOCK_OK if the socket was properly closed.
- *         SOCK_ERR_ECLOSE if the socket failed to close properly.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_close(sock_handle_t *sock) {
+gl_err_t *socket_close(sock_handle_t *sock) {
 	int ret;
-	sock_err_t err = SOCK_OK;
+	gl_err_t *err = NULL;
 
 	/* Check if we are even needed. */
 	if ((sock == NULL) || (sock->fd == INVALID_SOCKET))
-		return SOCK_OK;
+		return NULL;
 
 	/* Close the socket file descriptor. */
 #ifdef _WIN32
@@ -644,9 +627,8 @@ sock_err_t socket_close(sock_handle_t *sock) {
 
 	/* Check for errors. */
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to close the socket"), sockerrno);
-		err = SOCK_ERR_ECLOSE;
-
+		err = gl_error_push_sockerr(SOCK_ERR_ECLOSE,
+									EMSG("Failed to close the socket"));
 		goto endclose;
 	}
 
@@ -661,47 +643,43 @@ endclose:
  *
  * @param sock Server handle object.
  *
- * @return SOCK_OK if the socket was properly closed.
- *         SOCK_ERR_ESHUTDOWN if the socket failed to shutdown properly.
- *         SOCK_ERR_ECLOSE if the socket failed to close properly.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_shutdown(sock_handle_t *sock) {
+gl_err_t *socket_shutdown(sock_handle_t *sock) {
 	int ret;
-	sock_err_t err = SOCK_OK;
+	gl_err_t *err = NULL;
 
 	/* Check if we are even needed. */
 	if ((sock == NULL) || (sock->fd == INVALID_SOCKET))
-		return SOCK_OK;
+		return NULL;
 
 	/* Shutdown the socket file descriptor. */
 #ifdef _WIN32
 	ret = shutdown(sockfd, SD_BOTH);
 	if ((ret == SOCKET_ERROR) && (sockerrno != WSAENOTCONN)) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to shutdown socket"), sockerrno);
-		err = SOCK_ERR_ESHUTDOWN;
+		err = gl_error_push_sockerr(SOCK_ERR_ESHUTDOWN,
+									EMSG("Failed to shutdown socket"));
 		goto endshutdown;
 	}
 
 	ret = closesocket(sockfd);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to close socket after shutdown"),
-					  sockerrno);
-		err = SOCK_ERR_ECLOSE;
+		err = gl_error_push_sockerr(SOCK_ERR_ECLOSE,
+			EMSG("Failed to close socket after shutdown"));
 		goto endshutdown;
 	}
 #else
 	ret = shutdown(sock->fd, SHUT_RDWR);
 	if ((ret == SOCKET_ERROR) && (errno != ENOTCONN) && (errno != EINVAL)) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to shutdown socket"), sockerrno);
-		err = SOCK_ERR_ESHUTDOWN;
+		err = gl_error_push_sockerr(SOCK_ERR_ESHUTDOWN,
+									EMSG("Failed to shutdown socket"));
 		goto endshutdown;
 	}
 
 	ret = close(sock->fd);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to close socket after shutdown"),
-					  sockerrno);
-		err = SOCK_ERR_ECLOSE;
+		err = gl_error_push_sockerr(SOCK_ERR_ECLOSE,
+			EMSG("Failed to close socket after shutdown"));
 		goto endshutdown;
 	}
 #endif /* _WIN32 */
@@ -859,12 +837,11 @@ iface_info_t *socket_iface_info_new(void) {
  * @param if_list Pointer to an uninitialized network interface information list
  *                object. (Will be allocated and populated by this function)
  *
- * @return SOCK_OK if the operation was successful.
- *         IFACE_ERR_GETIFADDR if the getifaddr function failed.
+ * @return Error report or NULL if the operation was successful.
  *
  * @see socket_iface_info_list_free
  */
-sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
+gl_err_t *socket_iface_info_list(iface_info_list_t **if_list) {
 	iface_info_list_t *list;
 	int ret;
 #ifdef _WIN32
@@ -884,8 +861,8 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 		log_errno(LOG_FATAL, EMSG("Failed to allocate memory for network "
 								  "interface information list"));
 		*if_list = NULL;
-
-		return SOCK_ERR_UNKNOWN;
+		return gl_error_push_sockerr(SOCK_ERR_UNKNOWN,
+			EMSG("Failed to allocate memory for network interface info list"));
 	}
 
 	/* Initialize the list. */
@@ -896,24 +873,22 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Create a dummy socket for querying. */
 	sock = WSASocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, 0);
 	if (sock == INVALID_SOCKET) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to create dummy socket for "
-									  "network interface querying"), sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
-		return SOCK_ERR_ESOCKET;
+		return gl_error_push_sockerr(SOCK_ERR_ESOCKET,
+			EMSG("Failed to create dummy socket for interface querying"));
 	}
 
 	/* Get network interface list. */
 	ret = WSAIoctl(sock, SIO_GET_INTERFACE_LIST, 0, 0, &aifi, sizeof(aifi),
 				   &dwSize, 0, 0);
 	if (ret == SOCKET_ERROR) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to ioctl dummy query socket"),
-					  sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
-		return SOCK_ERR_EIOCTL;
+		return gl_error_push_sockerr(SOCK_ERR_EIOCTL,
+			EMSG("Failed to ioctl dummy query socket"));
 	}
 
 	/* Get the number of interfaces returned and go through them. */
@@ -956,12 +931,11 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 
 			/* Append the information object to the list. */
 			if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
-				log_errno(LOG_ERROR, EMSG("Failed to push network interface "
-										  "information to the list"));
 				socket_iface_info_list_free(list);
 				*if_list = NULL;
 
-				return TCP_ERR_UNKNOWN;
+				return gl_error_push_sockerr(SOCK_ERR_UNKNOWN,
+					EMSG("Failed to push network interface info to the list"));
 			}
 		}
 	}
@@ -969,12 +943,11 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Get the linked list of network interfaces. */
 	ret = getifaddrs(&ifa_list);
 	if (ret == -1) {
-		log_sockerrno(LOG_ERROR, EMSG("Failed to get the network interface "
-									  "address"), sockerrno);
 		socket_iface_info_list_free(list);
 		*if_list = NULL;
 
-		return IFACE_ERR_GETIFADDR;
+		return gl_error_push_sockerr(IFACE_ERR_GETIFADDR,
+			EMSG("Failed to get the network interface address"));
 	}
 
 	/* Go through the list of network interfaces. */
@@ -1012,12 +985,11 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 
 		/* Append the information object to the list. */
 		if (socket_iface_info_list_push(list, iface) != SOCK_OK) {
-			log_errno(LOG_ERROR, EMSG("Failed to push network interface "
-									  "information to the list"));
 			socket_iface_info_list_free(list);
 			*if_list = NULL;
 
-			return SOCK_ERR_UNKNOWN;
+			return gl_error_push_sockerr(SOCK_ERR_UNKNOWN,
+				EMSG("Failed to push network interface info to the list"));
 		}
 	}
 
@@ -1028,7 +1000,7 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
 	/* Return our list. */
 	*if_list = list;
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**
@@ -1038,9 +1010,9 @@ sock_err_t socket_iface_info_list(iface_info_list_t **if_list) {
  * @param if_list Network interface information object list.
  * @param iface   Network interface information object to be appended.
  *
- * @return SOCK_OK if the operation was successful.
+ * @return Error report or NULL if the operation was successful.
  */
-sock_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
+gl_err_t *socket_iface_info_list_push(iface_info_list_t *if_list,
 									  iface_info_t *iface) {
 	/* Resize the list. */
 	if_list->count++;
@@ -1051,13 +1023,14 @@ sock_err_t socket_iface_info_list_push(iface_info_list_t *if_list,
 								  "interface list"));
 		socket_iface_info_free(iface);
 
-		return SOCK_ERR_UNKNOWN;
+		return gl_error_push_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+			EMSG("Failed to reallocate memory for the network interface list"));
 	}
 
 	/* Append the network interface information object to the list. */
 	if_list->ifaces[if_list->count - 1] = iface;
 
-	return SOCK_OK;
+	return NULL;
 }
 
 /**

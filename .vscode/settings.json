@@ -49,6 +49,7 @@
 		"ltos",
 		"MAKELANGID",
 		"OBEX",
+		"presd",
 		"recvnorm",
 		"recvprogress",
 		"sendprogress",

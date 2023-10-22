@@ -76,7 +76,7 @@ typedef enum {
  */
 typedef enum {
 	ERR_TYPE_UNKNOWN = 0,
-	ERR_TYPE_TCP,
+	ERR_TYPE_SOCKET,
 	ERR_TYPE_GL
 } err_type_t;
 
@@ -102,7 +102,8 @@ void gl_error_init(void);
 gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg);
 gl_err_t *gl_error_push_prefix(err_type_t type, int8_t err, const char *prefix,
 							   const char *msg);
-gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *prefix);
+gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *msg);
+gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg);
 gl_err_t *gl_error_pop(gl_err_t *err);
 void gl_error_clear(void);
 
