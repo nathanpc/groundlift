@@ -91,7 +91,7 @@ typedef struct {
 
 	struct sockaddr *addr;
 	socklen_t addr_len;
-} sock_bundle_t;
+} sock_handle_t;
 
 #ifndef SINGLE_IFACE_MODE
 /* Network interface information object. */
@@ -109,33 +109,33 @@ typedef struct {
 #endif /* !SINGLE_IFACE_MODE */
 
 /* Initialization and destruction. */
-sock_bundle_t *socket_new();
-sock_bundle_t *socket_dup(const sock_bundle_t *sock);
-void socket_free(sock_bundle_t *sock);
-void socket_setaddr(sock_bundle_t *sock, const char *addr, uint16_t port);
-void socket_setaddr_inaddr(sock_bundle_t *sock, in_addr_t inaddr,
+sock_handle_t *socket_new();
+sock_handle_t *socket_dup(const sock_handle_t *sock);
+void socket_free(sock_handle_t *sock);
+void socket_setaddr(sock_handle_t *sock, const char *addr, uint16_t port);
+void socket_setaddr_inaddr(sock_handle_t *sock, in_addr_t inaddr,
 						   uint16_t port);
 
 /* Socket setup. */
-sock_err_t socket_setup_tcp(sock_bundle_t *sock, bool server);
-sock_err_t socket_setup_udp(sock_bundle_t *sock, bool server,
+sock_err_t socket_setup_tcp(sock_handle_t *sock, bool server);
+sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 							uint32_t timeout_ms);
 
 /* Socket operations. */
-sock_bundle_t *socket_accept(sock_bundle_t *server);
-sock_err_t socket_connect(sock_bundle_t *sock);
-sock_err_t socket_send(const sock_bundle_t *sock, const void *buf, size_t len,
+sock_handle_t *socket_accept(sock_handle_t *server);
+sock_err_t socket_connect(sock_handle_t *sock);
+sock_err_t socket_send(const sock_handle_t *sock, const void *buf, size_t len,
 					   size_t *sent_len);
-sock_err_t socket_sendto(const sock_bundle_t *sock, const void *buf, size_t len,
+sock_err_t socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
 						 const struct sockaddr *sock_addr, socklen_t sock_len,
 						 size_t *sent_len);
-sock_err_t socket_recv(const sock_bundle_t *sock, void *buf, size_t buf_len,
+sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 					   size_t *recv_len, bool peek);
-sock_err_t socket_recvfrom(const sock_bundle_t *sock, void *buf, size_t buf_len,
+sock_err_t socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 						   struct sockaddr *sock_addr, socklen_t *sock_len,
 						   size_t *recv_len, bool peek);
-sock_err_t socket_close(sock_bundle_t *sock);
-sock_err_t socket_shutdown(sock_bundle_t *sock);
+sock_err_t socket_close(sock_handle_t *sock);
+sock_err_t socket_shutdown(sock_handle_t *sock);
 
 /* Socket string conversions. */
 bool socket_itos(char **buf, const struct sockaddr *sock_addr);

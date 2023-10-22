@@ -41,11 +41,11 @@
  * @see socket_setup_inaddr
  * @see socket_free
  */
-sock_bundle_t *socket_new() {
-	sock_bundle_t *sock;
+sock_handle_t *socket_new() {
+	sock_handle_t *sock;
 
 	/* Allocate some memory for our handle object. */
-	sock = (sock_bundle_t *)malloc(sizeof(sock_bundle_t));
+	sock = (sock_handle_t *)malloc(sizeof(sock_handle_t));
 	if (sock == NULL)
 		return NULL;
 
@@ -71,8 +71,8 @@ sock_bundle_t *socket_new() {
  *
  * @see socket_free
  */
-sock_bundle_t *socket_dup(const sock_bundle_t *sock) {
-	sock_bundle_t *dup = socket_new();
+sock_handle_t *socket_dup(const sock_handle_t *sock) {
+	sock_handle_t *dup = socket_new();
 
 	/* Populate the socket bundle object. */
 	dup->fd = sock->fd;
@@ -89,7 +89,7 @@ sock_bundle_t *socket_dup(const sock_bundle_t *sock) {
  *
  * @param sock Socket handle object to be free'd.
  */
-void socket_free(sock_bundle_t *sock) {
+void socket_free(sock_handle_t *sock) {
 	/* Do we even have anything to do? */
 	if (sock == NULL)
 		return;
@@ -114,7 +114,7 @@ void socket_free(sock_bundle_t *sock) {
  *
  * @see socket_setup_inaddr
  */
-void socket_setaddr(sock_bundle_t *sock, const char *addr, uint16_t port) {
+void socket_setaddr(sock_handle_t *sock, const char *addr, uint16_t port) {
 	socket_setaddr_inaddr(sock,
 		(addr == NULL) ? INADDR_ANY : socket_inet_addr(addr), port);
 }
@@ -127,7 +127,7 @@ void socket_setaddr(sock_bundle_t *sock, const char *addr, uint16_t port) {
  *               structure's format.
  * @param port   Port to bind/connect to.
  */
-void socket_setaddr_inaddr(sock_bundle_t *sock, in_addr_t inaddr,
+void socket_setaddr_inaddr(sock_handle_t *sock, in_addr_t inaddr,
 						   uint16_t port) {
 	struct sockaddr_in *addr;
 
@@ -155,7 +155,7 @@ void socket_setaddr_inaddr(sock_bundle_t *sock, in_addr_t inaddr,
  *         SOCK_ERR_EBIND if the bind function failed.
  *         TCP_ERR_ELISTEN if the listen function failed.
  */
-sock_err_t socket_setup_tcp(sock_bundle_t *sock, bool server) {
+sock_err_t socket_setup_tcp(sock_handle_t *sock, bool server) {
 #ifdef _WIN32
 	char reuse;
 #else
@@ -221,7 +221,7 @@ sock_err_t socket_setup_tcp(sock_bundle_t *sock, bool server) {
  *         SOCK_ERR_ESETSOCKOPT if the setsockopt function failed.
  *         SOCK_ERR_EBIND if the bind function failed.
  */
-sock_err_t socket_setup_udp(sock_bundle_t *sock, bool server,
+sock_err_t socket_setup_udp(sock_handle_t *sock, bool server,
 							uint32_t timeout_ms) {
 	unsigned char loop;
 #ifdef _WIN32
@@ -324,8 +324,8 @@ sock_err_t socket_setup_udp(sock_bundle_t *sock, bool server,
  * @return Newly allocated server client connection socket handle object or NULL
  *         in case of an error.
  */
-sock_bundle_t *socket_accept(sock_bundle_t *server) {
-	sock_bundle_t *client;
+sock_handle_t *socket_accept(sock_handle_t *server) {
+	sock_handle_t *client;
 
 	/* Check if we even have a socket to accept things from. */
 	if (server->fd == INVALID_SOCKET)
@@ -374,7 +374,7 @@ sock_bundle_t *socket_accept(sock_bundle_t *server) {
  * @return SOCK_OK if the operation was successful.
  *         TCP_ERR_ECONNECT if the connect function failed.
  */
-sock_err_t socket_connect(sock_bundle_t *sock) {
+sock_err_t socket_connect(sock_handle_t *sock) {
 	/* Connect ourselves to the address. */
 	if (connect(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
 		log_sockerrno(LOG_ERROR, EMSG("Failed to connect to socket"),
@@ -399,7 +399,7 @@ sock_err_t socket_connect(sock_bundle_t *sock) {
  *
  * @see send
  */
-sock_err_t socket_send(const sock_bundle_t *sock, const void *buf, size_t len,
+sock_err_t socket_send(const sock_handle_t *sock, const void *buf, size_t len,
 					   size_t *sent_len) {
 	ssize_t bytes_sent;
 
@@ -434,7 +434,7 @@ sock_err_t socket_send(const sock_bundle_t *sock, const void *buf, size_t len,
  *
  * @see sendto
  */
-sock_err_t socket_sendto(const sock_bundle_t *sock, const void *buf, size_t len,
+sock_err_t socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
 						 const struct sockaddr *sock_addr, socklen_t sock_len,
 						 size_t *sent_len) {
 	ssize_t bytes_sent;
@@ -470,7 +470,7 @@ sock_err_t socket_sendto(const sock_bundle_t *sock, const void *buf, size_t len,
  *
  * @see recv
  */
-sock_err_t socket_recv(const sock_bundle_t *sock, void *buf, size_t buf_len,
+sock_err_t socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 					   size_t *recv_len, bool peek) {
 	size_t bytes_recv;
 	ssize_t len;
@@ -555,7 +555,7 @@ sock_err_t socket_recv(const sock_bundle_t *sock, void *buf, size_t buf_len,
  *
  * @see recvfrom
  */
-sock_err_t socket_recvfrom(const sock_bundle_t *sock, void *buf, size_t buf_len,
+sock_err_t socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 						   struct sockaddr *sock_addr, socklen_t *sock_len,
 						   size_t *recv_len, bool peek) {
 	ssize_t bytes_recv;
@@ -627,7 +627,7 @@ recvnorm:
  * @return SOCK_OK if the socket was properly closed.
  *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-sock_err_t socket_close(sock_bundle_t *sock) {
+sock_err_t socket_close(sock_handle_t *sock) {
 	int ret;
 	sock_err_t err = SOCK_OK;
 
@@ -665,7 +665,7 @@ endclose:
  *         SOCK_ERR_ESHUTDOWN if the socket failed to shutdown properly.
  *         SOCK_ERR_ECLOSE if the socket failed to close properly.
  */
-sock_err_t socket_shutdown(sock_bundle_t *sock) {
+sock_err_t socket_shutdown(sock_handle_t *sock) {
 	int ret;
 	sock_err_t err = SOCK_OK;
 
