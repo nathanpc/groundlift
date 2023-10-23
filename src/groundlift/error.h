@@ -53,22 +53,30 @@ typedef enum {
 } sock_err_t;
 
 /**
+ * System/syscall-related error codes.
+ */
+typedef enum {
+	SYS_ERR_OK = 0,
+	SYS_ERR_UNKNOWN,
+	SYS_ERR_MALLOC,
+	SYS_ERR_INVALID_HANDLE,
+	SYS_ERR_FSIZE,
+	SYS_ERR_FOPEN,
+	SYS_ERR_FREAD,
+	SYS_ERR_FWRITE,
+	SYS_ERR_FCLOSE,
+	SYS_ERR_SOCKET,
+	SYS_ERR_THREAD
+} sys_err_t;
+
+/**
  * Return codes for high level GroundLift functions.
  */
 typedef enum {
-	GL_OK = 0,
+	GL_ERR_WARNING = -1,
+	GL_OK,
 	GL_ERR_UNKNOWN,
-	GL_ERR_DISCV_START,
-	GL_ERR_UNHANDLED_STATE,
-	GL_ERR_INVALID_STATE_OPCODE,
-	GL_ERR_INVALID_HANDLE,
-	GL_ERR_FSIZE,
-	GL_ERR_FOPEN,
-	GL_ERR_FREAD,
-	GL_ERR_FWRITE,
-	GL_ERR_FCLOSE,
-	GL_ERR_SOCKET,
-	GL_ERR_THREAD
+	GL_ERR_SERVER
 } gl_ret_t;
 
 /**
@@ -77,6 +85,7 @@ typedef enum {
 typedef enum {
 	ERR_TYPE_UNKNOWN = 0,
 	ERR_TYPE_SOCKET,
+	ERR_TYPE_SYS,
 	ERR_TYPE_GL
 } err_type_t;
 
@@ -91,6 +100,7 @@ typedef struct {
 		int8_t generic;
 
 		sock_err_t sock;
+		sys_err_t sys;
 		gl_ret_t gl;
 	} code;
 

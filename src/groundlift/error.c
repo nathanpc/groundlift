@@ -18,6 +18,8 @@
 	#include <signal.h>
 #endif /* _WIN32 */
 
+#include "sockets.h"
+
 /* Private variables. */
 static gl_err_t *gl_last_error;
 
@@ -44,6 +46,12 @@ void gl_error_init(void) {
  * @see gl_error_clear
  */
 gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg) {
+	/* Check if it's just an event or warning that's happening. */
+	if (err <= 0) {
+		log_msg(LOG_WARNING, msg);
+		return NULL;
+	}
+
 	return gl_error_push_prefix(type, err, NULL, msg);
 }
 
@@ -60,6 +68,12 @@ gl_err_t *gl_error_push(err_type_t type, int8_t err, const char *msg) {
  * @see gl_error_push_prefix
  */
 gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *msg) {
+	/* Check if it's just an event or warning that's happening. */
+	if (err <= 0) {
+		log_errno(LOG_WARNING, msg);
+		return NULL;
+	}
+
 	return gl_error_push_prefix(type, err, msg, strerror(errno));
 }
 
@@ -77,9 +91,7 @@ gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *msg) {
 gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg) {
 	/* Check if it's just an event that's happening. */
 	if (err <= SOCK_OK) {
-#ifdef DEBUG
 		log_sockerrno(LOG_WARNING, msg, sockerrno);
-#endif /* DEBUG */
 		return NULL;
 	}
 
@@ -174,6 +186,8 @@ gl_err_t *gl_error_push_prefix(err_type_t type, int8_t err, const char *prefix,
  * Frees up any resources allocated by an error reporting object.
  *
  * @param err Error reporting object to be free'd.
+ *
+ * @return Previous error in the stack or NULL if no more errors exist.
  */
 gl_err_t *gl_error_pop(gl_err_t *err) {
 	/* Do we even have anything to free? */
@@ -229,6 +243,8 @@ gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg) {
 /**
  * Prints out the error in detail, but only if it's actually an error.
  *
+ * @warning This function will clear the error history stack.
+ *
  * @param err Error reporting object.
  */
 void gl_error_print(gl_err_t *err) {
@@ -236,9 +252,12 @@ void gl_error_print(gl_err_t *err) {
 	if ((err == NULL) || (err->code.generic == 0))
 		return;
 
-	/* Print the error out. */
-	log_printf(LOG_ERROR, "%s (err type %d code %d)\n", err->msg, err->type,
-			err->code.generic);
+	/* Print the error stack out. */
+	do {
+		log_printf(LOG_ERROR, "%s (err type %d code %d)\n", err->msg, err->type,
+				   err->code.generic);
+		err = gl_error_pop(err);
+	} while (err != NULL);
 }
 
 /**
