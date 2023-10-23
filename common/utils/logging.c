@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN32
-#include <tchar.h>
+	#include <tchar.h>
 #endif /* _WIN32 */
 
 #ifdef _WIN32
@@ -22,6 +22,16 @@
 /* FormatMessage default language. */
 #define FORMAT_MESSAGE_LANG MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
 #endif /* _WIN32 */
+
+/**
+ * Logs a generic message.
+ *
+ * @param level Severity of the logged information.
+ * @param msg   Message to be associated with the log.
+ */
+void log_msg(log_level_t level, const char *msg) {
+	log_printf(level, "%s\n", msg);
+}
 
 /**
  * Logs any system errors that set the errno variable whenever dealing with

@@ -29,6 +29,7 @@ typedef enum {
 
 /* Logging functions. */
 void log_printf(log_level_t level, const char *format, ...);
+void log_msg(log_level_t level, const char *msg);
 void log_errno(log_level_t level, const char *msg);
 void log_sockerrno(log_level_t level, const char *msg, int err);
 
