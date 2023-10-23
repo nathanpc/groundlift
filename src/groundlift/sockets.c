@@ -109,7 +109,8 @@ void socket_free(sock_handle_t *sock) {
  * Sets up the address of a socket handle object using a network address string.
  *
  * @param sock Socket handle object to be setup.
- * @param addr Network address to bind/connect to as a string.
+ * @param addr Network address to bind/connect to as a string or NULL to use
+ *             INADDR_ANY.
  * @param port Port to bind/connect to.
  *
  * @see socket_setup_inaddr
@@ -248,10 +249,6 @@ gl_err_t *socket_setup_udp(sock_handle_t *sock, bool server,
 #endif
 	}
 
-	/* Should we start listening on this socket or not? */
-	if (!server)
-		return NULL;
-
 	/* Ensure we can reuse the address and port in case of panic. */
 	reuse = 1;
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
@@ -284,6 +281,10 @@ gl_err_t *socket_setup_udp(sock_handle_t *sock, bool server,
 			EMSG("Failed to disable socket multicast loop"));
 	}
 #endif
+
+	/* Should we start listening on this socket or not? */
+	if (!server)
+		return NULL;
 
 	/* Bind ourselves to the UDP address. */
 	if (bind(sock->fd, sock->addr, sock->addr_len) == SOCKET_ERROR) {
