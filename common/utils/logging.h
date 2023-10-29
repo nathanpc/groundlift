@@ -24,7 +24,8 @@ typedef enum {
 	LOG_FATAL = 0,
 	LOG_ERROR,
 	LOG_WARNING,
-	LOG_INFO
+	LOG_INFO,
+	LOG_DEBUG
 } log_level_t;
 
 /* Logging functions. */

@@ -122,6 +122,9 @@ void log_printf(log_level_t level, const char *format, ...) {
 		case LOG_INFO:
 			fprintf(stderr, "[INFO] ");
 			break;
+		case LOG_DEBUG:
+			fprintf(stderr, "[DEBUG] ");
+			break;
 		default:
 			fprintf(stderr, "[UNKNOWN] ");
 			break;
