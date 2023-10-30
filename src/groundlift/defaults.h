@@ -23,30 +23,15 @@ extern "C" {
 #define UDPSERVER_PORT 1651
 #endif /* UDPSERVER_PORT */
 
-/* Number of connections in the TCP server queue. */
-#ifndef TCPSERVER_BACKLOG
-#define TCPSERVER_BACKLOG 1
-#endif /* TCPSERVER_BACKLOG */
-
 /* Timeout of UDP communications in milliseconds. */
 #ifndef UDP_TIMEOUT_MS
 #define UDP_TIMEOUT_MS 1000
 #endif /* UDP_TIMEOUT_MS */
 
-/* OBEX protocol version to be disclosed to clients. */
-#ifndef OBEX_PROTO_VERSION
-#define OBEX_PROTO_VERSION 0x10
-#endif /* OBEX_PROTO_VERSION */
-
-/* Maximum size of an OBEX packet in bytes supported by the application. */
-#ifndef OBEX_MAX_PACKET_SIZE
-#define OBEX_MAX_PACKET_SIZE 65535
-#endif /* OBEX_MAX_PACKET_SIZE */
-
-/* Maximum size of a file chunk in an OBEX PUT packet in bytes. */
-#ifndef OBEX_MAX_FILE_CHUNK
-#define OBEX_MAX_FILE_CHUNK 8000
-#endif /* OBEX_MAX_FILE_CHUNK */
+/* Glproto device type. */
+#ifndef GL_DEVICE_TYPE
+#define GL_DEVICE_TYPE "Ukn"
+#endif /* GL_DEVICE_TYPE */
 
 /* Ensure we know the maximum length that the machine's hostname can be. */
 #ifndef HOST_NAME_MAX

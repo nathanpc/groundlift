@@ -20,7 +20,10 @@ extern "C" {
  * Configuration object.
  */
 typedef struct {
+	uint64_t glupi;
+	char devtype[4];
 	char *hostname;
+
 	char *download_dir;
 } gl_conf_t;
 
@@ -29,6 +32,8 @@ void conf_init(void);
 void conf_free(void);
 
 /* Getters */
+uint64_t conf_get_glupi(void);
+void conf_get_devtype(char *buf);
 const char *conf_get_hostname(void);
 const char *conf_get_download_dir(void);
 
