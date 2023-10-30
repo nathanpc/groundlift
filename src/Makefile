@@ -1,7 +1,7 @@
 include ../variables.mk
 
 # Source file names.
-SRCNAMES = sockets.c obex.c server.c client.c conf.c error.c
+SRCNAMES = sockets.c protocol.c server.c client.c conf.c error.c
 
 # Sources and Objects
 PROJECT  = libglproto

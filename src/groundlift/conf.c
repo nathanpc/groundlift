@@ -33,9 +33,19 @@ void conf_init(void) {
 	/* Initialize some defaults. */
 	conf.download_dir = dir_defaults_downloads();
 	conf.hostname = conf_gethostname();
-	conf.glupi = 1234567890; /* TODO: Create this from some known factors. */
 	strncpy(conf.devtype, GL_DEVICE_TYPE, 3);
 	conf.devtype[3] = '\0';
+
+	/* Set the GLUPI. */
+	/* TODO: Create this from some known factors. */
+	conf.glupi[0] = 0x12;
+	conf.glupi[1] = 0x34;
+	conf.glupi[2] = 0x56;
+	conf.glupi[3] = 0x78;
+	conf.glupi[4] = 0x9A;
+	conf.glupi[5] = 0xBC;
+	conf.glupi[6] = 0xDE;
+	conf.glupi[7] = 0xF0;
 }
 
 /**
@@ -60,7 +70,7 @@ void conf_free(void) {
  *
  * @return GroundLift Unique Peer Identifier.
  */
-uint64_t conf_get_glupi(void) {
+const uint8_t *conf_get_glupi(void) {
 	return conf.glupi;
 }
 
