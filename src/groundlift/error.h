@@ -118,6 +118,9 @@ gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg);
 gl_err_t *gl_error_pop(gl_err_t *err);
 void gl_error_clear(void);
 
+/* Last error. */
+gl_err_t *gl_error_last(void);
+
 /* Report manipulation. */
 gl_err_t *gl_error_subst_msg(gl_err_t *err, const char *msg);
 

@@ -15,7 +15,9 @@
 	#include <stdshim.h>
 	#include <utils/utf16.h>
 #else
-	#include <signal.h>
+	#ifdef DEBUG
+		#include <signal.h>
+	#endif /* DEBUG */
 #endif /* _WIN32 */
 
 #include "sockets.h"
@@ -214,7 +216,16 @@ gl_err_t *gl_error_pop(gl_err_t *err) {
  */
 void gl_error_clear(void) {
 	while (gl_last_error != NULL)
-		gl_error_pop(gl_last_error);
+		gl_last_error = gl_error_pop(gl_last_error);
+}
+
+/**
+ * Gets the last error report.
+ *
+ * @return Last error report or NULL if none was found.
+ */
+gl_err_t *gl_error_last(void) {
+	return gl_last_error;
 }
 
 /**
