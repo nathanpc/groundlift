@@ -77,6 +77,7 @@ typedef enum {
 	GL_OK,
 	GL_ERR_UNKNOWN,
 	GL_ERR_SERVER,
+	GL_ERR_CLIENT,
 	GL_ERR_PROTOCOL
 } gl_ret_t;
 
