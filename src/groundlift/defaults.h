@@ -13,15 +13,15 @@
 extern "C" {
 #endif
 
-/* Server port to listen on. */
-#ifndef TCPSERVER_PORT
-#define TCPSERVER_PORT 1650
-#endif /* TCPSERVER_PORT */
+/* Main server port to listen on. */
+#ifndef GL_SERVER_MAIN_PORT
+#define GL_SERVER_MAIN_PORT 1650
+#endif /* GL_SERVER_MAIN_PORT */
 
-/* Discovery port to listen on. */
-#ifndef UDPSERVER_PORT
-#define UDPSERVER_PORT 1651
-#endif /* UDPSERVER_PORT */
+/* Peer discovery service port to listen back for replies on. */
+#ifndef GL_CLIENT_DISCOVERY_PORT
+#define GL_CLIENT_DISCOVERY_PORT 1651
+#endif /* GL_CLIENT_DISCOVERY_PORT */
 
 /* Timeout of UDP communications in milliseconds. */
 #ifndef UDP_TIMEOUT_MS
