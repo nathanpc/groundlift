@@ -9,19 +9,11 @@
 
 #include <stdbool.h>
 #include <string.h>
-#include <utils/filesystem.h>
-#include <utils/logging.h>
-#include <utils/threads.h>
 
 #include "conf.h"
-#include "defaults.h"
-#include "groundlift/error.h"
-#include "groundlift/sockets.h"
 #include "protocol.h"
 
 /* Private methods. */
-static gl_err_t *server_recv(server_handle_t *handle, glproto_type_t *type,
-							 glproto_msg_t **msg);
 static void *server_thread_func(void *handle_ptr);
 
 /**
@@ -203,79 +195,6 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 }
 
 /**
- * Handles the incoming data and automatically filters out invalid packets.
- *
- * @param handle Server handle object.
- * @param type   Returns the received message type.
- * @param msg    Returns a parsed message object.
- *
- * @return Error report or NULL if an unrecoverable error occurred.
- */
-gl_err_t *server_recv(server_handle_t *handle, glproto_type_t *type,
-					  glproto_msg_t **msg) {
-	size_t len;
-	size_t rlen;
-	uint8_t peek[6];
-	void *buf;
-	gl_err_t *err;
-	struct sockaddr_storage client;
-	socklen_t client_len;
-
-	/* Get the message head. */
-	len = 0;
-	err = socket_recvfrom(handle->sock, peek, 6, (struct sockaddr *)&client,
-						  &client_len, &len, true);
-	if (err)
-		return err;
-
-	/* Check if the message head is valid. */
-	if (len != 6) {
-		log_printf(LOG_DEBUG, "Invalid message length received %ld expected 6",
-				   len);
-		*type = GLPROTO_TYPE_INVALID;
-		*msg = glproto_invalid_msg;
-
-		/* Skip the peek'd bytes. */
-		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
-
-		return NULL;
-	} else if (!glproto_msg_head_isvalid(peek)) {
-		log_printf(LOG_DEBUG, "Invalid message head received");
-		*type = GLPROTO_TYPE_INVALID;
-		*msg = glproto_invalid_msg;
-
-		/* Skip the peek'd bytes. */
-		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
-
-		return NULL;
-	}
-
-	/* Allocate a buffer and get the full message. */
-	len = ntohs(*(uint16_t *)(peek + 4));
-	rlen = len;
-	buf = malloc(len);
-	err = socket_recvfrom(handle->sock, buf, len, NULL, NULL, &rlen, false);
-	if (err)
-		goto cleanup;
-	if (rlen != len) {
-		err = gl_error_push(ERR_TYPE_SOCKET, SOCK_ERR_ERECV,
-			EMSG("Number of bytes for message expected differ from read"));
-		goto cleanup;
-	}
-
-	/* Parse the message. */
-	*type = peek[2];
-	err = glproto_msg_parse(msg, buf, len);
-
-cleanup:
-	/* Free up resources. */
-	free(buf);
-	buf = NULL;
-
-	return err;
-}
-
-/**
  * Server thread function.
  *
  * @param handle_ptr Server handle object.
@@ -296,9 +215,9 @@ void *server_thread_func(void *handle_ptr) {
 	if (handle->events.started != NULL)
 		handle->events.started(handle->sock, handle->event_args.started);
 
-	/* Listen for discovery packets. */
+	/* Listen for messages. */
 	msg = NULL;
-	while ((err = server_recv(handle, &type, &msg)) == NULL) {
+	while ((err = glproto_recvfrom(handle->sock, &type, &msg)) == NULL) {
 		/* Check if the message should be ignored. */
 		if (type == GLPROTO_TYPE_INVALID)
 			continue;

@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <utils/logging.h>
+
 #include "conf.h"
 
 /* Public variables. */
@@ -39,7 +41,7 @@ void glproto_init(void) {
  * Allocates a brand new message object to contain a message received from a
  * peer.
  *
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @param type Message type.
  *
@@ -63,7 +65,7 @@ glproto_msg_t *glproto_msg_new(glproto_type_t type) {
 /**
  * (Re)allocates a message object for ourselves.
  *
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @param msg  Common message object that's being reused for ourselves.
  * @param type Message type.
@@ -102,7 +104,7 @@ glproto_msg_t *glproto_msg_new_our(glproto_msg_t *msg, glproto_type_t type) {
 glproto_msg_t *glproto_msg_realloc(glproto_msg_t *msg, glproto_type_t type) {
 	glproto_msg_t *ret;
 
-	/* Ensure we don't rely on realloc's behaviour. */
+	/* Ensure we don't rely on realloc() behaviour. */
 	if (msg == NULL) {
 		ret = malloc(glproto_msg_sizeof(type));
 		goto finalize;
@@ -124,9 +126,9 @@ finalize:
  * Frees up the memory allocated by a message object.
  *
  * @warning Remember to set the object to NULL afterwards to avoid issues with
- *          realloc.
+ *          realloc().
  *
- * @param msg Message object to be free'd.
+ * @param msg Message object to be freed.
  */
 void glproto_msg_free(glproto_msg_t *msg) {
 	/* Do we even need to free anything? */
@@ -165,7 +167,7 @@ bool glproto_msg_head_isvalid(const uint8_t *head) {
  * @param rbuf Buffer with data received from the network.
  * @param len  Length of the entire message in bytes.
  *
- * @return Error report or NULL if an error occurred.
+ * @return Error report or NULL if the operation was successful.
  */
 gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *rbuf, size_t len) {
 	uint8_t *buf;
@@ -213,6 +215,93 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *rbuf, size_t len) {
 	return NULL;
 }
 
+
+
+/**
+ * Handles the incoming data and automatically filters out invalid packets.
+ *
+ * @param sock Server handle object.
+ * @param type Returns the received message type.
+ * @param msg  Returns a parsed message object.
+ *
+ * @return Error report or NULL if an unrecoverable error occurred.
+ */
+gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
+						   glproto_msg_t **msg) {
+	size_t len;
+	size_t rlen;
+	uint8_t peek[6];
+	void *buf;
+	gl_err_t *err;
+	struct sockaddr_storage client;
+	socklen_t client_len;
+
+	/* Get the message head. */
+	len = 0;
+	err = socket_recvfrom(handle->sock, peek, 6, (struct sockaddr *)&client,
+	                      &client_len, &len, true);
+	if (err)
+		return err;
+
+	/* Check if the message head is valid. */
+	if (len != 6) {
+		log_printf(LOG_DEBUG, "Invalid message length received %ld expected 6",
+		           len);
+		*type = GLPROTO_TYPE_INVALID;
+		*msg = glproto_invalid_msg;
+
+		/* Skip the peeked bytes. */
+		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
+
+		return NULL;
+	} else if (!glproto_msg_head_isvalid(peek)) {
+		log_printf(LOG_DEBUG, "Invalid message head received");
+		*type = GLPROTO_TYPE_INVALID;
+		*msg = glproto_invalid_msg;
+
+		/* Skip the peeked bytes. */
+		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
+
+		return NULL;
+	}
+
+	/* Allocate a buffer and get the full message. */
+	len = ntohs(*(uint16_t *)(peek + 4));
+	rlen = 0;
+	buf = malloc(len);
+	err = socket_recvfrom(handle->sock, buf, len, NULL, NULL, &rlen, false);
+	if (err)
+		goto cleanup;
+	if (rlen != len) {
+		err = gl_error_push(ERR_TYPE_SOCKET, SOCK_ERR_ERECV,
+		                    EMSG("Number of bytes for message expected differ from read"));
+		goto cleanup;
+	}
+
+	/* Parse the message. */
+	*type = peek[2];
+	err = glproto_msg_parse(msg, buf, len);
+
+	cleanup:
+	/* Free up resources. */
+	free(buf);
+	buf = NULL;
+
+	return err;
+}
+
+/**
+ * Sends a message using UDP via a specified socket connection.
+ *
+ * @param sock Socket handle to send the message to.
+ * @param msg  Message to be sent.
+ *
+ * @return Error report or NULL if the operation was successful.
+ */
+gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg) {
+	// TODO: Make this.
+}
+
 /**
  * Gets the amount of memory that should be allocated to hold the message object
  * of the desired type.
@@ -230,7 +319,7 @@ size_t glproto_msg_sizeof(glproto_type_t type) {
 						  EMSG("Unknown message type to get sizeof"));
 			exit(GL_ERR_PROTOCOL);
 			return 0;
-	};
+	}
 }
 
 /**

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "error.h"
+#include "sockets.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,6 +76,11 @@ void glproto_msg_free(glproto_msg_t *msg);
 /* Validation and parsing. */
 bool glproto_msg_head_isvalid(const uint8_t *head);
 gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *buf, size_t len);
+
+/* Sending and receiving. */
+gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
+						   glproto_msg_t **msg);
+gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg);
 
 /* Misc. */
 size_t glproto_msg_sizeof(glproto_type_t type);
