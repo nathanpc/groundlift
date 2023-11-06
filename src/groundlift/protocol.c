@@ -248,7 +248,14 @@ gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
 	*type = peek[2];
 	err = glproto_msg_parse(msg, buf, len);
 
-	cleanup:
+#ifdef DEBUG
+	if (err == NULL) {
+		/* Print out the message for debugging. */
+		glproto_msg_print(*msg, "< ");
+	}
+#endif /* DEBUG */
+
+cleanup:
 	/* Free up resources. */
 	free(buf);
 	buf = NULL;
@@ -277,6 +284,13 @@ gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg) {
 	err = glproto_msg_buf(msg, buf);
 	if (err)
 		goto cleanup;
+
+#ifdef DEBUG
+	if (err == NULL) {
+		/* Print out the message for debugging. */
+		glproto_msg_print(msg, "> ");
+	}
+#endif /* DEBUG */
 
 	/* Send the message over the network. */
 	err = socket_sendto(sock, buf, len, sock->addr, sock->addr_len, NULL);
@@ -363,9 +377,15 @@ size_t glproto_msg_sizeof(glproto_type_t type) {
  * Prints out the contents of a message in a human-readable way. Extremely
  * useful for debugging.
  *
- * @param msg Message to be printed out.
+ * @param msg    Message to be printed out.
+ * @param prefix String that will prefix each line printed out. Use NULL if no
+ *               prefix is required.
  */
-void glproto_msg_print(glproto_msg_t *msg) {
+void glproto_msg_print(glproto_msg_t *msg, const char *prefix) {
+	/* Print the prefix? */
+	if (prefix)
+		printf("%s", prefix);
+
 	/* Message type. */
 	switch (msg->type) {
 		case GLPROTO_TYPE_DISCOVERY:
@@ -385,9 +405,10 @@ void glproto_msg_print(glproto_msg_t *msg) {
 	/* Print out the rest of the common part of the message. */
 	printf(" (%u bytes) from %s [%s]\n", msg->length, msg->hostname,
 		   msg->device);
-	printf("GLUPI: %x/%x/%x/%x/%x/%x/%x/%x\n",
-		   msg->glupi[0], msg->glupi[1], msg->glupi[2], msg->glupi[3],
-		   msg->glupi[4], msg->glupi[5], msg->glupi[6], msg->glupi[7]);
+	printf("%sGLUPI: %x/%x/%x/%x/%x/%x/%x/%x\n", (prefix) ? prefix : "",
+	       msg->glupi[0], msg->glupi[1], msg->glupi[2], msg->glupi[3],
+	       msg->glupi[4], msg->glupi[5], msg->glupi[6], msg->glupi[7]);
+	printf("\n");
 }
 
 /**

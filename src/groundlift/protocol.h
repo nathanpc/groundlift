@@ -86,7 +86,7 @@ gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg);
 size_t glproto_msg_sizeof(glproto_type_t type);
 
 /* Debugging */
-void glproto_msg_print(glproto_msg_t *msg);
+void glproto_msg_print(glproto_msg_t *msg, const char *prefix);
 
 #ifdef __cplusplus
 }

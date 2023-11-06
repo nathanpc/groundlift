@@ -207,11 +207,6 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 			continue;
 		}
 
-#ifdef DEBUG
-		/* Print out the message for debugging. */
-		glproto_msg_print(msg);
-#endif /* DEBUG */
-
 		/* Free up the allocated message. */
 		glproto_msg_free(msg);
 		msg = NULL;

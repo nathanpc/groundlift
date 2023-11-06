@@ -241,7 +241,6 @@ void *server_thread_func(void *handle_ptr) {
 		if ((type == GLPROTO_TYPE_INVALID) || (serr == SOCK_EVT_TIMEOUT))
 			continue;
 
-		glproto_msg_print(msg);
 
 		/* Free up any allocated resources. */
 		glproto_msg_free(msg);
