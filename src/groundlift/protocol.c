@@ -23,7 +23,7 @@ static glproto_msg_t void_msg;
 
 /* Private methods. */
 size_t glproto_msg_length(glproto_msg_t *msg);
-gl_err_t *glproto_msg_buf(glproto_msg_t *msg, uint8_t *buf);
+uint8_t *glproto_msg_buf(glproto_msg_t *msg);
 
 /**
  * Initializes the GroundLift protocol helper subsystem.
@@ -311,44 +311,48 @@ cleanup:
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *glproto_msg_buf(glproto_msg_t *msg, uint8_t *buf) {
+uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	const char *str;
 	uint8_t i;
 	uint16_t len;
-	uint8_t *tmp = buf;
+	uint8_t *buf;
+
+	/* Calculate the message length and allocate a buffer to send it. */
+	len = glproto_msg_length(msg);
+	buf = malloc(len);
 
 	/* Identifier bits. */
-	*tmp++ = 'G';
-	*tmp++ = 'L';
-	*tmp++ = msg->type;
-	*tmp++ = '\0';
+	*buf++ = 'G';
+	*buf++ = 'L';
+	*buf++ = msg->type;
+	*buf++ = '\0';
 
 	/* Message length. */
 	len = htons(msg->length);
-	*tmp++ = (uint8_t)(len >> 8);
-	*tmp++ = (uint8_t)(len & 0xFF);
+	*buf++ = (uint8_t)(len >> 8);
+	*buf++ = (uint8_t)(len & 0xFF);
 
 	/* GLUPI */
-	*tmp++ = '|';
+	*buf++ = '|';
 	for (i = 0; i < sizeof(msg->glupi); i++) {
-		*tmp++ = msg->glupi[i];
+		*buf++ = msg->glupi[i];
 	}
 
 	/* Device identifier. */
-	*tmp++ = '|';
+	*buf++ = '|';
 	for (i = 0; i < sizeof(msg->device); i++) {
-		*tmp++ = msg->device[i];
+		*buf++ = msg->device[i];
 	}
-	*tmp++ = '\0';
+	*buf++ = '\0';
 
 	/* Hostname */
-	*tmp++ = '|';
-	*tmp++ = (uint8_t)strlen(msg->hostname) + 1;
+	*buf++ = '|';
+	*buf++ = (uint8_t)strlen(msg->hostname) + 1;
 	str = msg->hostname;
 	while (*str != '\0') {
-		*tmp++ = *str++;
+		*buf++ = *str++;
 	}
-	*tmp++ = '\0';
+	*buf++ = '\0';
 
 	return NULL;
 }
