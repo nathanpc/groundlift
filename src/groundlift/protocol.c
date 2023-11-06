@@ -258,7 +258,7 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 #ifdef DEBUG
 	if (err == NULL) {
 		/* Print out the message for debugging. */
-		glproto_msg_print(*msg, "< ");
+		glproto_msg_print(*msg, "> ");
 	}
 #endif /* DEBUG */
 
@@ -289,7 +289,7 @@ gl_err_t *glproto_msg_sendto(const sock_handle_t *sock, glproto_msg_t *msg) {
 
 #ifdef DEBUG
 	/* Print out the message for debugging. */
-	glproto_msg_print(msg, "> ");
+	glproto_msg_print(msg, "< ");
 #endif /* DEBUG */
 
 	/* Send the message over the network. */
