@@ -35,4 +35,4 @@ LIBS    =
 
 # Define the device type flag.
 GLDEVTYPE = $(shell uname -s | cut -c 1-3)
-CFLAGS += -DGL_DEVICE_TYPE=$(GLDEVTYPE)
+CFLAGS += -DGL_DEVICE_TYPE=\"$(GLDEVTYPE)\"
