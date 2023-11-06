@@ -37,7 +37,8 @@ identifier, hereby called `GLUPI` (GroundLift Unique Peer Identifier), which
 
 With this unique identifier, systems that are capable of maintaining a cache of
 the peers they encounter on a network can use this UID to match additional data
-to a peer regardless of its IP address.
+to a peer regardless of its IP address. This header will also enable us to
+identify a peer that has multiple IP addresses on the same network.
 
 ### Structure
 
