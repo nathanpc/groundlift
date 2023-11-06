@@ -192,7 +192,7 @@ gl_err_t *socket_setup_tcp(sock_handle_t *sock, bool server) {
 	}
 
 	/* Start listening on our socket. */
-	if (listen(sock->fd, TCPSERVER_BACKLOG) == SOCKET_ERROR) {
+	if (listen(sock->fd, SOMAXCONN) == SOCKET_ERROR) {
 		return gl_error_push_sockerr(SOCK_ERR_ELISTEN,
 									 EMSG("Failed to listen to the socket"));
 	}
@@ -437,18 +437,21 @@ gl_err_t *socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
  * @param recv_len Pointer to store the number of bytes actually received. Will
  *                 be ignored if NULL is passed.
  * @param peek     Should we just peek at the data to be received?
+ * @param serr     Pointer to store the socket error/status or NULL to ignore.
  *
  * @return Error report or NULL if the operation was successful.
  *
  * @see recv
  */
 gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
-					  size_t *recv_len, bool peek) {
+					  size_t *recv_len, bool peek, sock_err_t *serr) {
 	size_t bytes_recv;
 	ssize_t len;
 
 	/* Check if we have a valid file descriptor. */
 	if (sock->fd == INVALID_SOCKET) {
+		if (serr)
+			*serr = SOCK_EVT_CONN_CLOSED;
 		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
 									 EMSG("Socket closed prematurely"));
 	}
@@ -465,6 +468,8 @@ gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 
 			/* Check if it's just the connection being abruptly shut down. */
 			if (presd) {
+				if (serr)
+					*serr = SOCK_EVT_CONN_SHUTDOWN;
 				return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
 					EMSG("Socket abruptly shutdown during TCP peek"));
 			}
@@ -491,6 +496,8 @@ gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 
 				/* Check if it's just the connection being abruptly shut down. */
 				if (presd) {
+					if (serr)
+						*serr = SOCK_EVT_CONN_SHUTDOWN;
 					return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
 						EMSG("TCP socket abruptly shutdown"));
 				}
@@ -510,6 +517,8 @@ gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
 
 	/* Check if the connection was closed gracefully by the client. */
 	if (bytes_recv == 0) {
+		if (serr)
+			*serr = SOCK_EVT_CONN_CLOSED;
 		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
 			EMSG("Socket closed gracefully by the client"));
 	}
@@ -529,6 +538,7 @@ gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
  * @param recv_len  Pointer to store the number of bytes actually received. Will
  *                  be ignored if NULL is passed.
  * @param peek      Should we just peek at the data to be received?
+ * @param serr      Pointer to store the socket error/status or NULL to ignore.
  *
  * @return Error report or NULL if the operation was successful.
  *
@@ -536,7 +546,7 @@ gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
  */
 gl_err_t *socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 						  struct sockaddr *sock_addr, socklen_t *sock_len,
-						  size_t *recv_len, bool peek) {
+						  size_t *recv_len, bool peek, sock_err_t *serr) {
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
@@ -559,10 +569,14 @@ gl_err_t *socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 		/* Check if the error was expected. */
 		if (sockerrno == WSAETIMEDOUT) {
 			/* Timeout occurred. */
+			if (serr)
+				*serr = SOCK_EVT_TIMEOUT;
 			return gl_error_push_sockerr(SOCK_EVT_TIMEOUT,
 										 EMSG("UDP socket timeout occurred"));
 		} else if (sockerrno == WSAEINTR) {
 			/* Connection being abruptly shut down. */
+			if (serr)
+				*serr = SOCK_EVT_CONN_SHUTDOWN;
 			return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
 										 EMSG("UDP socket abruptly shutdown"));
 		}
@@ -577,10 +591,14 @@ recvnorm:
 		/* Check if the error was expected. */
 		if (errno == EAGAIN) {
 			/* Timeout occurred. */
+			if (serr)
+				*serr = SOCK_EVT_TIMEOUT;
 			return gl_error_push_sockerr(SOCK_EVT_TIMEOUT,
 										 EMSG("UDP socket timeout occurred"));
 		} else if (errno == EBADF) {
 			/* Connection being abruptly shut down. */
+			if (serr)
+				*serr = SOCK_EVT_CONN_SHUTDOWN;
 			return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
 										 EMSG("UDP socket abruptly shutdown"));
 		}
@@ -597,6 +615,8 @@ recvnorm:
 
 	/* Check if it's just the connection being abruptly shut down. */
 	if (bytes_recv == 0) {
+		if (serr)
+			*serr = SOCK_EVT_CONN_SHUTDOWN;
 		return gl_error_push_sockerr(SOCK_EVT_CONN_SHUTDOWN,
 									 EMSG("UDP socket abruptly shutdown"));
 	}

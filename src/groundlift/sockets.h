@@ -110,10 +110,10 @@ gl_err_t *socket_sendto(const sock_handle_t *sock, const void *buf, size_t len,
 						const struct sockaddr *sock_addr, socklen_t sock_len,
 						size_t *sent_len);
 gl_err_t *socket_recv(const sock_handle_t *sock, void *buf, size_t buf_len,
-					  size_t *recv_len, bool peek);
+                      size_t *recv_len, bool peek, sock_err_t *serr);
 gl_err_t *socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
-						  struct sockaddr *sock_addr, socklen_t *sock_len,
-						  size_t *recv_len, bool peek);
+                          struct sockaddr *sock_addr, socklen_t *sock_len,
+                          size_t *recv_len, bool peek, sock_err_t *serr);
 gl_err_t *socket_close(sock_handle_t *sock);
 gl_err_t *socket_shutdown(sock_handle_t *sock);
 
