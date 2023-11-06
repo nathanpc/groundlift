@@ -17,13 +17,12 @@ compiledb: clean
 	bear --output $(ROOT)/compile_commands.json -- make CC=clang debug
 
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean cli
+debug: clean $(BUILDDIR)/stamp
+	cd cli/ && $(MAKE) debug
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
-memcheck: clean cli
-	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
-		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log ./build/bin/gl s
-	cat $(BUILDDIR)/valgrind.log
+memcheck: clean $(BUILDDIR)/stamp
+	cd cli/ && $(MAKE) memcheck
 
 cli: $(BUILDDIR)/stamp
 	cd cli/ && $(MAKE)

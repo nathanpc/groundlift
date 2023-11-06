@@ -44,10 +44,15 @@ $(BUILDDIR)/$(PROJECT)/windows/stamp: $(BUILDDIR)/$(PROJECT)/stamp
 run: test
 
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean all
+debug: compile
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
 memcheck: compile
+	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
+		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log \
+		--suppressions=/usr/share/glib-2.0/valgrind/glib.supp \
+		--suppressions=/usr/share/gtk-3.0/valgrind/gtk.supp $(TARGET)
+	cat $(BUILDDIR)/valgrind.log
 
 test:
 	$(TARGET)

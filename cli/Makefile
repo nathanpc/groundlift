@@ -35,10 +35,13 @@ $(BUILDDIR)/$(PROJECT)/stamp:
 run: test
 
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean all
+debug: compile
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
 memcheck: compile
+	valgrind --tool=memcheck --leak-check=yes --show-leak-kinds=all \
+		--track-origins=yes --log-file=$(BUILDDIR)/valgrind.log $(TARGET) s
+	cat $(BUILDDIR)/valgrind.log
 
 test: run-server
 

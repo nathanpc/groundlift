@@ -49,6 +49,7 @@
 		"klass",
 		"ltos",
 		"MAKELANGID",
+		"memcheck",
 		"nmsg",
 		"OBEX",
 		"presd",
@@ -68,6 +69,7 @@
 		"UDPSERVER",
 		"wfname",
 		"wname",
+		"WSADATA",
 		"WSAEBADF",
 		"WSAEMSGSIZE",
 		"WSAENOTCONN"
