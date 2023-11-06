@@ -93,7 +93,7 @@ gl_err_t *gl_error_push_errno(err_type_t type, int8_t err, const char *msg) {
 gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg) {
 	/* Check if it's just an event that's happening. */
 	if (err <= SOCK_OK) {
-		log_sockerrno(LOG_WARNING, msg, sockerrno);
+		log_sockerrno(LOG_DEBUG, msg, sockerrno);
 		return NULL;
 	}
 
