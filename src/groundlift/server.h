@@ -73,6 +73,7 @@ gl_err_t *gl_server_free(server_handle_t *handle);
 
 /* Server lifecycle. */
 gl_err_t *gl_server_start(server_handle_t *handle);
+gl_err_t *gl_server_loop(server_handle_t *handle);
 gl_err_t *gl_server_stop(server_handle_t *handle);
 
 /* Callbacks */

@@ -80,7 +80,7 @@ gl_err_t *gl_server_setup(server_handle_t *handle, const char *addr,
 
 	/* Setup the socket. */
 	socket_setaddr(handle->sock, addr, port);
-	err = socket_setup_udp(handle->sock, true, 1000);
+	err = socket_setup_udp(handle->sock, true, 0);
 
 	return err;
 }
@@ -158,6 +158,27 @@ gl_err_t *gl_server_start(server_handle_t *handle) {
 }
 
 /**
+ * Waits for the server thread to finish.
+ *
+ * @param handle Server handle object.
+ *
+ * @return Error report or NULL if the operation was successful.
+ *
+ * @see gl_server_stop
+ */
+gl_err_t *gl_server_loop(server_handle_t *handle) {
+	gl_err_t *err;
+
+	/* Join the server thread back into us. */
+	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
+		err = gl_error_push_errno(ERR_TYPE_SYS, SYS_ERR_THREAD,
+		                          EMSG("Main server thread join failed"));
+	}
+
+	return err;
+}
+
+/**
  * Stops the running server.
  *
  * @param handle Server handle object.
@@ -185,11 +206,8 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 			EMSG("Failed to shutdown the main server socket"));
 	}
 
-	/* Join the server thread back into us. */
-	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
-		err = gl_error_push_errno(ERR_TYPE_SYS, SYS_ERR_THREAD,
-								  EMSG("Main server thread join failed"));
-	}
+	/* Wait for the server thread to stop. */
+	err = gl_server_loop(handle);
 
 	return err;
 }
@@ -204,6 +222,7 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 void *server_thread_func(void *handle_ptr) {
 	server_handle_t *handle;
 	gl_err_t *err;
+	sock_err_t serr;
 	glproto_type_t type;
 	glproto_msg_t *msg;
 
@@ -217,17 +236,17 @@ void *server_thread_func(void *handle_ptr) {
 
 	/* Listen for messages. */
 	msg = NULL;
-	while ((err = glproto_recvfrom(handle->sock, &type, &msg)) == NULL) {
+	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &serr)) == NULL) {
 		/* Check if the message should be ignored. */
-		if (type == GLPROTO_TYPE_INVALID)
+		if ((type == GLPROTO_TYPE_INVALID) || (serr == SOCK_EVT_TIMEOUT))
 			continue;
 
 		glproto_msg_print(msg);
-	}
 
-	/* Free up any allocated resources. */
-	glproto_msg_free(msg);
-	msg = NULL;
+		/* Free up any allocated resources. */
+		glproto_msg_free(msg);
+		msg = NULL;
+	}
 
 	return (void *)err;
 }
