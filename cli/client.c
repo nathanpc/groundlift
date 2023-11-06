@@ -14,16 +14,8 @@
 
 /* Public variables. */
 client_handle_t *g_client;
-discovery_client_t *g_discovery_client;
 
-/* Client event handlers. */
-void event_connected(const tcp_client_t *client, void *arg);
-void event_conn_req_resp(const file_bundle_t *fb, bool accepted, void *arg);
-void event_send_progress(const gl_client_progress_t *progress, void *arg);
-void event_send_success(const file_bundle_t *fb, void *arg);
-void event_disconnected(const tcp_client_t *client, void *arg);
-void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg);
-
+#if 0
 /**
  * Perform an entire send exchange with the server.
  *
@@ -79,6 +71,7 @@ cleanup:
 
 	return err;
 }
+#endif
 
 /**
  * Lists the peers on the network.
@@ -93,6 +86,9 @@ cleanup:
 gl_err_t *client_list_peers(const struct sockaddr *sock_addr, bool verbose) {
 	gl_err_t *err;
 
+	err = gl_client_discover_peers(NULL);
+
+#if 0
 	/* Construct the discovery client handle object. */
 	g_discovery_client = gl_client_discovery_new();
 	if (g_discovery_client == NULL) {
@@ -151,8 +147,9 @@ cleanup:
 	/* Clean things up. */
 	gl_client_discovery_free(g_discovery_client);
 	g_discovery_client = NULL;
+#endif
 
-	return err;
+	        return err;
 }
 
 #ifndef SINGLE_IFACE_MODE
@@ -163,8 +160,9 @@ cleanup:
  *         operation was successful.
  */
 gl_err_t *client_list_peers_ifs(void) {
+#if 0
 	iface_info_list_t *if_list;
-	tcp_err_t tcp_err;
+	sock_err_t tcp_err;
 	gl_err_t *err;
 	uint8_t i;
 
@@ -201,9 +199,13 @@ cleanup:
 	socket_iface_info_list_free(if_list);
 
 	return err;
+#else
+	return client_list_peers(NULL, true);
+#endif
 }
 #endif /* !SINGLE_IFACE_MODE */
 
+#if 0
 /**
  * Handles the client connected event.
  *
@@ -303,3 +305,4 @@ void event_peer_discovered(const gl_discovery_peer_t *peer, void *arg) {
 	printf("Discovered peer '%s' (%s)\n", peer->name,
 		   inet_ntoa(peer->sock->addr_in.sin_addr));
 }
+#endif

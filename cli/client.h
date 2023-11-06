@@ -16,10 +16,9 @@ extern "C" {
 
 /* Public handles. */
 extern client_handle_t *g_client;
-extern discovery_client_t *g_discovery_client;
 
 /* Operations */
-gl_err_t *client_send(const char *ip, uint16_t port, const char *fname);
+/*gl_err_t *client_send(const char *ip, uint16_t port, const char *fname);*/
 gl_err_t *client_list_peers(const struct sockaddr *sock_addr, bool verbose);
 gl_err_t *client_list_peers_ifs(void);
 

@@ -8,6 +8,7 @@
 #include "server.h"
 
 #include <groundlift/defaults.h>
+#include <groundlift/error.h>
 #include <utils/filesystem.h>
 #include <utils/logging.h>
 
@@ -15,16 +16,8 @@
 server_handle_t *g_server;
 
 /* Server event handlers. */
-void event_started(const server_t *server, void *arg);
-int event_conn_req(const gl_server_conn_req_t *req, void *arg);
+void event_started(const sock_handle_t *sock, void *arg);
 void event_stopped(void *arg);
-
-/* Server client's connection event handlers. */
-void event_conn_accepted(const server_conn_t *conn, void *arg);
-void event_conn_download_progress(const gl_server_conn_progress_t *progress,
-								  void *arg);
-void event_conn_download_success(const file_bundle_t *fb, void *arg);
-void event_conn_closed(void *arg);
 
 /**
  * Starts up the server and wait for it to be shutdown.
@@ -41,57 +34,23 @@ gl_err_t *server_run(const char *ip, uint16_t port) {
 	/* Construct the server handle object. */
 	g_server = gl_server_new();
 	if (g_server == NULL) {
-		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
-			EMSG("Failed to construct the server handle object."));
+		return gl_error_push_errno(ERR_TYPE_GL, GL_ERR_SERVER,
+			EMSG("Failed to allocate the server handle object."));
 	}
 
-	/* Setup event handlers. */
+	/* Set up event handlers. */
 	gl_server_evt_start_set(g_server, event_started, NULL);
-	gl_server_evt_client_conn_req_set(g_server, event_conn_req, NULL);
 	gl_server_evt_stop_set(g_server, event_stopped, NULL);
-	gl_server_conn_evt_accept_set(g_server, event_conn_accepted, NULL);
-	gl_server_conn_evt_download_progress_set(g_server,
-											 event_conn_download_progress,
-											 NULL);
-	gl_server_conn_evt_download_success_set(g_server,
-											event_conn_download_success, NULL);
-	gl_server_conn_evt_close_set(g_server, event_conn_closed, NULL);
 
-	/* Initialize the server. */
+	/* Set up the server. */
 	err = gl_server_setup(g_server, ip, port);
-	if (err) {
-		log_printf(LOG_ERROR, "Server setup failed.\n");
+	if (err)
 		goto cleanup;
-	}
 
-	/* Start the main server up. */
+	/* Start the server up. */
 	err = gl_server_start(g_server);
-	if (err) {
-		log_printf(LOG_ERROR, "Server thread failed to start.\n");
-		goto cleanup;
-	}
-
-	/* Start the discovery server. */
-	err = gl_server_discovery_start(g_server, UDPSERVER_PORT);
-	if (err) {
-		log_printf(LOG_ERROR, "Discovery server thread failed to start.\n");
-		goto cleanup;
-	}
-
-	/* Wait for the discovery server thread to return. */
-	err = gl_server_discovery_thread_join(g_server);
-	if (err) {
-		log_printf(LOG_ERROR,
-				   "Discovery server thread returned with errors.\n");
-		goto cleanup;
-	}
-
-	/* Wait for the main server thread to return. */
-	err = gl_server_thread_join(g_server);
-	if (err) {
-		log_printf(LOG_ERROR, "Server thread returned with errors.\n");
-		goto cleanup;
-	}
+	if (err == NULL)
+		return NULL;
 
 cleanup:
 	/* Free up any resources. */
@@ -103,24 +62,40 @@ cleanup:
 /**
  * Handles the server started event.
  *
- * @param server Server handle object.
- * @param arg    Optional data set by the event handler setup.
+ * @param sock Server socket handle object.
+ * @param arg  Optional data set by the event handler setup.
  */
-void event_started(const server_t *server, void *arg) {
+void event_started(const sock_handle_t *sock, void *arg) {
+	printf("Server started...\n");
+#if 0
 	char *ipstr;
 
 	/* Ignore unused arguments. */
 	(void)arg;
 
 	/* Print some information about the current state of the server. */
-	ipstr = tcp_server_get_ipstr(server);
+	ipstr = tcp_server_get_ipstr(sock);
 	printf("Server listening on %s port %u (discovery %u)\n", ipstr,
 		   ntohs(server->tcp.addr_in.sin_port),
 		   ntohs(server->udp.addr_in.sin_port));
 
 	free(ipstr);
+#endif
 }
 
+/**
+ * Handles the server stopped event.
+ *
+ * @param arg Optional data set by the event handler setup.
+ */
+void event_stopped(void *arg) {
+	/* Ignore unused arguments. */
+	(void)arg;
+
+	printf("Server stopped\n");
+}
+
+#if 0
 /**
  * Handles the server client connection requested event.
  *
@@ -155,18 +130,6 @@ int event_conn_req(const gl_server_conn_req_t *req, void *arg) {
 	} while ((c != 'y') && (c != 'Y') && (c != 'n') && (c != 'N'));
 
 	return (c != 'n') && (c != 'N');
-}
-
-/**
- * Handles the server stopped event.
- *
- * @param arg Optional data set by the event handler setup.
- */
-void event_stopped(void *arg) {
-	/* Ignore unused arguments. */
-	(void)arg;
-
-	printf("Server stopped\n");
 }
 
 /**
@@ -227,3 +190,4 @@ void event_conn_closed(void *arg) {
 
 	printf("Client connection closed\n");
 }
+#endif

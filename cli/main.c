@@ -1,17 +1,19 @@
 /**
- * GroundLift
- * An AirDrop alternative.
+ * GroundLift command-line client and reference implementation.
  *
  * @author Nathan Campos <nathan@innoveworkshop.com>
  */
 
-#include <groundlift/conf.h>
-#include <groundlift/defaults.h>
-#include <groundlift/sockets.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <groundlift/conf.h>
+#include <groundlift/defaults.h>
+#include <groundlift/error.h>
+#include <groundlift/protocol.h>
+#include <groundlift/sockets.h>
 #include <utils/capabilities.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -59,21 +61,23 @@ int main(int argc, char **argv) {
 
 	/* Initialize some common modules. */
 	cap_init();
-	obex_init();
 	conf_init();
+	gl_error_init();
+	glproto_init();
 
 	/* Start as server or as client. */
 	if ((argc < 2) || (argv[1][0] == 's')) {
-		err = server_run(NULL, TCPSERVER_PORT);
+		server_run(NULL, GL_SERVER_MAIN_PORT);
+		gl_server_loop(g_server);
 	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
-		err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);
+		/*err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);*/
 	} else if ((argc < 2) || (argv[1][0] == 'l')) {
 		/* List peers on the network. */
 #ifndef SINGLE_IFACE_MODE
-		err = client_list_peers_ifs();
+		client_list_peers_ifs();
 #else
-		err = client_list_peers(NULL, true);
+		client_list_peers(NULL, true);
 #endif /* !SINGLE_IFACE_MODE */
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
@@ -81,6 +85,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* Check if we had any errors to report. */
+	err = gl_error_last();
 	gl_error_print(err);
 	if (err != NULL)
 		ret = 1;
@@ -88,7 +93,7 @@ int main(int argc, char **argv) {
 	/* Free up any resources. */
 	gl_server_free(g_server);
 	gl_client_free(g_client);
-	gl_error_free(err);
+	gl_error_clear();
 	conf_free();
 
 #ifdef _WIN32
@@ -109,7 +114,6 @@ void sigint_handler(int sig) {
 
 	/* Abort any ongoing operation. */
 	gl_client_disconnect(g_client);
-	gl_client_discovery_abort(g_discovery_client);
 	gl_server_stop(g_server);
 
 	/* Don't let the signal propagate. */
