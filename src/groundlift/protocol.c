@@ -385,7 +385,7 @@ void glproto_msg_print(glproto_msg_t *msg) {
 	/* Print out the rest of the common part of the message. */
 	printf(" (%u bytes) from %s [%s]\n", msg->length, msg->hostname,
 		   msg->device);
-	printf("GLUPI: 0x%x/0x%x/0x%x/0x%x0x%x/0x%x/0x%x/0x%x\n",
+	printf("GLUPI: %x/%x/%x/%x/%x/%x/%x/%x\n",
 		   msg->glupi[0], msg->glupi[1], msg->glupi[2], msg->glupi[3],
 		   msg->glupi[4], msg->glupi[5], msg->glupi[6], msg->glupi[7]);
 }
