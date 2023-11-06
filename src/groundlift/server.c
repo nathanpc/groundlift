@@ -14,6 +14,8 @@
 #include "protocol.h"
 
 /* Private methods. */
+static gl_err_t *server_reply_discovery(server_handle_t *handle,
+                                        const glproto_msg_t *msg);
 static void *server_thread_func(void *handle_ptr);
 
 /**
@@ -213,6 +215,30 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 }
 
 /**
+ * Replies to a peer discovery request with our information.
+ *
+ * @param handle Server handle object.
+ * @param msg    Peer discovery message sent from the peer.
+ *
+ * @return Error report or NULL if the operation was successful.
+ */
+gl_err_t *server_reply_discovery(server_handle_t *handle,
+                                 const glproto_msg_t *msg) {
+	glproto_msg_t *reply;
+	gl_err_t *err;
+
+	/* Build up the reply message and send it! */
+	reply = glproto_msg_new_our(GLPROTO_TYPE_DISCOVERY);
+	err = glproto_msg_sendto(handle->sock, reply);
+
+	/* Free up any resources that were allocated. */
+	glproto_msg_free(reply);
+	reply = NULL;
+
+	return err;
+}
+
+/**
  * Server thread function.
  *
  * @param handle_ptr Server handle object.
@@ -241,6 +267,19 @@ void *server_thread_func(void *handle_ptr) {
 		if ((type == GLPROTO_TYPE_INVALID) || (serr == SOCK_EVT_TIMEOUT))
 			continue;
 
+		/* Handle each message appropriately. */
+		switch (type) {
+			case GLPROTO_TYPE_DISCOVERY:
+				err = server_reply_discovery(handle, msg);
+				break;
+			default:
+				printf("Handling messages of type %d not implemented.\n", type);
+				break;
+		}
+
+		/* Check if we need to report any errors to the user. */
+		if (err)
+			gl_error_print(err);
 
 		/* Free up any allocated resources. */
 		glproto_msg_free(msg);
