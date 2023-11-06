@@ -22,8 +22,8 @@ glproto_msg_t *glproto_invalid_msg;
 static glproto_msg_t void_msg;
 
 /* Private methods. */
-static glproto_msg_t *glproto_msg_realloc(glproto_msg_t *msg,
-										  glproto_type_t type);
+size_t glproto_msg_length(glproto_msg_t *msg);
+gl_err_t *glproto_msg_buf(glproto_msg_t *msg, uint8_t *buf);
 
 /**
  * Initializes the GroundLift protocol helper subsystem.
@@ -51,9 +51,10 @@ void glproto_init(void) {
  */
 glproto_msg_t *glproto_msg_new(glproto_type_t type) {
 	/* Allocate the memory for the object. */
-	glproto_msg_t *msg = malloc(glproto_msg_sizeof(type));
+	glproto_msg_t *msg = (glproto_msg_t *)malloc(glproto_msg_sizeof(type));
 
 	/* Ensure a sane invalid default for the common bits. */
+	msg->type = type;
 	msg->length = 0;
 	memset(void_msg.glupi, 0, 8);
 	msg->device[0] = '\0';
@@ -63,63 +64,29 @@ glproto_msg_t *glproto_msg_new(glproto_type_t type) {
 }
 
 /**
- * (Re)allocates a message object for ourselves.
+ * Allocates a message object for ourselves.
  *
  * @warning This function allocates memory that must be freed by you.
  *
- * @param msg  Common message object that's being reused for ourselves.
  * @param type Message type.
  *
- * @return Reallocated message object.
+ * @return Allocated message object.
  *
  * @see glproto_msg_free
  */
-glproto_msg_t *glproto_msg_new_our(glproto_msg_t *msg, glproto_type_t type) {
-	bool new = msg == NULL;
+glproto_msg_t *glproto_msg_new_our(glproto_type_t type) {
+	glproto_msg_t *msg;
 
 	/* Allocate the memory for the object. */
-	msg = glproto_msg_realloc(msg, type);
+	msg = glproto_msg_new(type);
 
 	/* Ensure a sane invalid default for the common bits. */
 	msg->length = 0;
-	if (new) {
-		memcpy(msg->glupi, conf_get_glupi(), 8);
-		conf_get_devtype(msg->device);
-		msg->hostname = strdup(conf_get_hostname());
-	}
+	memcpy(msg->glupi, conf_get_glupi(), 8);
+	conf_get_devtype(msg->device);
+	msg->hostname = strdup(conf_get_hostname());
 
 	return msg;
-}
-
-/**
- * Reallocates the message object if needed. This function allows us to reuse
- * the same object over and over, reducing the need for constantly freeing and
- * allocating memory.
- *
- * @param msg  Old message to be reallocated.
- * @param type New message type.
- *
- * @return Reallocated message object.
- */
-glproto_msg_t *glproto_msg_realloc(glproto_msg_t *msg, glproto_type_t type) {
-	glproto_msg_t *ret;
-
-	/* Ensure we don't rely on realloc() behaviour. */
-	if (msg == NULL) {
-		ret = malloc(glproto_msg_sizeof(type));
-		goto finalize;
-	}
-
-	/* Does this even require reallocation? */
-	if (msg->type == type)
-		return msg;
-
-	/* Reallocate our message. */
-	ret = realloc(msg, glproto_msg_sizeof(type));
-
-finalize:
-	ret->type = type;
-	return ret;
 }
 
 /**
@@ -180,7 +147,7 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *rbuf, size_t len) {
 	type = GLPROTO_MSG_TYPE(buf);
 
 	/* Allocate the memory needed to hold our parsed message. */
-	*msg = glproto_msg_realloc(*msg, type);
+	*msg = glproto_msg_new(type);
 	nmsg = *msg;
 	nmsg->length = len;
 
@@ -215,19 +182,18 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *rbuf, size_t len) {
 	return NULL;
 }
 
-
-
 /**
  * Handles the incoming data and automatically filters out invalid packets.
  *
  * @param sock Server handle object.
  * @param type Returns the received message type.
  * @param msg  Returns a parsed message object.
+ * @param serr Pointer to store the socket error/status or NULL to ignore.
  *
  * @return Error report or NULL if an unrecoverable error occurred.
  */
 gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
-						   glproto_msg_t **msg) {
+						   glproto_msg_t **msg, sock_err_t *serr) {
 	size_t len;
 	size_t rlen;
 	uint8_t peek[6];
@@ -238,9 +204,9 @@ gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
 
 	/* Get the message head. */
 	len = 0;
-	err = socket_recvfrom(handle->sock, peek, 6, (struct sockaddr *)&client,
-	                      &client_len, &len, true);
-	if (err)
+	err = socket_recvfrom(sock, peek, 6, (struct sockaddr *)&client,
+	                      &client_len, &len, true, serr);
+	if (err || (len == 0))
 		return err;
 
 	/* Check if the message head is valid. */
@@ -251,7 +217,7 @@ gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
 		*msg = glproto_invalid_msg;
 
 		/* Skip the peeked bytes. */
-		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
+		socket_recvfrom(sock, peek, 6, NULL, NULL, &len, false, serr);
 
 		return NULL;
 	} else if (!glproto_msg_head_isvalid(peek)) {
@@ -260,21 +226,21 @@ gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
 		*msg = glproto_invalid_msg;
 
 		/* Skip the peeked bytes. */
-		socket_recvfrom(handle->sock, peek, 6, NULL, NULL, &len, false);
+		socket_recvfrom(sock, peek, 6, NULL, NULL, &len, false, serr);
 
 		return NULL;
 	}
 
 	/* Allocate a buffer and get the full message. */
-	len = ntohs(*(uint16_t *)(peek + 4));
+	len = ntohs((uint16_t)((peek[4] << 8) | peek[5]));
 	rlen = 0;
 	buf = malloc(len);
-	err = socket_recvfrom(handle->sock, buf, len, NULL, NULL, &rlen, false);
+	err = socket_recvfrom(sock, buf, len, NULL, NULL, &rlen, false, serr);
 	if (err)
 		goto cleanup;
 	if (rlen != len) {
 		err = gl_error_push(ERR_TYPE_SOCKET, SOCK_ERR_ERECV,
-		                    EMSG("Number of bytes for message expected differ from read"));
+			EMSG("Number of bytes for message expected differ from read"));
 		goto cleanup;
 	}
 
@@ -299,7 +265,78 @@ gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
  * @return Error report or NULL if the operation was successful.
  */
 gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg) {
-	// TODO: Make this.
+	uint8_t *buf;
+	size_t len;
+	gl_err_t *err;
+
+	/* Calculate the message length and allocate a buffer to send it. */
+	len = glproto_msg_length(msg);
+	buf = malloc(len);
+
+	/* Populate the buffer for sending. */
+	err = glproto_msg_buf(msg, buf);
+	if (err)
+		goto cleanup;
+
+	/* Send the message over the network. */
+	err = socket_sendto(sock, buf, len, sock->addr, sock->addr_len, NULL);
+
+cleanup:
+	/* Free up any allocated resources. */
+	free(buf);
+
+	return err;
+}
+
+/**
+ * Populates a buffer with all of the necessary data to send a message over the
+ * network.
+ *
+ * @param msg Message to be sent.
+ * @param buf Buffer to hold network message. This must already be allocated.
+ *
+ * @return Error report or NULL if the operation was successful.
+ */
+gl_err_t *glproto_msg_buf(glproto_msg_t *msg, uint8_t *buf) {
+	const char *str;
+	uint8_t i;
+	uint16_t len;
+	uint8_t *tmp = buf;
+
+	/* Identifier bits. */
+	*tmp++ = 'G';
+	*tmp++ = 'L';
+	*tmp++ = msg->type;
+	*tmp++ = '\0';
+
+	/* Message length. */
+	len = htons(msg->length);
+	*tmp++ = (uint8_t)(len >> 8);
+	*tmp++ = (uint8_t)(len & 0xFF);
+
+	/* GLUPI */
+	*tmp++ = '|';
+	for (i = 0; i < sizeof(msg->glupi); i++) {
+		*tmp++ = msg->glupi[i];
+	}
+
+	/* Device identifier. */
+	*tmp++ = '|';
+	for (i = 0; i < sizeof(msg->device); i++) {
+		*tmp++ = msg->device[i];
+	}
+	*tmp++ = '\0';
+
+	/* Hostname */
+	*tmp++ = '|';
+	*tmp++ = (uint8_t)strlen(msg->hostname) + 1;
+	str = msg->hostname;
+	while (*str != '\0') {
+		*tmp++ = *str++;
+	}
+	*tmp++ = '\0';
+
+	return NULL;
 }
 
 /**
@@ -351,4 +388,25 @@ void glproto_msg_print(glproto_msg_t *msg) {
 	printf("GLUPI: 0x%x/0x%x/0x%x/0x%x0x%x/0x%x/0x%x/0x%x\n",
 		   msg->glupi[0], msg->glupi[1], msg->glupi[2], msg->glupi[3],
 		   msg->glupi[4], msg->glupi[5], msg->glupi[6], msg->glupi[7]);
+}
+
+/**
+ * Calculates the length in bytes needed to send a message.
+ *
+ * @warning This function will set the length parameter of the message.
+ *
+ * @param msg Message to have its total length calculated and field updated.
+ *
+ * @return Length in bytes needed to transfer the entirety of the message.
+ */
+size_t glproto_msg_length(glproto_msg_t *msg) {
+	size_t len = 0;
+
+	/* Calculate length of the common part. */
+	len += 22 + strlen(msg->hostname) + 1;
+
+	/* Update the length field in the message. */
+	msg->length = (uint16_t)len;
+
+	return len;
 }
