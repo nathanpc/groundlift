@@ -17,6 +17,7 @@
 #endif /* _WIN32 */
 #include <stdio.h>
 #include <string.h>
+
 #include <utils/logging.h>
 #include <utils/threads.h>
 
@@ -158,6 +159,7 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 	glproto_type_t type;
 	glproto_msg_t *msg;
+	sock_handle_t *client;
 	gl_err_t *err;
 	sock_err_t serr;
 
@@ -170,6 +172,7 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 
 	/* Get a socket handle. */
 	msg = NULL;
+	client = NULL;
 	handle->sock = socket_new();
 	if (handle->sock == NULL) {
 		err = gl_error_push_errno(ERR_TYPE_GL, GL_ERR_CLIENT,
@@ -190,12 +193,13 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 	msg = glproto_msg_new_our(GLPROTO_TYPE_DISCOVERY);
 	err = glproto_msg_sendto(handle->sock, msg);
 	glproto_msg_free(msg);
+	msg = NULL;
 	if (err)
 		goto cleanup;
 
 	/* Listen for discovery reply messages. */
-	msg = NULL;
-	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &serr)) == NULL) {
+	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &client, &serr))
+			== NULL) {
 		/* Check if the discovery period has ended. */
 		if (serr == SOCK_EVT_TIMEOUT)
 			break;
@@ -210,12 +214,16 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 		/* Free up the allocated message. */
 		glproto_msg_free(msg);
 		msg = NULL;
+		socket_free(client);
+		client = NULL;
 	}
 
 cleanup:
 	/* Free up any allocated resources. */
 	glproto_msg_free(msg);
 	msg = NULL;
+	socket_free(client);
+	client = NULL;
 	gl_client_free(handle);
 	handle = NULL;
 

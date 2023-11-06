@@ -185,27 +185,34 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 /**
  * Handles the incoming data and automatically filters out invalid packets.
  *
- * @param sock Server handle object.
- * @param type Returns the received message type.
- * @param msg  Returns a parsed message object.
- * @param serr Pointer to store the socket error/status or NULL to ignore.
+ * @warning This function allocates msg and client which must be freed by you.
+ *
+ * @param sock   Server handle object.
+ * @param type   Returns the received message type.
+ * @param msg    Returns a parsed message object.
+ * @param client Information about the client that sent the message.
+ * @param serr   Pointer to store the socket error/status or NULL to ignore.
  *
  * @return Error report or NULL if an unrecoverable error occurred.
  */
-gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
-						   glproto_msg_t **msg, sock_err_t *serr) {
+gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
+                           glproto_msg_t **msg, sock_handle_t **client,
+                           sock_err_t *serr) {
 	size_t len;
 	size_t rlen;
 	uint8_t peek[6];
 	void *buf;
 	gl_err_t *err;
-	struct sockaddr_storage client;
-	socklen_t client_len;
+
+	/* Allocate the client socket handle object. */
+	*client = socket_new();
+	(*client)->addr_len = sizeof(struct sockaddr_storage);
+	(*client)->addr = malloc((*client)->addr_len);
 
 	/* Get the message head. */
 	len = 0;
-	err = socket_recvfrom(sock, peek, 6, (struct sockaddr *)&client,
-	                      &client_len, &len, true, serr);
+	err = socket_recvfrom(sock, peek, 6, (*client)->addr, &(*client)->addr_len,
+	                      &len, true, serr);
 	if (err || (len == 0))
 		return err;
 
@@ -271,31 +278,24 @@ cleanup:
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg) {
+gl_err_t *glproto_msg_sendto(const sock_handle_t *sock, glproto_msg_t *msg) {
 	uint8_t *buf;
-	size_t len;
 	gl_err_t *err;
 
-	/* Calculate the message length and allocate a buffer to send it. */
-	len = glproto_msg_length(msg);
-	buf = malloc(len);
-
-	/* Populate the buffer for sending. */
-	err = glproto_msg_buf(msg, buf);
-	if (err)
-		goto cleanup;
+	/* Allocate and populate the buffer for sending. */
+	buf = glproto_msg_buf(msg);
+	if (buf == NULL)
+		return gl_error_last();
 
 #ifdef DEBUG
-	if (err == NULL) {
-		/* Print out the message for debugging. */
-		glproto_msg_print(msg, "> ");
-	}
+	/* Print out the message for debugging. */
+	glproto_msg_print(msg, "> ");
 #endif /* DEBUG */
 
 	/* Send the message over the network. */
-	err = socket_sendto(sock, buf, len, sock->addr, sock->addr_len, NULL);
+	err = socket_sendto(sock, buf, msg->length, sock->addr, sock->addr_len,
+	                    NULL);
 
-cleanup:
 	/* Free up any allocated resources. */
 	free(buf);
 
@@ -316,45 +316,47 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	uint8_t i;
 	uint16_t len;
 	uint8_t *buf;
+	uint8_t *tmp;
 
 	/* Calculate the message length and allocate a buffer to send it. */
 	len = glproto_msg_length(msg);
 	buf = malloc(len);
+	tmp = buf;
 
 	/* Identifier bits. */
-	*buf++ = 'G';
-	*buf++ = 'L';
-	*buf++ = msg->type;
-	*buf++ = '\0';
+	*tmp++ = 'G';
+	*tmp++ = 'L';
+	*tmp++ = msg->type;
+	*tmp++ = '\0';
 
 	/* Message length. */
 	len = htons(msg->length);
-	*buf++ = (uint8_t)(len >> 8);
-	*buf++ = (uint8_t)(len & 0xFF);
+	*tmp++ = (uint8_t)(len >> 8);
+	*tmp++ = (uint8_t)(len & 0xFF);
 
 	/* GLUPI */
-	*buf++ = '|';
+	*tmp++ = '|';
 	for (i = 0; i < sizeof(msg->glupi); i++) {
-		*buf++ = msg->glupi[i];
+		*tmp++ = msg->glupi[i];
 	}
 
 	/* Device identifier. */
-	*buf++ = '|';
+	*tmp++ = '|';
 	for (i = 0; i < sizeof(msg->device); i++) {
-		*buf++ = msg->device[i];
+		*tmp++ = msg->device[i];
 	}
-	*buf++ = '\0';
+	*tmp++ = '\0';
 
 	/* Hostname */
-	*buf++ = '|';
-	*buf++ = (uint8_t)strlen(msg->hostname) + 1;
+	*tmp++ = '|';
+	*tmp++ = (uint8_t)strlen(msg->hostname) + 1;
 	str = msg->hostname;
 	while (*str != '\0') {
-		*buf++ = *str++;
+		*tmp++ = *str++;
 	}
-	*buf++ = '\0';
+	*tmp++ = '\0';
 
-	return NULL;
+	return buf;
 }
 
 /**

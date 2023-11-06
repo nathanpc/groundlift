@@ -11,11 +11,12 @@
 #include <string.h>
 
 #include "conf.h"
+#include "groundlift/sockets.h"
 #include "protocol.h"
 
 /* Private methods. */
-static gl_err_t *server_reply_discovery(server_handle_t *handle,
-                                        const glproto_msg_t *msg);
+gl_err_t *server_reply_discovery(server_handle_t *handle, sock_handle_t *client,
+                                 const glproto_msg_t *msg);
 static void *server_thread_func(void *handle_ptr);
 
 /**
@@ -222,14 +223,17 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *server_reply_discovery(server_handle_t *handle,
+gl_err_t *server_reply_discovery(server_handle_t *handle, sock_handle_t *client,
                                  const glproto_msg_t *msg) {
 	glproto_msg_t *reply;
 	gl_err_t *err;
 
+	/* Setup the replying socket for sending. */
+	socket_setup_udp(client, false, 0);
+
 	/* Build up the reply message and send it! */
 	reply = glproto_msg_new_our(GLPROTO_TYPE_DISCOVERY);
-	err = glproto_msg_sendto(handle->sock, reply);
+	err = glproto_msg_sendto(client, reply);
 
 	/* Free up any resources that were allocated. */
 	glproto_msg_free(reply);
@@ -251,6 +255,7 @@ void *server_thread_func(void *handle_ptr) {
 	sock_err_t serr;
 	glproto_type_t type;
 	glproto_msg_t *msg;
+	sock_handle_t *client;
 
 	/* Initialize variables. */
 	handle = (server_handle_t *)handle_ptr;
@@ -262,7 +267,9 @@ void *server_thread_func(void *handle_ptr) {
 
 	/* Listen for messages. */
 	msg = NULL;
-	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &serr)) == NULL) {
+	client = NULL;
+	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &client, &serr))
+			== NULL) {
 		/* Check if the message should be ignored. */
 		if ((type == GLPROTO_TYPE_INVALID) || (serr == SOCK_EVT_TIMEOUT))
 			continue;
@@ -270,7 +277,7 @@ void *server_thread_func(void *handle_ptr) {
 		/* Handle each message appropriately. */
 		switch (type) {
 			case GLPROTO_TYPE_DISCOVERY:
-				err = server_reply_discovery(handle, msg);
+				err = server_reply_discovery(handle, client, msg);
 				break;
 			default:
 				printf("Handling messages of type %d not implemented.\n", type);
@@ -284,6 +291,8 @@ void *server_thread_func(void *handle_ptr) {
 		/* Free up any allocated resources. */
 		glproto_msg_free(msg);
 		msg = NULL;
+		socket_free(client);
+		client = NULL;
 	}
 
 	return (void *)err;
