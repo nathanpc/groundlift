@@ -165,6 +165,7 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 		nmsg->device[i++] = *buf++;
 	} while (i < 3);
 	nmsg->device[3] = '\0';
+	buf++;
 
 	/* Parse hostname. */
 	buf++;
@@ -345,7 +346,6 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	for (i = 0; i < sizeof(msg->device); i++) {
 		*tmp++ = msg->device[i];
 	}
-	*tmp++ = '\0';
 
 	/* Hostname */
 	*tmp++ = '|';
