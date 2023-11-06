@@ -55,7 +55,7 @@ void log_errno(log_level_t level, const char *msg) {
 	}
 
 	/* Print the error message. */
-	log_printf(level, "%s: (%d) %ls", msg, dwLastError, szErrorMessage);
+	log_printf(level, "%s: (%d) %ls\n", msg, dwLastError, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -85,7 +85,7 @@ void log_sockerrno(log_level_t level, const char *msg, int err) {
 	}
 
 	/* Print the error message. */
-	log_printf(level, "%s: WSAError (%d) %ls", msg, err, szErrorMessage);
+	log_printf(level, "%s: WSAError (%d) %ls\n", msg, err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
