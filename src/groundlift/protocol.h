@@ -75,18 +75,19 @@ void glproto_msg_free(glproto_msg_t *msg);
 
 /* Validation and parsing. */
 bool glproto_msg_head_isvalid(const uint8_t *head);
-gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *buf, size_t len);
+gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *buf, size_t len);
 
 /* Sending and receiving. */
-gl_err_t *glproto_recvfrom(sock_handle_t *sock, glproto_type_t *type,
-                           glproto_msg_t **msg, sock_err_t *serr);
-gl_err_t *glproto_msg_sendto(sock_handle_t *sock, glproto_msg_t *msg);
+gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
+                           glproto_msg_t **msg, sock_handle_t **client,
+                           sock_err_t *serr);
+gl_err_t *glproto_msg_sendto(const sock_handle_t *sock, glproto_msg_t *msg);
 
 /* Misc. */
 size_t glproto_msg_sizeof(glproto_type_t type);
 
 /* Debugging */
-void glproto_msg_print(glproto_msg_t *msg, const char *prefix);
+void glproto_msg_print(const glproto_msg_t *msg, const char *prefix);
 
 #ifdef __cplusplus
 }

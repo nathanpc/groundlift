@@ -136,7 +136,7 @@ bool glproto_msg_head_isvalid(const uint8_t *head) {
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *glproto_msg_parse(glproto_msg_t **msg, void *rbuf, size_t len) {
+gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 	uint8_t *buf;
 	glproto_type_t type;
 	glproto_msg_t *nmsg;
@@ -381,7 +381,7 @@ size_t glproto_msg_sizeof(glproto_type_t type) {
  * @param prefix String that will prefix each line printed out. Use NULL if no
  *               prefix is required.
  */
-void glproto_msg_print(glproto_msg_t *msg, const char *prefix) {
+void glproto_msg_print(const glproto_msg_t *msg, const char *prefix) {
 	/* Print the prefix? */
 	if (prefix)
 		printf("%s", prefix);
