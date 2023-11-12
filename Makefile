@@ -30,5 +30,15 @@ cli: $(BUILDDIR)/stamp
 gtk2: $(BUILDDIR)/stamp
 	cd linux/gtk2/ && $(MAKE)
 
+run-server:
+	cd cli/ && $(MAKE) run-server
+
+run-client:
+	cd cli/ && $(MAKE) run-client
+
+debug-server: debug run-server
+
+debug-client: debug run-client
+
 clean:
 	$(RM) -r $(BUILDDIR)

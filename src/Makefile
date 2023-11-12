@@ -24,8 +24,6 @@ $(BUILDDIR)/$(PROJECT)/stamp:
 	$(MKDIR) $(@D)
 	$(TOUCH) $@
 
-run: test
-
 debug: CFLAGS += -g3 -DDEBUG
 debug: clean all
 
