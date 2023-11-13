@@ -1,5 +1,6 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
+    <option name="SOFT_MARGINS" value="80" />
     <Objective-C>
       <option name="HEADER_GUARD_STYLE_PATTERN" value="_${FILE_NAME}_${EXT}" />
     </Objective-C>
