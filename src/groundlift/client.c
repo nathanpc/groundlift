@@ -148,7 +148,8 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 }
 
 /**
- * Discovers the peers on the network and returns a list of what we've found.
+ * Discovers the peers on the network from all the possible interfaces (if
+ * SINGLE_IFACE_MODE is not defined) and returns a list of what was found.
  *
  * @warning This function allocates memory that must be freed by you.
  *
@@ -156,12 +157,81 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
+gl_err_t *gl_client_discover_peers(gl_peer_list_t **peers) {
+#ifndef SINGLE_IFACE_MODE
+	iface_info_list_t *if_list;
+	gl_err_t *err;
+	uint8_t i;
+
+	/* Initialize some variables. */
+	err = NULL;
+
+	/* Get the list of network interfaces. */
+	err = socket_iface_info_list(&if_list);
+	if (err) {
+		return gl_error_push(ERR_TYPE_GL, GL_ERR_CLIENT,
+		                     EMSG("Failed to get list of network interfaces"));
+	}
+
+	/* TODO: Determine what to do about peers. */
+
+	/* Go through the network interfaces. */
+	for (i = 0; i < if_list->count; i++) {
+		iface_info_t *iface;
+
+		/* Get the network interface and print its name. */
+		iface = if_list->ifaces[i];
+#ifdef DEBUG
+		log_printf(LOG_INFO, EMSG("Searching for peers on %s...\n"),
+		           iface->name);
+#endif /* DEBUG */
+
+		/* Search for peers on the network. */
+		if (iface->brdaddr->sa_family == AF_INET) {
+			err = gl_client_discover_peers_inaddr(peers,
+				((struct sockaddr_in *)iface->brdaddr)->sin_addr.s_addr);
+			if (err)
+				goto cleanup;
+		} else {
+#ifdef DEBUG
+			log_msg(LOG_WARNING, EMSG("Got an IPv6 address for broadcasting "
+			                          "the discovery message"));
+#endif /* DEBUG */
+		}
+
+		if (i < (if_list->count - 1))
+			printf("\n");
+	}
+
+cleanup:
+	/* Free our network interface list. */
+	socket_iface_info_list_free(if_list);
+
+	return err;
+#else
+	return gl_client_discover_peers_inaddr(peers, INADDR_ANY);
+#endif /* !SINGLE_IFACE_MODE */
+}
+
+/**
+ * Discovers the peers on the network and returns a list of what we've found.
+ *
+ * @warning This function allocates memory that must be freed by you.
+ *
+ * @param peers  List of peers that were found on the network.
+ * @param inaddr Address to send the broadcast message to.
+ *
+ * @return Error report or NULL if the operation was successful.
+ */
+gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
+                                          in_addr_t inaddr) {
 	glproto_type_t type;
 	glproto_msg_t *msg;
 	sock_handle_t *client;
 	gl_err_t *err;
 	sock_err_t serr;
+
+	/* TODO: Append to peers if not NULL. */
 
 	/* Create the client handle. */
 	client_handle_t *handle = gl_client_new();
@@ -181,7 +251,7 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers) {
 	}
 
 	/* Set up the socket for broadcasting. */
-	socket_setaddr(handle->sock, NULL, GL_SERVER_MAIN_PORT);
+	socket_setaddr_inaddr(handle->sock, inaddr, GL_SERVER_MAIN_PORT);
 	err = socket_setup_udp(handle->sock, false, 1000);
 	if (err) {
 		err = gl_error_push_errno(ERR_TYPE_GL, GL_ERR_CLIENT,

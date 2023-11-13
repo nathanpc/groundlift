@@ -64,7 +64,9 @@ gl_err_t *gl_client_connect(client_handle_t *handle, const char *addr,
 gl_err_t *gl_client_disconnect(client_handle_t *handle);
 
 /* Client services. */
-gl_err_t *gl_client_discover_peers(gl_peer_list_t *peers);
+gl_err_t *gl_client_discover_peers(gl_peer_list_t **peers);
+gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
+                                          in_addr_t inaddr);
 
 #ifdef __cplusplus
 }

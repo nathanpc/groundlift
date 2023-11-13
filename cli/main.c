@@ -72,13 +72,9 @@ int main(int argc, char **argv) {
 	} else if ((argc == 5) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
 		/*err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);*/
-	} else if ((argc < 2) || (argv[1][0] == 'l')) {
+	} else if (argv[1][0] == 'l') {
 		/* List peers on the network. */
-#ifndef SINGLE_IFACE_MODE
-		client_list_peers_ifs();
-#else
-		client_list_peers(NULL, true);
-#endif /* !SINGLE_IFACE_MODE */
+		client_list_peers();
 	} else {
 		printf("Unknown mode or invalid number of arguments.\n");
 		ret = 1;
