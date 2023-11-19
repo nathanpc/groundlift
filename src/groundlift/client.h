@@ -57,6 +57,7 @@ typedef struct {
 /* Initialization and destruction. */
 client_handle_t *gl_client_new(void);
 gl_err_t *gl_client_free(client_handle_t *handle);
+void gl_peer_list_free(gl_peer_list_t *peers);
 
 /* Client connection lifecycle. */
 gl_err_t *gl_client_connect(client_handle_t *handle, const char *addr,

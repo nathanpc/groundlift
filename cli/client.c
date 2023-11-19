@@ -80,7 +80,31 @@ cleanup:
  *         operation was successful.
  */
 gl_err_t *client_list_peers(void) {
-	return gl_client_discover_peers(NULL);
+	gl_peer_list_t *peers;
+	gl_err_t *err;
+	uint16_t i;
+
+	/* Get the peer list. */
+	peers = NULL;
+	err = gl_client_discover_peers(&peers);
+	if (err)
+		return err;
+
+	/* Go through the peer list. */
+	for (i = 0; i < peers->count; i++) {
+		char *ipaddr;
+		glproto_discovery_msg_t *peer = peers->list[i];
+
+		/* Get human-readable IP address. */
+		socket_tostr(&ipaddr, peer->head.sock);
+		printf("%s\t%s\t%s\n", peer->head.hostname, ipaddr, peer->head.device);
+		free(ipaddr);
+	}
+
+	/* Free up any resources. */
+	gl_peer_list_free(peers);
+
+	return NULL;
 }
 
 #if 0

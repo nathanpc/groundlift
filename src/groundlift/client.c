@@ -173,8 +173,6 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t **peers) {
 		                     EMSG("Failed to get list of network interfaces"));
 	}
 
-	/* TODO: Determine what to do about peers. */
-
 	/* Go through the network interfaces. */
 	for (i = 0; i < if_list->count; i++) {
 		iface_info_t *iface;
@@ -198,9 +196,6 @@ gl_err_t *gl_client_discover_peers(gl_peer_list_t **peers) {
 			                          "the discovery message"));
 #endif /* DEBUG */
 		}
-
-		if (i < (if_list->count - 1))
-			printf("\n");
 	}
 
 cleanup:
@@ -230,7 +225,12 @@ gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
 	gl_err_t *err;
 	sock_err_t serr;
 
-	/* TODO: Append to peers if not NULL. */
+	/* Check if the peers list has been initialized. */
+	if (*peers == NULL) {
+		*peers = (gl_peer_list_t *)malloc(sizeof(gl_peer_list_t));
+		(*peers)->count = 0;
+		(*peers)->list = NULL;
+	}
 
 	/* Create the client handle. */
 	client_handle_t *handle = gl_client_new();
@@ -276,22 +276,20 @@ gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
 		if (type != GLPROTO_TYPE_DISCOVERY) {
 			gl_error_push(ERR_TYPE_GL, GL_ERR_WARNING,
 				EMSG("Got a discovery reply that wasn't a discovery message"));
+			glproto_msg_free(msg);
+			msg = NULL;
+
 			continue;
 		}
 
-		/* Free up the allocated message. */
-		glproto_msg_free(msg);
-		msg = NULL;
-		socket_free(client);
-		client = NULL;
+		/* Allocate space for our peer. */
+		(*peers)->list = realloc((*peers)->list, ((*peers)->count + 1) *
+		                         sizeof(glproto_discovery_msg_t *));
+		(*peers)->list[(*peers)->count++] = (glproto_discovery_msg_t *)msg;
 	}
 
 cleanup:
 	/* Free up any allocated resources. */
-	glproto_msg_free(msg);
-	msg = NULL;
-	socket_free(client);
-	client = NULL;
 	gl_client_free(handle);
 	handle = NULL;
 
@@ -300,4 +298,26 @@ cleanup:
 		return gl_error_last();
 
 	return err;
+}
+
+/**
+ * Frees up any resources allocated by a peer list object.
+ *
+ * @param peers Peer list object to be freed.
+ */
+void gl_peer_list_free(gl_peer_list_t *peers) {
+	uint16_t i;
+
+	/* Do we even have to do anything? */
+	if (peers == NULL)
+		return;
+
+	/* Free each peer from the list. */
+	for (i = 0; i < peers->count; i++) {
+		glproto_msg_free((glproto_msg_t *)peers->list[i]);
+	}
+
+	/* Free the list object and ourselves. */
+	free(peers->list);
+	free(peers);
 }
