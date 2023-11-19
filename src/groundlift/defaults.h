@@ -44,6 +44,19 @@ extern "C" {
 	#endif /* _WIN32 */
 #endif /* HOST_NAME_MAX */
 
+/* Ensure we are able to store an IP address inside a string. */
+#ifndef IPADDR_STRLEN
+	#ifndef INET6_ADDRSTRLEN
+		#ifdef INET_ADDRSTRLEN
+			#define IPADDR_STRLEN INET_ADDRSTRLEN
+		#else
+			#define IPADDR_STRLEN 17
+		#endif /* INET_ADDRSTRLEN */
+	#else
+		#define IPADDR_STRLEN INET6_ADDRSTRLEN
+	#endif /* INET6_ADDRSTRLEN */
+#endif /* IPADDR_STRLEN */
+
 #ifdef __cplusplus
 }
 #endif

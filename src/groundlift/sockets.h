@@ -118,7 +118,7 @@ gl_err_t *socket_close(sock_handle_t *sock);
 gl_err_t *socket_shutdown(sock_handle_t *sock);
 
 /* Socket string conversions. */
-bool socket_itos(char **buf, const struct sockaddr *sock_addr);
+bool socket_tostr(char **buf, const sock_handle_t *sock);
 in_addr_t socket_inet_addr(const char *ipaddr);
 
 #ifndef SINGLE_IFACE_MODE

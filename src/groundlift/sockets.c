@@ -712,56 +712,26 @@ endshutdown:
 }
 
 /**
- * Converts an IPv4 or IPv6 address from binary to a presentation format string
- * representation.
- * @warning This function will allocate memory that must be free'd by you.
+ * Gets a human-readable IP address string from a socket handle object.
  *
- * @param buf       Pointer to a string that will be populated with the
- *                  presentation format IP address.
- * @param sock_addr Generic IPv4 or IPv6 structure containing the address to be
- *                  converted.
+ * @warning This function will allocate memory that must be freed by you.
+ *
+ * @param buf  Pointer to a string that will be populated with the presentation
+ *             format IP address.
+ * @param sock Socket handle object.
  *
  * @return TRUE if the conversion was successful.
  *         FALSE if an error occurred and we couldn't convert the IP address.
  */
-bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
+bool socket_tostr(char **buf, const sock_handle_t *sock) {
 #ifdef _WIN32
-	TCHAR tmp[INET6_ADDRSTRLEN];
+	TCHAR tmp[IPADDR_STRLEN];
 	DWORD dwLen;
 
-	dwLen = INET6_ADDRSTRLEN;
-#else
-	char tmp[INET6_ADDRSTRLEN];
-#endif /* _WIN32 */
+	/* Perform the string conversion. */
+	dwLen = IPADDR_STRLEN;
+	WSAAddressToString(sock->addr, sock->addr_len, NULL, tmp, &dwLen);
 
-	/* Determine which type of IP address we are dealing with. */
-	switch (sock_addr->sa_family) {
-		case AF_INET:
-#ifdef _WIN32
-			WSAAddressToString(sock_addr, sizeof(struct sockaddr_in), NULL,
-							   tmp, &dwLen);
-#else
-			inet_ntop(AF_INET,
-					  &(((const struct sockaddr_in *)sock_addr)->sin_addr),
-					  tmp, INET_ADDRSTRLEN);
-#endif /* _WIN32 */
-			break;
-		case AF_INET6:
-#ifdef _WIN32
-			WSAAddressToString(sock_addr, sizeof(struct sockaddr_in6), NULL,
-							   tmp, &dwLen);
-#else
-			inet_ntop(AF_INET6,
-					  &(((const struct sockaddr_in6 *)sock_addr)->sin6_addr),
-					  tmp, INET6_ADDRSTRLEN);
-#endif /* _WIN32 */
-			break;
-		default:
-			*buf = NULL;
-			return false;
-	}
-
-#ifdef _WIN32
 	/* Remove the port number from the string. */
 	for (dwLen = 0; tmp[dwLen] != '\0'; dwLen++) {
 		if (tmp[dwLen] == ':') {
@@ -773,16 +743,34 @@ bool socket_itos(char **buf, const struct sockaddr *sock_addr) {
 	/* Convert our string to UTF-8 assigning it to the return value. */
 	*buf = utf16_wcstombs(tmp);
 #else
+	void const *sock_addr;
+
 	/* Allocate space for our return string. */
-	*buf = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
+	*buf = (char *)malloc(IPADDR_STRLEN * sizeof(char));
 	if (*buf == NULL) {
 		log_errno(LOG_FATAL, EMSG("Failed to allocate memory for string "
-								  "representation of IP address"));
+		                          "representation of IP address"));
 		return false;
 	}
 
-	/* Copy our IP address over and return. */
-	strcpy(*buf, tmp);
+	/* Select the appropriate IP address pointer. */
+	switch (sock->addr->sa_family) {
+		case AF_INET:
+			sock_addr = &(((struct sockaddr_in *)sock->addr)->sin_addr);
+			break;
+		case AF_INET6:
+			sock_addr = &(((struct sockaddr_in6 *)sock->addr)->sin6_addr);
+			break;
+		default:
+			log_msg(LOG_ERROR, EMSG("Unknown IP address family"));
+			free(*buf);
+			*buf = NULL;
+
+			return false;
+	}
+
+	/* Perform the string conversion. */
+	inet_ntop(sock->addr->sa_family, sock_addr, *buf, sock->addr_len);
 #endif /* _WIN32 */
 
 	return true;
