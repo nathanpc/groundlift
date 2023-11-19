@@ -18,11 +18,6 @@ extern "C" {
 #define GL_SERVER_MAIN_PORT 1650
 #endif /* GL_SERVER_MAIN_PORT */
 
-/* Peer discovery service port to listen back for replies on. */
-#ifndef GL_CLIENT_DISCOVERY_PORT
-#define GL_CLIENT_DISCOVERY_PORT 1651
-#endif /* GL_CLIENT_DISCOVERY_PORT */
-
 /* Timeout of UDP communications in milliseconds. */
 #ifndef UDP_TIMEOUT_MS
 #define UDP_TIMEOUT_MS 1000
