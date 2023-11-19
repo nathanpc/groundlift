@@ -227,7 +227,6 @@ gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
                                           in_addr_t inaddr) {
 	glproto_type_t type;
 	glproto_msg_t *msg;
-	sock_handle_t *client;
 	gl_err_t *err;
 	sock_err_t serr;
 
@@ -242,7 +241,6 @@ gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
 
 	/* Get a socket handle. */
 	msg = NULL;
-	client = NULL;
 	handle->sock = socket_new();
 	if (handle->sock == NULL) {
 		err = gl_error_push_errno(ERR_TYPE_GL, GL_ERR_CLIENT,
@@ -268,7 +266,7 @@ gl_err_t *gl_client_discover_peers_inaddr(gl_peer_list_t **peers,
 		goto cleanup;
 
 	/* Listen for discovery reply messages. */
-	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &client, &serr))
+	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &serr))
 			== NULL) {
 		/* Check if the discovery period has ended. */
 		if (serr == SOCK_EVT_TIMEOUT)

@@ -59,6 +59,7 @@ glproto_msg_t *glproto_msg_new(glproto_type_t type) {
 	memset(void_msg.glupi, 0, 8);
 	msg->device[0] = '\0';
 	msg->hostname = NULL;
+	msg->sock = NULL;
 
 	return msg;
 }
@@ -85,6 +86,7 @@ glproto_msg_t *glproto_msg_new_our(glproto_type_t type) {
 	memcpy(msg->glupi, conf_get_glupi(), 8);
 	conf_get_devtype(msg->device);
 	msg->hostname = strdup(conf_get_hostname());
+	msg->sock = NULL;
 
 	return msg;
 }
@@ -102,10 +104,16 @@ void glproto_msg_free(glproto_msg_t *msg) {
 	if (msg == NULL)
 		return;
 
-	/* Free the common parts. */
+	/* Free the hostname. */
 	if (msg->hostname) {
 		free(msg->hostname);
 		msg->hostname = NULL;
+	}
+
+	/* Free the socket information. */
+	if (msg->sock) {
+		socket_free(msg->sock);
+		msg->sock = NULL;
 	}
 
 	/* Free the whole rest of the thing. */
@@ -188,32 +196,31 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
  *
  * @warning This function allocates msg and client which must be freed by you.
  *
- * @param sock   Server handle object.
- * @param type   Returns the received message type.
- * @param msg    Returns a parsed message object.
- * @param client Information about the client that sent the message.
- * @param serr   Pointer to store the socket error/status or NULL to ignore.
+ * @param sock Server handle object.
+ * @param type Returns the received message type.
+ * @param msg  Returns a parsed message object.
+ * @param serr Pointer to store the socket error/status or NULL to ignore.
  *
  * @return Error report or NULL if an unrecoverable error occurred.
  */
 gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
-                           glproto_msg_t **msg, sock_handle_t **client,
-                           sock_err_t *serr) {
+                           glproto_msg_t **msg, sock_err_t *serr) {
 	size_t len;
 	size_t rlen;
 	uint8_t peek[6];
 	void *buf;
 	gl_err_t *err;
+	sock_handle_t *client;
 
 	/* Allocate the client socket handle object. */
-	*client = socket_new();
-	(*client)->addr_len = sizeof(struct sockaddr_storage);
-	(*client)->addr = malloc((*client)->addr_len);
+	client = socket_new();
+	client->addr_len = sizeof(struct sockaddr_storage);
+	client->addr = malloc(client->addr_len);
 
 	/* Get the message head. */
 	len = 0;
-	err = socket_recvfrom(sock, peek, 6, (*client)->addr, &(*client)->addr_len,
-	                      &len, true, serr);
+	err = socket_recvfrom(sock, peek, 6, client->addr, &client->addr_len, &len,
+	                      true, serr);
 	if (err || (len == 0))
 		return err;
 
@@ -255,6 +262,7 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 	/* Parse the message. */
 	*type = peek[2];
 	err = glproto_msg_parse(msg, buf, len);
+	(*msg)->sock = client;
 
 #ifdef DEBUG
 	if (err == NULL) {

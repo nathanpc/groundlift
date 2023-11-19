@@ -53,6 +53,8 @@ typedef struct {
 	uint8_t glupi[8];
 	char device[4];
 	char *hostname;
+
+	sock_handle_t *sock;
 } glproto_msg_t;
 
 /**
@@ -79,8 +81,7 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *buf, size_t len);
 
 /* Sending and receiving. */
 gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
-                           glproto_msg_t **msg, sock_handle_t **client,
-                           sock_err_t *serr);
+                           glproto_msg_t **msg, sock_err_t *serr);
 gl_err_t *glproto_msg_sendto(const sock_handle_t *sock, glproto_msg_t *msg);
 
 /* Misc. */
