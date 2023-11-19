@@ -221,8 +221,10 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 	len = 0;
 	err = socket_recvfrom(sock, peek, 6, client->addr, &client->addr_len, &len,
 	                      true, serr);
-	if (err || (len == 0))
+	if (err || (len == 0)) {
+		socket_free(client);
 		return err;
+	}
 
 	/* Check if the message head is valid. */
 	if (len != 6) {
@@ -233,6 +235,7 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 
 		/* Skip the peeked bytes. */
 		socket_recvfrom(sock, peek, 6, NULL, NULL, &len, false, serr);
+		socket_free(client);
 
 		return NULL;
 	} else if (!glproto_msg_head_isvalid(peek)) {
@@ -242,6 +245,7 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 
 		/* Skip the peeked bytes. */
 		socket_recvfrom(sock, peek, 6, NULL, NULL, &len, false, serr);
+		socket_free(client);
 
 		return NULL;
 	}
@@ -256,6 +260,8 @@ gl_err_t *glproto_recvfrom(const sock_handle_t *sock, glproto_type_t *type,
 	if (rlen != len) {
 		err = gl_error_push(ERR_TYPE_SOCKET, SOCK_ERR_ERECV,
 			EMSG("Number of bytes for message expected differ from read"));
+		socket_free(client);
+
 		goto cleanup;
 	}
 

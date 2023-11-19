@@ -549,7 +549,9 @@ gl_err_t *socket_recvfrom(const sock_handle_t *sock, void *buf, size_t buf_len,
 	ssize_t bytes_recv;
 
 	/* Check if we have a valid file descriptor. */
-	if (sock->fd == INVALID_SOCKET) {
+	if ((sock == NULL) || (sock->fd == INVALID_SOCKET)) {
+		if (serr)
+			*serr = SOCK_EVT_CONN_CLOSED;
 		return gl_error_push_sockerr(SOCK_EVT_CONN_CLOSED,
 									 EMSG("Socket closed prematurely"));
 	}

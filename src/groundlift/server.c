@@ -107,8 +107,6 @@ gl_err_t *gl_server_free(server_handle_t *handle) {
 
 	/* Stop the server and free up any allocated socket resources. */
 	gl_server_stop(handle);
-	socket_free(handle->sock);
-	handle->sock = NULL;
 
 	/* Join the server thread back into us. */
 	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
@@ -199,6 +197,7 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 	/* Shut the thing down. */
 	thread_mutex_lock(handle->mutexes.main);
 	err = socket_shutdown(handle->sock);
+	socket_free(handle->sock);
 	handle->sock = NULL;
 	thread_mutex_unlock(handle->mutexes.main);
 
@@ -270,6 +269,10 @@ static void *server_thread_func(void *handle_ptr) {
 	msg = NULL;
 	while ((err = glproto_recvfrom(handle->sock, &type, &msg, &serr))
 			== NULL) {
+		/* Check if the connection was shutdown. */
+		if ((serr == SOCK_EVT_CONN_CLOSED) || (serr == SOCK_EVT_CONN_SHUTDOWN))
+			break;
+
 		/* Check if the message should be ignored. */
 		if ((type == GLPROTO_TYPE_INVALID) || (serr == SOCK_EVT_TIMEOUT))
 			continue;
