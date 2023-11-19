@@ -279,6 +279,10 @@ static void *server_thread_func(void *handle_ptr) {
 		msg = NULL;
 	}
 
+	/* Trigger the server stopped event. */
+	if (handle->events.stopped != NULL)
+		handle->events.stopped(handle->event_args.stopped);
+
 	return (void *)err;
 }
 
