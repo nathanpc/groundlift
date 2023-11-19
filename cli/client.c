@@ -7,9 +7,12 @@
 
 #include "client.h"
 
+#include <string.h>
+
 #include <groundlift/client.h>
 #include <groundlift/defaults.h>
 #include <groundlift/error.h>
+#include <groundlift/sockets.h>
 #include <utils/logging.h>
 
 /* Public variables. */
@@ -83,12 +86,24 @@ gl_err_t *client_list_peers(void) {
 	gl_peer_list_t *peers;
 	gl_err_t *err;
 	uint16_t i;
+	uint8_t max_host_len;
 
 	/* Get the peer list. */
 	peers = NULL;
 	err = gl_client_discover_peers(&peers);
 	if (err)
 		return err;
+
+	/* Get the length of the longest hostname. */
+	max_host_len = 0;
+	for (i = 0; i < peers->count; i++) {
+		size_t hlen = strlen(peers->list[i]->head.hostname);
+		if (hlen > max_host_len)
+			max_host_len = (uint8_t)hlen;
+	}
+
+	/* Print the table header. */
+	printf("%-*s   %-15s   Type\n", max_host_len, "Hostname", "IP Address");
 
 	/* Go through the peer list. */
 	for (i = 0; i < peers->count; i++) {
@@ -97,7 +112,8 @@ gl_err_t *client_list_peers(void) {
 
 		/* Get human-readable IP address. */
 		socket_tostr(&ipaddr, peer->head.sock);
-		printf("%s\t%s\t%s\n", peer->head.hostname, ipaddr, peer->head.device);
+		printf("%-*s   %-15s   %s\n", max_host_len, peer->head.hostname,
+		       ipaddr, peer->head.device);
 		free(ipaddr);
 	}
 
