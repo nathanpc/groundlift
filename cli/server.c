@@ -7,9 +7,6 @@
 
 #include "server.h"
 
-#include <groundlift/defaults.h>
-#include <groundlift/error.h>
-#include <utils/filesystem.h>
 #include <utils/logging.h>
 
 /* Public variables. */
@@ -66,21 +63,16 @@ cleanup:
  * @param arg  Optional data set by the event handler setup.
  */
 void event_started(const sock_handle_t *sock, void *arg) {
-	printf("Server started...\n");
-#if 0
-	char *ipstr;
+	char *ipaddr;
 
 	/* Ignore unused arguments. */
 	(void)arg;
 
 	/* Print some information about the current state of the server. */
-	ipstr = tcp_server_get_ipstr(sock);
-	printf("Server listening on %s port %u (discovery %u)\n", ipstr,
-		   ntohs(server->tcp.addr_in.sin_port),
-		   ntohs(server->udp.addr_in.sin_port));
+	socket_tostr(&ipaddr, sock);
+	printf("Server listening on %s\n", ipaddr);
 
-	free(ipstr);
-#endif
+	free(ipaddr);
 }
 
 /**

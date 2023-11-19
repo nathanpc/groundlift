@@ -145,19 +145,19 @@ bool glproto_msg_head_isvalid(const uint8_t *head) {
  * @return Error report or NULL if the operation was successful.
  */
 gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
-	uint8_t *buf;
+	uint8_t const *buf;
 	glproto_type_t type;
 	glproto_msg_t *nmsg;
 	uint8_t i;
 
 	/* Initialize some defaults. */
-	buf = (uint8_t *)rbuf;
+	buf = (uint8_t const *)rbuf;
 	type = GLPROTO_MSG_TYPE(buf);
 
 	/* Allocate the memory needed to hold our parsed message. */
 	*msg = glproto_msg_new(type);
 	nmsg = *msg;
-	nmsg->length = len;
+	nmsg->length = (uint16_t)len;
 
 	/* Parse the GLUPI. */
 	buf += GLPROTO_MSG_HEADER_VAL_OFFSET;
@@ -170,7 +170,7 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 	buf++;
 	i = 0;
 	do {
-		nmsg->device[i++] = *buf++;
+		nmsg->device[i++] = (char)*buf++;
 	} while (i < 3);
 	nmsg->device[3] = '\0';
 	buf++;
@@ -328,14 +328,14 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	uint8_t *tmp;
 
 	/* Calculate the message length and allocate a buffer to send it. */
-	len = glproto_msg_length(msg);
+	len = (uint16_t)glproto_msg_length(msg);
 	buf = malloc(len);
 	tmp = buf;
 
 	/* Identifier bits. */
 	*tmp++ = 'G';
 	*tmp++ = 'L';
-	*tmp++ = msg->type;
+	*tmp++ = (uint8_t)msg->type;
 	*tmp++ = '\0';
 
 	/* Message length. */
@@ -345,13 +345,13 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 
 	/* GLUPI */
 	*tmp++ = '|';
-	for (i = 0; i < sizeof(msg->glupi); i++) {
+	for (i = 0; i < (uint8_t)sizeof(msg->glupi); i++) {
 		*tmp++ = msg->glupi[i];
 	}
 
 	/* Device identifier. */
 	*tmp++ = '|';
-	for (i = 0; i < sizeof(msg->device); i++) {
+	for (i = 0; i < (uint8_t)sizeof(msg->device); i++) {
 		*tmp++ = msg->device[i];
 	}
 
@@ -383,7 +383,6 @@ size_t glproto_msg_sizeof(glproto_type_t type) {
 			gl_error_push(ERR_TYPE_GL, GL_ERR_PROTOCOL,
 						  EMSG("Unknown message type to get sizeof"));
 			exit(GL_ERR_PROTOCOL);
-			return 0;
 	}
 }
 

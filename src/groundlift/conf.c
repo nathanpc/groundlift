@@ -14,7 +14,6 @@
 #else
 #include <unistd.h>
 #endif /* _WIN32 */
-#include <limits.h>
 #include <string.h>
 #include <utils/filesystem.h>
 
@@ -104,11 +103,11 @@ const char *conf_get_download_dir(void) {
 
 /**
  * Gets the computer's local hostname from the operating system.
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @return Newly allocated hostname string.
  */
-char *conf_gethostname(void) {
+static char *conf_gethostname(void) {
 #ifdef _WIN32
 	TCHAR szHostname[HOST_NAME_MAX + 1];
 	DWORD dwLen;

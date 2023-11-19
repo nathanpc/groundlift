@@ -7,7 +7,6 @@
 
 #include "sockets.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <utils/bits.h>
@@ -32,7 +31,7 @@
 /**
  * Creates a brand new socket handle object.
  *
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @return Newly allocated socket handle object or NULL if we couldn't allocate
  *         the object.
@@ -60,7 +59,7 @@ sock_handle_t *socket_new(void) {
 /**
  * Creates a full copy of a socket handle object.
  *
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  * @warning A new socket descriptor isn't created, so be careful if you're
  *          relying on it or using it in any way since it may become invalid at
  *          any moment.
@@ -87,7 +86,7 @@ sock_handle_t *socket_dup(const sock_handle_t *sock) {
  *
  * @warning This function won't close the socket, just frees up memory.
  *
- * @param sock Socket handle object to be free'd.
+ * @param sock Socket handle object to be freed.
  */
 void socket_free(sock_handle_t *sock) {
 	/* Do we even have anything to do? */
@@ -297,7 +296,7 @@ gl_err_t *socket_setup_udp(sock_handle_t *sock, bool server,
 
 /**
  * Accepts an incoming connection.
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @param socket Server socket handle object.
  *
@@ -812,7 +811,7 @@ in_addr_t socket_inet_addr(const char *ipaddr) {
 #ifndef SINGLE_IFACE_MODE
 /**
  * Allocates a brand new network interface information object.
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @return Newly allocated empty network interface information object or NULL
  *         if an error occurred.
@@ -1046,7 +1045,7 @@ gl_err_t *socket_iface_info_list_push(iface_info_list_t *if_list,
  * Frees up any resources allocated by a network interface information object
  * list.
  *
- * @param if_list Network interface information object list to be free'd.
+ * @param if_list Network interface information object list to be freed.
  */
 void socket_iface_info_list_free(iface_info_list_t *if_list) {
 	uint8_t i;
@@ -1074,7 +1073,7 @@ void socket_iface_info_list_free(iface_info_list_t *if_list) {
 /**
  * Frees up any resources allocated by a network interface information object.
  *
- * @param iface Network interface information object to be free'd.
+ * @param iface Network interface information object to be freed.
  */
 void socket_iface_info_free(iface_info_t *iface) {
 	/* Do we even have anything to do? */

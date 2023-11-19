@@ -52,9 +52,9 @@ extern "C" {
 /* Cross-platform socket file descriptor. */
 #ifndef SOCKFD
 	#ifdef _WIN32
-		#define SOCKFD SOCKET
+        typedef SOCKET SOCKFD
 	#else
-		#define SOCKFD int
+		typedef int SOCKFD;
 	#endif /* _WIN32 */
 #endif /* !SOCKFD */
 

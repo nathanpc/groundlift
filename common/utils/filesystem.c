@@ -26,7 +26,7 @@
 
 /**
  * Creates an empty file bundle.
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @return Newly allocated file bundle object or NULL if an error occurred.
  */
@@ -48,7 +48,7 @@ file_bundle_t *file_bundle_new_empty(void) {
 
 /**
  * Creates a fully populated file bundle from a file path.
- * @warning This function allocates memory that must be free'd by you.
+ * @warning This function allocates memory that must be freed by you.
  *
  * @param fname Path to the file to get information from.
  *
@@ -191,7 +191,7 @@ FILE *file_open(const char *fname, const char *mode) {
 
 /**
  * Reads part of the contents of a file.
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @param fh  Opened file handle.
  * @param buf Buffer to place the contents of the file into. (Allocated by this
@@ -215,7 +215,7 @@ ssize_t file_read(FILE *fh, void **buf, size_t len) {
 		return -1L;
 
 	/* Read some of the contents of the file into the buffer. */
-	nread = fread(*buf, sizeof(uint8_t), len, fh);
+	nread = (ssize_t)fread(*buf, sizeof(uint8_t), len, fh);
 	if (ferror(fh)) {
 		free(*buf);
 		*buf = NULL;
@@ -247,7 +247,7 @@ ssize_t file_write(FILE *fh, const void *buf, size_t len) {
 		return 0;
 
 	/* Write the buffer contents to the file. */
-	n = fwrite(buf, sizeof(uint8_t), len, fh);
+	n = (ssize_t)fwrite(buf, sizeof(uint8_t), len, fh);
 	if (n == 0)
 		return -1L;
 
@@ -288,7 +288,8 @@ sfsize_t file_size(const char *fname) {
 
 	/* Close the file handle and return its size. */
 	file_close(fh);
-	return len;
+
+	return (sfsize_t)len;
 }
 
 /**
@@ -414,7 +415,7 @@ char *dir_defaults_downloads(void) {
 
 /**
  * Concatenates paths together safely.
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @param buf Pointer to final path string. (Allocated internally)
  * @param ... Paths to be concatenated. WARNING: A NULL must be placed at the
@@ -476,7 +477,7 @@ size_t path_concat(char **buf, ...) {
  * Gets the basename of the of a path. This is an implementation-agnostic
  * wrapper around the basename() function.
  *
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @param path Path to have its basename extracted.
  *
@@ -514,7 +515,7 @@ char *path_basename(const char *path) {
 
 /**
  * Gets the extension from a path.
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @param path Path to have its extension extracted from.
  *
@@ -568,7 +569,7 @@ char *path_remove_ext(char *path) {
  * Builds up a valid and unique file download path taking care of any conflicts
  * and avoiding overrides.
  *
- * @warning This function allocates memory that must be free'd by you!
+ * @warning This function allocates memory that must be freed by you!
  *
  * @param dir   Path to the desired download directory.
  * @param fname Desired downloaded file name.

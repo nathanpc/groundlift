@@ -6,14 +6,12 @@
 
 #include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include <groundlift/conf.h>
 #include <groundlift/defaults.h>
 #include <groundlift/error.h>
 #include <groundlift/protocol.h>
-#include <groundlift/sockets.h>
 #include <utils/capabilities.h>
 #ifdef _WIN32
 #include <windows.h>

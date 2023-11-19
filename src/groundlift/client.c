@@ -15,11 +15,8 @@
 #else
 #include <arpa/inet.h>
 #endif /* _WIN32 */
-#include <stdio.h>
 #include <string.h>
-
 #include <utils/logging.h>
-#include <utils/threads.h>
 
 #include "defaults.h"
 
@@ -101,7 +98,7 @@ gl_err_t *gl_client_free(client_handle_t *handle) {
  */
 gl_err_t *gl_client_connect(client_handle_t *handle, const char *addr,
 							uint16_t port) {
-	gl_err_t *err;
+	gl_err_t const *err;
 
     /* Get a socket handle. */
     handle->sock = socket_new();
@@ -131,7 +128,7 @@ gl_err_t *gl_client_connect(client_handle_t *handle, const char *addr,
  * @see gl_client_connect
  */
 gl_err_t *gl_client_disconnect(client_handle_t *handle) {
-	gl_err_t *err;
+	gl_err_t const *err;
 
 	/* Do we even need to shut it down? */
 	if ((handle == NULL) || (handle->sock == NULL))

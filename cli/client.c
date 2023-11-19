@@ -8,11 +8,6 @@
 #include "client.h"
 
 #include <string.h>
-
-#include <groundlift/client.h>
-#include <groundlift/defaults.h>
-#include <groundlift/error.h>
-#include <groundlift/sockets.h>
 #include <utils/logging.h>
 
 /* Public variables. */

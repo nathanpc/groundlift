@@ -117,7 +117,8 @@ gl_err_t *gl_error_push_sockerr(sock_err_t err, const char *msg) {
 
 	return gl_last_error;
 #else
-	return gl_error_push_prefix(ERR_TYPE_SOCKET, err, msg, strerror(errno));
+	return gl_error_push_prefix(ERR_TYPE_SOCKET, (int8_t)err, msg,
+	                            strerror(errno));
 #endif /* _WIN32 */
 }
 
@@ -274,7 +275,7 @@ void gl_error_print(gl_err_t *err) {
 /**
  * Raises a software exception in debug builds.
  */
-void gl_error_raise_exception(void) {
+static void gl_error_raise_exception(void) {
 #ifdef DEBUG
 #ifdef _WIN32
 	__debugbreak();

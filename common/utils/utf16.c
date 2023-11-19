@@ -13,9 +13,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <tchar.h>
-#endif /* _WIN32 */
 
 #include "capabilities.h"
+#endif /* _WIN32 */
 
 #ifdef _WIN32
 	/* Define the UTF-8 codepage on older systems. */

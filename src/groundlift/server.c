@@ -11,11 +11,10 @@
 #include <string.h>
 
 #include "conf.h"
-#include "groundlift/sockets.h"
 #include "protocol.h"
 
 /* Private methods. */
-static gl_err_t *server_reply_discovery(server_handle_t *handle,
+static gl_err_t *server_reply_discovery(server_handle_t const *handle,
                                         const glproto_msg_t *msg);
 static void *server_thread_func(void *handle_ptr);
 
@@ -191,7 +190,7 @@ gl_err_t *gl_server_loop(server_handle_t *handle) {
  * @see gl_server_free
  */
 gl_err_t *gl_server_stop(server_handle_t *handle) {
-	gl_err_t *err = NULL;
+	gl_err_t const *err = NULL;
 
 	/* Do we even need to stop it? */
 	if ((handle == NULL) || (handle->sock == NULL))
@@ -205,14 +204,14 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 
 	/* Check for errors so far. */
 	if (err != NULL) {
-		err = gl_error_push(ERR_TYPE_GL, GL_ERR_SERVER,
+		gl_error_push(ERR_TYPE_GL, GL_ERR_SERVER,
 			EMSG("Failed to shutdown the main server socket"));
 	}
 
 	/* Wait for the server thread to stop. */
-	err = gl_server_loop(handle);
+	gl_server_loop(handle);
 
-	return err;
+	return gl_error_last();
 }
 
 /**
@@ -223,10 +222,13 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
  *
  * @return Error report or NULL if the operation was successful.
  */
-gl_err_t *server_reply_discovery(server_handle_t *handle,
-                                 const glproto_msg_t *msg) {
+static gl_err_t *server_reply_discovery(server_handle_t const *handle,
+                                        const glproto_msg_t *msg) {
 	glproto_msg_t *reply;
 	gl_err_t *err;
+
+	/* Ignore unused parameter. */
+	(void)handle;
 
 	/* Set up the replying socket for sending. */
 	socket_setup_udp(msg->sock, false, 0);
@@ -249,7 +251,7 @@ gl_err_t *server_reply_discovery(server_handle_t *handle,
  *
  * @return Error report or NULL if the operation was successful.
  */
-void *server_thread_func(void *handle_ptr) {
+static void *server_thread_func(void *handle_ptr) {
 	server_handle_t *handle;
 	gl_err_t *err;
 	sock_err_t serr;
