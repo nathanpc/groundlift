@@ -106,15 +106,7 @@ gl_err_t *gl_server_free(server_handle_t *handle) {
 		return NULL;
 
 	/* Stop the server and free up any allocated socket resources. */
-	gl_server_stop(handle);
-
-	/* Join the server thread back into us. */
-	if (thread_join(&handle->threads.main, (void **)&err) > THREAD_OK) {
-		err = gl_error_push_errno(ERR_TYPE_SYS, SYS_ERR_THREAD,
-								  EMSG("Main server thread join failed"));
-	}
-
-	/* Free our mutexes. */
+	err = gl_server_stop(handle);
 	thread_mutex_free(&handle->mutexes.main);
 
 	return err;
@@ -188,7 +180,7 @@ gl_err_t *gl_server_loop(server_handle_t *handle) {
  * @see gl_server_free
  */
 gl_err_t *gl_server_stop(server_handle_t *handle) {
-	gl_err_t const *err = NULL;
+	gl_err_t *err = NULL;
 
 	/* Do we even need to stop it? */
 	if ((handle == NULL) || (handle->sock == NULL))
@@ -201,16 +193,7 @@ gl_err_t *gl_server_stop(server_handle_t *handle) {
 	handle->sock = NULL;
 	thread_mutex_unlock(handle->mutexes.main);
 
-	/* Check for errors so far. */
-	if (err != NULL) {
-		gl_error_push(ERR_TYPE_GL, GL_ERR_SERVER,
-			EMSG("Failed to shutdown the main server socket"));
-	}
-
-	/* Wait for the server thread to stop. */
-	gl_server_loop(handle);
-
-	return gl_error_last();
+	return err;
 }
 
 /**
