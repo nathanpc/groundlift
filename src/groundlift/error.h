@@ -20,9 +20,7 @@ extern "C" {
 #ifdef DEBUG
 	#define STRINGIZE(x) STRINGIZE_WRAPPER(x)
 	#define STRINGIZE_WRAPPER(x) #x
-	#define EMSG(msg) msg " [" __FILE__ ":" STRINGIZE(__LINE__) "]"
-	#define DEBUG_LOG(msg) \
-		printf("[DEBUG] \"%s\" [" __FILE__ ":" STRINGIZE(__LINE__) "]\n", (msg))
+	#define EMSG(msg) "[" __FILE__ ":" STRINGIZE(__LINE__) "] " msg
 #else
 	#define EMSG(msg) msg
 	#define DEBUG_LOG(msg) (void)0

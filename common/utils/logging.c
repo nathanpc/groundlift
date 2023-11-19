@@ -23,6 +23,16 @@
 #define FORMAT_MESSAGE_LANG MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
 #endif /* _WIN32 */
 
+/* Terminal color escape code definitions. */
+#define TC_RED   "\x1B[31m"
+#define TC_GRN   "\x1B[32m"
+#define TC_YEL   "\x1B[33m"
+#define TC_BLU   "\x1B[34m"
+#define TC_MAG   "\x1B[35m"
+#define TC_CYN   "\x1B[36m"
+#define TC_WHT   "\x1B[37m"
+#define TC_RST "\x1B[0m"
+
 /**
  * Logs a generic message.
  *
@@ -111,27 +121,28 @@ void log_printf(log_level_t level, const char *format, ...) {
 	/* Print the log level tag. */
 	switch (level) {
 		case LOG_FATAL:
-			fprintf(stderr, "[FATAL] ");
+			fprintf(stderr, TC_RED "[FATAL] ");
 			break;
 		case LOG_ERROR:
-			fprintf(stderr, "[ERROR] ");
+			fprintf(stderr, TC_RED "[ERROR] ");
 			break;
 		case LOG_WARNING:
-			fprintf(stderr, "[WARNING] ");
+			fprintf(stderr, TC_YEL "[WARNING] ");
 			break;
 		case LOG_INFO:
-			fprintf(stderr, "[INFO] ");
+			fprintf(stderr, TC_WHT "[INFO] ");
 			break;
 		case LOG_DEBUG:
-			fprintf(stderr, "[DEBUG] ");
+			fprintf(stderr, TC_WHT "[DEBUG] ");
 			break;
 		default:
-			fprintf(stderr, "[UNKNOWN] ");
+			fprintf(stderr, TC_MAG "[UNKNOWN] ");
 			break;
 	}
 
 	/* Print the actual message. */
 	va_start(args, format);
+	fprintf(stderr, TC_RST);
 	vfprintf(stderr, format, args);
 	va_end(args);
 }
