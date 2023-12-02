@@ -95,21 +95,21 @@ common structure.
 
 The start of every message will look like this example:
 
-| Data | Hex | Length | Description |
-| :---: | :---: | :---: | :--- |
-| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'?'` | `3F` | 1 | Message type identifier character |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `31` | `00 1F` | 2 | Length of the entire message |
-| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
-| ... | ... | 8 | GroundLift Unique Peer Identifier |
-| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
-| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
-| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
-| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
-| ... | ... | ... | ... |
+|     Data     |    Hex     | Length | Description                                      |
+|:------------:|:----------:|:------:|:-------------------------------------------------|
+|    `'GL'`    |  `47 4C`   |   2    | GroundLift packet identifier                     |
+|    `'?'`     |    `3F`    |   1    | Message type identifier character                |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|     `31`     |  `00 1F`   |   2    | Length of the entire message                     |
+|    `'\|'`    |    `7C`    |   1    | `GLUPI` header field start marker                |
+|     ...      |    ...     |   8    | GroundLift Unique Peer Identifier                |
+|    `'\|'`    |    `7C`    |   1    | `Device/OS Identifier` header field start marker |
+|   `'Win'`    | `57 69 6E` |   3    | Device or OS identification characters           |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|    `'\|'`    |    `7C`    |   1    | `Hostname` header field start marker             |
+|     `9`      |    `09`    |   1    | Length of the string with the `NUL` terminator   |
+| `"hostname"` |    ...     |   9    | Hostname string with a `NUL` terminator          |
+|     ...      |    ...     |  ...   | ...                                              |
 
 ## Transaction Examples
 
@@ -157,27 +157,27 @@ interpreted as a cancellation.
 
 #### Request Message Example
 
-| Data | Hex | Length | Description |
-| :---: | :---: | :---: | :--- |
-| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'F'` | `44` | 1 | `Send File Request` message type identifier |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `47` | `00 2F` | 2 | Length of the entire message |
-| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
-| ... | ... | 8 | GroundLift Unique Peer Identifier |
-| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
-| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
-| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
-| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
-| `'\|'` | `7C` | 1 | `TCP Port` header field start marker |
-| `1651` | `06 73` | 2 | TCP port on `send-server` to get the file from |
-| `'\|'` | `7C` | 1 | `File length` header field start marker |
-| `1024` | `04 00` | 2 | Length of the contents of the file |
-| `'\|'` | `7C` | 1 | `File name` header field start marker |
-| `8` | `08` | 1 | Length of the string with the `NUL` terminator |
-| `"file.txt"` | ... | 8 | File name string with a `NUL` terminator |
+|     Data     |    Hex     | Length | Description                                      |
+|:------------:|:----------:|:------:|:-------------------------------------------------|
+|    `'GL'`    |  `47 4C`   |   2    | GroundLift packet identifier                     |
+|    `'F'`     |    `44`    |   1    | `Send File Request` message type identifier      |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|     `53`     |  `00 35`   |   2    | Length of the entire message                     |
+|    `'\|'`    |    `7C`    |   1    | `GLUPI` header field start marker                |
+|     ...      |    ...     |   8    | GroundLift Unique Peer Identifier                |
+|    `'\|'`    |    `7C`    |   1    | `Device/OS Identifier` header field start marker |
+|   `'Win'`    | `57 69 6E` |   3    | Device or OS identification characters           |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|    `'\|'`    |    `7C`    |   1    | `Hostname` header field start marker             |
+|     `9`      |    `09`    |   1    | Length of the string with the `NUL` terminator   |
+| `"hostname"` |    ...     |   9    | Hostname string with a `NUL` terminator          |
+|    `'\|'`    |    `7C`    |   1    | `TCP Port` header field start marker             |
+|    `1651`    |  `06 73`   |   2    | TCP port on `send-server` to get the file from   |
+|    `'\|'`    |    `7C`    |   1    | `File length` header field start marker          |
+| `3214567890` |    ...     |   8    | Length of the contents of the file               |
+|    `'\|'`    |    `7C`    |   1    | `File name` header field start marker            |
+|     `8`      |    `08`    |   1    | Length of the string with the `NUL` terminator   |
+| `"file.txt"` |    ...     |   8    | File name string with a `NUL` terminator         |
 
 ### Peer Discovery
 
@@ -194,20 +194,20 @@ A `send-client` that wishes to present its user with a list of peer
 `recv-server` may send a peer discovery request message to the **network
 broadcast address** with the following structure:
 
-| Data | Hex | Length | Description |
-| :---: | :---: | :---: | :--- |
-| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'D'` | `44` | 1 | `Peer Discovery` message type identifier |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `31` | `00 1F` | 2 | Length of the entire message |
-| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
-| ... | ... | 8 | GroundLift Unique Peer Identifier |
-| `'\|'` | `7C` | 1 | `Device/OS Identifier` header field start marker |
-| `'Win'` | `57 69 6E` | 3 | Device or OS identification characters |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `'\|'` | `7C` | 1 | `Hostname` header field start marker |
-| `9` | `09` | 1 | Length of the string with the `NUL` terminator |
-| `"hostname"` | ... | 9 | Hostname string with a `NUL` terminator |
+|     Data     |    Hex     | Length | Description                                      |
+|:------------:|:----------:|:------:|:-------------------------------------------------|
+|    `'GL'`    |  `47 4C`   |   2    | GroundLift packet identifier                     |
+|    `'D'`     |    `44`    |   1    | `Peer Discovery` message type identifier         |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|     `31`     |  `00 1F`   |   2    | Length of the entire message                     |
+|    `'\|'`    |    `7C`    |   1    | `GLUPI` header field start marker                |
+|     ...      |    ...     |   8    | GroundLift Unique Peer Identifier                |
+|    `'\|'`    |    `7C`    |   1    | `Device/OS Identifier` header field start marker |
+|   `'Win'`    | `57 69 6E` |   3    | Device or OS identification characters           |
+|    `NUL`     |    `00`    |   1    | `NUL` separator                                  |
+|    `'\|'`    |    `7C`    |   1    | `Hostname` header field start marker             |
+|     `9`      |    `09`    |   1    | Length of the string with the `NUL` terminator   |
+| `"hostname"` |    ...     |   9    | Hostname string with a `NUL` terminator          |
 
 #### Response
 
@@ -223,14 +223,14 @@ expected** from the `recv-server` that receives this message.
 
 #### Message Example
 
-| Data | Hex | Length | Description |
-| :---: | :---: | :---: | :--- |
-| `'GL'` | `47 4C` | 2 | GroundLift packet identifier |
-| `'U'` | `55` | 1 | `Send URL` message type identifier |
-| `NUL` | `00` | 1 | `NUL` separator |
-| `35` | `00 23` | 2 | Length of the entire message |
-| `'\|'` | `7C` | 1 | `GLUPI` header field start marker |
-| ... | ... | 8 | GroundLift Unique Peer Identifier |
-| `'\|'` | `7C` | 1 | `URL` header field start marker |
-| `17` | `00 11` | 2 | Length of the URL with the `NUL` terminator |
-| `"http://test.com/"` | ... | 17 | URL as a string with a `NUL` terminator |
+|         Data         |   Hex   | Length | Description                                 |
+|:--------------------:|:-------:|:------:|:--------------------------------------------|
+|        `'GL'`        | `47 4C` |   2    | GroundLift packet identifier                |
+|        `'U'`         |  `55`   |   1    | `Send URL` message type identifier          |
+|        `NUL`         |  `00`   |   1    | `NUL` separator                             |
+|         `35`         | `00 23` |   2    | Length of the entire message                |
+|        `'\|'`        |  `7C`   |   1    | `GLUPI` header field start marker           |
+|         ...          |   ...   |   8    | GroundLift Unique Peer Identifier           |
+|        `'\|'`        |  `7C`   |   1    | `URL` header field start marker             |
+|         `17`         | `00 11` |   2    | Length of the URL with the `NUL` terminator |
+| `"http://test.com/"` |   ...   |   17   | URL as a string with a `NUL` terminator     |
