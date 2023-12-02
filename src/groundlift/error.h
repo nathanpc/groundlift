@@ -71,12 +71,13 @@ typedef enum {
  * Return codes for high level GroundLift functions.
  */
 typedef enum {
-	GL_ERR_WARNING = -1,
+	GL_ERR_NOT_IMPLEMENTED = -2,
+	GL_ERR_WARNING,
 	GL_OK,
 	GL_ERR_UNKNOWN,
 	GL_ERR_SERVER,
 	GL_ERR_CLIENT,
-	GL_ERR_PROTOCOL
+	GL_ERR_PROTOCOL,
 } gl_ret_t;
 
 /**

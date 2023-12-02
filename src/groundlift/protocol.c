@@ -61,6 +61,20 @@ glproto_msg_t *glproto_msg_new(glproto_type_t type) {
 	msg->hostname = NULL;
 	msg->sock = NULL;
 
+	/* Ensure the same sane defaults specific to some message types. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE:
+			((glproto_file_req_msg_t *)msg)->fb = NULL;
+			break;
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message object doesn't have new implemented"));
+			break;
+	}
+
 	return msg;
 }
 
@@ -88,6 +102,20 @@ glproto_msg_t *glproto_msg_new_our(glproto_type_t type) {
 	msg->hostname = strdup(conf_get_hostname());
 	msg->sock = NULL;
 
+	/* Ensure the same sane defaults specific to some message types. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE:
+			((glproto_file_req_msg_t *)msg)->fb = NULL;
+			break;
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message object doesn't have new implemented"));
+			break;
+	}
+
 	return msg;
 }
 
@@ -114,6 +142,23 @@ void glproto_msg_free(glproto_msg_t *msg) {
 	if (msg->sock) {
 		socket_free(msg->sock);
 		msg->sock = NULL;
+	}
+
+	/* Free things specific to some message types. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE: {
+			glproto_file_req_msg_t *req_msg = ((glproto_file_req_msg_t *)msg);
+			file_bundle_free(req_msg->fb);
+			req_msg->fb = NULL;
+			break;
+		}
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message object doesn't have free implemented"));
+			break;
 	}
 
 	/* Free the whole rest of the thing. */
@@ -184,7 +229,15 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 
 	/* Parse any message type-specific headers. */
 	switch (type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE:
+			/* TODO: Implement file transfer request messages. */
+			break;
 		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message received doesn't have a parser implemented"));
 			break;
 	}
 
@@ -370,6 +423,8 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	}
 	*tmp++ = '\0';
 
+	/* TODO: Implement file transfer object. */
+
 	return buf;
 }
 
@@ -385,6 +440,8 @@ size_t glproto_msg_sizeof(glproto_type_t type) {
 	switch (type) {
 		case GLPROTO_TYPE_DISCOVERY:
 			return sizeof(glproto_discovery_msg_t);
+		case GLPROTO_TYPE_FILE:
+			return sizeof(glproto_file_req_msg_t);
 		default:
 			gl_error_push(ERR_TYPE_GL, GL_ERR_PROTOCOL,
 						  EMSG("Unknown message type to get sizeof"));
@@ -427,6 +484,24 @@ void glproto_msg_print(const glproto_msg_t *msg, const char *prefix) {
 	printf("%sGLUPI: %x/%x/%x/%x/%x/%x/%x/%x\n", (prefix) ? prefix : "",
 	       msg->glupi[0], msg->glupi[1], msg->glupi[2], msg->glupi[3],
 	       msg->glupi[4], msg->glupi[5], msg->glupi[6], msg->glupi[7]);
+
+	/* Print specific stuff to a message type. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE: {
+			glproto_file_req_msg_t *fr = ((glproto_file_req_msg_t *)msg);
+			printf("Transfer Port: %u", fr->port);
+			printf("File: %s (%llu bytes)\n", fr->fb->base, fr->fb->size);
+			break;
+		}
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message type doesn't have its print implemented"));
+			break;
+	}
+
 	printf("\n");
 }
 
@@ -444,6 +519,22 @@ size_t glproto_msg_length(glproto_msg_t *msg) {
 
 	/* Calculate length of the common part. */
 	len += 22 + strlen(msg->hostname) + 1;
+
+	/* Calculate the length of specific parts. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE: {
+			const glproto_file_req_msg_t *fr = ((glproto_file_req_msg_t *)msg);
+			len += 14 + strlen(fr->fb->base) + 1;
+			break;
+		}
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message type doesn't have its print implemented"));
+			break;
+	}
 
 	/* Update the length field in the message. */
 	msg->length = (uint16_t)len;

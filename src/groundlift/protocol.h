@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <utils/filesystem.h>
+
 #include "error.h"
 #include "sockets.h"
 
@@ -63,6 +65,15 @@ typedef struct {
 typedef struct {
 	glproto_msg_t head;
 } glproto_discovery_msg_t;
+
+/**
+ * File send request message structure.
+ */
+typedef struct {
+	glproto_msg_t head;
+	uint16_t port;
+	file_bundle_t *fb;
+} glproto_file_req_msg_t;
 
 /* Special messages. */
 extern glproto_msg_t *glproto_invalid_msg;
