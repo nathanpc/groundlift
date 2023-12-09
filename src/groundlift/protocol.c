@@ -236,9 +236,8 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 			/* TODO: Implement file transfer request messages. */
 			break;
 		default:
-			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+			return gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
 				EMSG("Message received doesn't have a parser implemented"));
-			break;
 	}
 
 	return NULL;
@@ -423,7 +422,57 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 	}
 	*tmp++ = '\0';
 
-	/* TODO: Implement file transfer object. */
+	/* Encode any message type-specific headers. */
+	switch (msg->type) {
+		case GLPROTO_TYPE_DISCOVERY:
+			/* No need to do anything else at this point. */
+			break;
+		case GLPROTO_TYPE_FILE: {
+			size_t slen;
+			const char *sbuf;
+			const glproto_file_req_msg_t *frm =
+			        ((const glproto_file_req_msg_t *)msg);
+
+			/* TCP port for file transfer. */
+			*tmp++ = '|';
+			*tmp++ = (uint8_t)((frm->port >> 8) & 0xFF);
+			*tmp++ = (uint8_t)(frm->port & 0xFF);
+
+			/* File length. */
+			*tmp++ = '|';
+			*tmp++ = (uint8_t)((frm->fb->size >> 56) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 48) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 40) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 32) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 24) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 16) & 0xFF);
+			*tmp++ = (uint8_t)((frm->fb->size >> 8) & 0xFF);
+			*tmp++ = (uint8_t)(frm->fb->size & 0xFF);
+
+			/* File name. */
+			*tmp++ = '|';
+			slen = strlen(frm->fb->base);
+			if (slen > 254) {
+				gl_error_push(ERR_TYPE_GL, GL_ERR_WARNING,
+					EMSG("File name is longer than 255 chars, will truncate"));
+			}
+			*tmp++ = (uint8_t)(slen & 0xFF);
+			sbuf = frm->fb->base;
+			for (i = 0; i < 0xFF; i++) {
+				if (*sbuf == '\0')
+					break;
+
+				*tmp++ = *sbuf++;
+			}
+			*tmp++ = '\0';
+
+			break;
+		}
+		default:
+			gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
+				EMSG("Message to send doesn't have an encoder implemented"));
+			break;
+	}
 
 	return buf;
 }
@@ -491,9 +540,11 @@ void glproto_msg_print(const glproto_msg_t *msg, const char *prefix) {
 			/* No need to do anything else at this point. */
 			break;
 		case GLPROTO_TYPE_FILE: {
-			glproto_file_req_msg_t *fr = ((glproto_file_req_msg_t *)msg);
-			printf("Transfer Port: %u", fr->port);
-			printf("File: %s (%llu bytes)\n", fr->fb->base, fr->fb->size);
+			const glproto_file_req_msg_t *fr =
+			        ((const glproto_file_req_msg_t *)msg);
+			printf("%sTransfer Port: %u\n", (prefix) ? prefix : "", fr->port);
+			printf("%sFile: %s (%llu bytes)\n", (prefix) ? prefix : "",
+			       fr->fb->base, fr->fb->size);
 			break;
 		}
 		default:
