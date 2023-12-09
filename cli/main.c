@@ -67,9 +67,9 @@ int main(int argc, char **argv) {
 	if ((argc < 2) || (argv[1][0] == 's')) {
 		server_run(NULL, GL_SERVER_MAIN_PORT);
 		gl_server_loop(g_server);
-	} else if ((argc == 5) && (argv[1][0] == 'c')) {
+	} else if ((argc == 4) && (argv[1][0] == 'c')) {
 		/* Exchange some information with the server. */
-		/*err = client_send(argv[2], (uint16_t)atoi(argv[3]), argv[4]);*/
+		client_send(argv[2], argv[3]);
 	} else if (argv[1][0] == 'l') {
 		/* List peers on the network. */
 		client_list_peers();

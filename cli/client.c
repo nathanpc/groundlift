@@ -8,59 +8,49 @@
 #include "client.h"
 
 #include <string.h>
-#include <utils/logging.h>
+#include <groundlift/error.h>
+#include <groundlift/defaults.h>
 
 /* Public variables. */
 client_handle_t *g_client;
 
-#if 0
 /**
  * Perform an entire send exchange with the server.
  *
  * @param ip    Server's IP to send the data to.
- * @param port  Server port to talk to.
  * @param fname Path to a file to be sent to the server.
  *
  * @return An error report if something unexpected happened or NULL if the
  *         operation was successful.
  */
-gl_err_t *client_send(const char *ip, uint16_t port, const char *fname) {
+gl_err_t *client_send(const char *ip, const char *fname) {
 	gl_err_t *err = NULL;
 
 	/* Construct the client handle object. */
 	g_client = gl_client_new();
 	if (g_client == NULL) {
-		return gl_error_new_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
+		return gl_error_push_errno(ERR_TYPE_GL, GL_ERR_UNKNOWN,
 			EMSG("Failed to construct the client handle object"));
 	}
 
-	/* Setup event handlers. */
+	/* Set up event handlers. */
+#if 0
 	gl_client_evt_conn_set(g_client, event_connected, NULL);
 	gl_client_evt_conn_req_resp_set(g_client, event_conn_req_resp, NULL);
 	gl_client_evt_put_progress_set(g_client, event_send_progress, NULL);
 	gl_client_evt_put_succeed_set(g_client, event_send_success, NULL);
 	gl_client_evt_disconn_set(g_client, event_disconnected, NULL);
+#endif
 
-	/* Setup the client. */
-	err = gl_client_setup(g_client, ip, port, fname);
-	if (err) {
-		log_printf(LOG_ERROR, "Client setup failed.\n");
+	/* Set up the client. */
+	err = gl_client_connect(g_client, ip, GL_SERVER_MAIN_PORT);
+	if (err)
 		goto cleanup;
-	}
 
-	/* Connect to the server. */
-	err = gl_client_connect(g_client);
-	if (err) {
-		log_printf(LOG_ERROR, "Client failed to start.\n");
+	/* Send the file request and wait. */
+	err = gl_client_send_file(g_client, fname);
+	if (err)
 		goto cleanup;
-	}
-
-	/* Wait for it to return. */
-	err = gl_client_thread_join(g_client);
-	if (err) {
-		log_printf(LOG_ERROR, "Client thread returned with errors.\n");
-		goto cleanup;
-	}
 
 cleanup:
 	/* Free up any resources. */
@@ -69,7 +59,6 @@ cleanup:
 
 	return err;
 }
-#endif
 
 /**
  * Lists the peers throughout all of the network interfaces.
