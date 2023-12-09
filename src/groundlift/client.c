@@ -145,6 +145,50 @@ gl_err_t *gl_client_disconnect(client_handle_t *handle) {
 }
 
 /**
+ * Sends a file request and sets up the file transfer with a peer.
+ *
+ * @param handle Client's handle object.
+ * @param fpath  Path to the file to be transferred.
+ *
+ * @return Error report or NULL if the operation was successful.
+ */
+gl_err_t *gl_client_send_file(client_handle_t *handle, const char *fpath) {
+	glproto_file_req_msg_t *msg;
+	gl_err_t *err;
+
+	/* Create the file bundle. */
+	msg = NULL;
+	handle->fb = file_bundle_new(fpath);
+	if ((handle->fb == NULL) || !file_exists(fpath)) {
+		err = gl_error_push(ERR_TYPE_GL, GL_ERR_CLIENT,
+			EMSG("File to send not found or an error occurred"));
+		return err;
+	}
+
+	/* Set up the socket for sending the request. */
+	err = socket_setup_udp(handle->sock, false, 1000);
+	if (err) {
+		err = gl_error_push_errno(ERR_TYPE_GL, GL_ERR_CLIENT,
+			EMSG("Failed to set up the peer discovery socket"));
+		return err;
+	}
+
+	/* Build up the request message and send it! */
+	msg = (glproto_file_req_msg_t *)glproto_msg_new_our(GLPROTO_TYPE_FILE);
+	msg->port = GL_TCP_TRANSFER_START_PORT; /* TODO: Check if port is available. */
+	msg->fb = file_bundle_dup(handle->fb);
+	err = glproto_msg_sendto(handle->sock, (glproto_msg_t *)msg);
+	glproto_msg_free((glproto_msg_t *)msg);
+	msg = NULL;
+	if (err)
+		return err;
+
+	/* TODO: Implement the TCP server for the transfer. */
+
+	return NULL;
+}
+
+/**
  * Discovers the peers on the network from all the possible interfaces (if
  * SINGLE_IFACE_MODE is not defined) and returns a list of what was found.
  *

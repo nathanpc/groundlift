@@ -18,6 +18,11 @@ extern "C" {
 #define GL_SERVER_MAIN_PORT 1650
 #endif /* GL_SERVER_MAIN_PORT */
 
+/* First TCP port to listen on for file transfers. */
+#ifndef GL_TCP_TRANSFER_START_PORT
+#define GL_TCP_TRANSFER_START_PORT (GL_SERVER_MAIN_PORT + 1)
+#endif /* GL_TCP_TRANSFER_START_PORT */
+
 /* Timeout of UDP communications in milliseconds. */
 #ifndef UDP_TIMEOUT_MS
 #define UDP_TIMEOUT_MS 1000
