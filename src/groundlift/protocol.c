@@ -223,22 +223,55 @@ gl_err_t *glproto_msg_parse(glproto_msg_t **msg, const void *rbuf, size_t len) {
 	/* Parse hostname. */
 	buf++;
 	i = *buf++;
-	nmsg->hostname = realloc(nmsg->hostname, i);
+	nmsg->hostname = realloc(nmsg->hostname, i * sizeof(char));
 	strncpy(nmsg->hostname, (const char *)buf, i);
 	nmsg->hostname[i - 1] = '\0';
+	buf += i;
 
 	/* Parse any message type-specific headers. */
 	switch (type) {
 		case GLPROTO_TYPE_DISCOVERY:
 			/* No need to do anything else at this point. */
 			break;
-		case GLPROTO_TYPE_FILE:
-			/* TODO: Implement file transfer request messages. */
+		case GLPROTO_TYPE_FILE: {
+			glproto_file_req_msg_t *frm = (glproto_file_req_msg_t *)nmsg;
+
+			/* Parse TCP transfer port. */
+			buf++;
+			frm->port = 0;
+			frm->port |= (uint16_t)((*buf++) << 8);
+			frm->port |= (uint16_t)((*buf++) & 0xFF);
+
+			/* Parse file length. */
+			buf++;
+			frm->fb = file_bundle_new_empty();
+			frm->fb->size = 0;
+			frm->fb->size |= (fsize_t)(*buf++) << 56;
+			frm->fb->size |= (fsize_t)(*buf++) << 48;
+			frm->fb->size |= (fsize_t)(*buf++) << 40;
+			frm->fb->size |= (fsize_t)(*buf++) << 32;
+			frm->fb->size |= (fsize_t)(*buf++) << 24;
+			frm->fb->size |= (fsize_t)(*buf++) << 16;
+			frm->fb->size |= (fsize_t)(*buf++) << 8;
+			frm->fb->size |= (fsize_t)((*buf++) & 0xFF);
+
+			/* Parse file name. */
+			buf++;
+			i = *buf++;
+			frm->fb->base = (char *)malloc(i * sizeof(char));
+			strncpy(frm->fb->base, (const char *)buf, i);
+			frm->fb->base[i - 1] = '\0';
+			buf += i;
+
 			break;
+		}
 		default:
 			return gl_error_push(ERR_TYPE_GL, GL_ERR_NOT_IMPLEMENTED,
 				EMSG("Message received doesn't have a parser implemented"));
 	}
+
+	/* Ignore any value set but not read warnings. */
+	(void)buf;
 
 	return NULL;
 }
@@ -451,7 +484,7 @@ uint8_t *glproto_msg_buf(glproto_msg_t *msg) {
 
 			/* File name. */
 			*tmp++ = '|';
-			slen = strlen(frm->fb->base);
+			slen = strlen(frm->fb->base) + 1;
 			if (slen > 254) {
 				gl_error_push(ERR_TYPE_GL, GL_ERR_WARNING,
 					EMSG("File name is longer than 255 chars, will truncate"));
