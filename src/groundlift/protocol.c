@@ -575,9 +575,29 @@ void glproto_msg_print(const glproto_msg_t *msg, const char *prefix) {
 		case GLPROTO_TYPE_FILE: {
 			const glproto_file_req_msg_t *fr =
 			        ((const glproto_file_req_msg_t *)msg);
+			char mag;
+			float hsize;
+
+			/* Convert file size to human-readable format. */
+			hsize = file_size_readable(fr->fb->size, &mag);
+
 			printf("%sTransfer Port: %u\n", (prefix) ? prefix : "", fr->port);
-			printf("%sFile: %s (%llu bytes)\n", (prefix) ? prefix : "",
-			       fr->fb->base, fr->fb->size);
+			printf("%sFile: %s ", (prefix) ? prefix : "", fr->fb->base);
+			if (mag == 'B') {
+				/* Very small files. */
+				printf("(%llu bytes)\n", fr->fb->size);
+			} else {
+				/* Bigger files. */
+				char magstr[6];
+
+				magstr[0] = mag;
+				magstr[1] = 'B';
+				magstr[2] = '\0';
+
+				printf("(%.3f %s / %llu bytes)\n", hsize, magstr,
+				       fr->fb->size);
+			}
+
 			break;
 		}
 		default:
