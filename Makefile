@@ -5,40 +5,42 @@
 
 include variables.mk
 
-.PHONY: all compiledb cli gtk2 debug memcheck clean
-all: $(BUILDDIR)/stamp cli
+# User definitions.
+PREFIX  ?= $(BUILDDIR)/dist
+
+# Internal project definitions.
+COMMONSRC   = main.c client.c server.c
+SOURCES    := $(addprefix src/, $(COMMONSRC))
+OBJECTS    := $(patsubst src/%.c, $(BUILDDIR)/%.o, $(SOURCES))
+APPSRC      = glsend.c #glrecvd.c glscan.c
+APPSOURCES := $(addprefix src/, $(APPSRC))
+APPOBJECTS := $(patsubst src/%.c, $(BUILDDIR)/%.o, $(APPSOURCES))
+TARGETS    := $(OBJECTS) $(APPOBJECTS) $(BUILDDIR)/glsend #$(BUILDDIR)/glrecvd $(BUILDDIR)/glscan
+
+.PHONY: all compiledb compile debug memcheck clean
+
+all: compile
 
 $(BUILDDIR)/stamp:
 	$(MKDIR) $(@D)
-	$(MKDIR) $(BUILDDIR)/bin
 	$(TOUCH) $@
+
+$(BUILDDIR)/%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/glsend: $(OBJECTS) $(BUILDDIR)/glsend.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 compiledb: clean
 	bear --output $(ROOT)/compile_commands.json -- make CC=clang debug
 
+compile: $(BUILDDIR)/stamp $(TARGETS)
+
 debug: CFLAGS += -g3 -DDEBUG
-debug: clean $(BUILDDIR)/stamp
-	cd cli/ && $(MAKE) debug
+debug: compile
 
 memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
-memcheck: clean $(BUILDDIR)/stamp
-	cd cli/ && $(MAKE) memcheck
-
-cli: $(BUILDDIR)/stamp
-	cd cli/ && $(MAKE)
-
-gtk2: $(BUILDDIR)/stamp
-	cd linux/gtk2/ && $(MAKE)
-
-run-server:
-	cd cli/ && $(MAKE) run-server
-
-run-client:
-	cd cli/ && $(MAKE) run-client
-
-debug-server: debug run-server
-
-debug-client: debug run-client
+memcheck: compile
 
 clean:
 	$(RM) -r $(BUILDDIR)

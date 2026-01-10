@@ -15,7 +15,6 @@ BUILDDIR := $(ROOT)/build
 
 # Tools
 CC    = gcc
-AR    = ar
 GDB   = gdb --args
 RM    = rm -f
 MKDIR = mkdir -p
@@ -29,7 +28,7 @@ ifeq ($(PLATFORM), Darwin)
 endif
 
 # Flags
-CFLAGS  = -Wall -Wno-psabi --std=gnu89 -pthread -I$(ROOT)/common/ -I$(ROOT)/src/
+CFLAGS  = -Wall -Wno-psabi --std=gnu89 -pthread
 LDFLAGS = -pthread
 LIBS    =
 
