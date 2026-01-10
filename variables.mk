@@ -11,7 +11,7 @@ PLATFORM := $(shell uname -s)
 
 # Directories and Paths
 ROOT     := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
-BUILDDIR := $(ROOT)/build
+BUILDDIR := build
 
 # Tools
 CC    = gcc

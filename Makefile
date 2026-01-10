@@ -9,13 +9,11 @@ include variables.mk
 PREFIX  ?= $(BUILDDIR)/dist
 
 # Internal project definitions.
-COMMONSRC   = main.c client.c server.c
-SOURCES    := $(addprefix src/, $(COMMONSRC))
-OBJECTS    := $(patsubst src/%.c, $(BUILDDIR)/%.o, $(SOURCES))
-APPSRC      = glsend.c #glrecvd.c glscan.c
-APPSOURCES := $(addprefix src/, $(APPSRC))
-APPOBJECTS := $(patsubst src/%.c, $(BUILDDIR)/%.o, $(APPSOURCES))
-TARGETS    := $(OBJECTS) $(APPOBJECTS) $(BUILDDIR)/glsend #$(BUILDDIR)/glrecvd $(BUILDDIR)/glscan
+COMMONSRC   = sockets.c logging.c
+OBJECTS    := $(patsubst %.c, $(BUILDDIR)/%.o, $(COMMONSRC))
+APPSRC      = glrecvd.c #glsend.c glscan.c
+APPOBJECTS := $(patsubst %.c, $(BUILDDIR)/%.o, $(APPSRC))
+TARGETS    := $(OBJECTS) $(APPOBJECTS) $(BUILDDIR)/glrecvd #$(BUILDDIR)/glsend $(BUILDDIR)/glscan
 
 .PHONY: all compiledb compile debug memcheck clean
 
@@ -25,10 +23,10 @@ $(BUILDDIR)/stamp:
 	$(MKDIR) $(@D)
 	$(TOUCH) $@
 
-$(BUILDDIR)/%.o: %.c
+$(BUILDDIR)/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/glsend: $(OBJECTS) $(BUILDDIR)/glsend.o
+$(BUILDDIR)/glrecvd: $(OBJECTS) $(BUILDDIR)/glrecvd.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 compiledb: clean
@@ -36,10 +34,10 @@ compiledb: clean
 
 compile: $(BUILDDIR)/stamp $(TARGETS)
 
-debug: CFLAGS += -g3 -DDEBUG
+debug: CFLAGS += -g3 -D_DEBUG
 debug: compile
 
-memcheck: CFLAGS += -g3 -DDEBUG -DMEMCHECK
+memcheck: CFLAGS += -g3 -D_DEBUG -DMEMCHECK
 memcheck: compile
 
 clean:
