@@ -28,7 +28,7 @@ ifeq ($(PLATFORM), Darwin)
 endif
 
 # Flags
-CFLAGS  = -Wall -Wno-psabi --std=gnu89 -pthread
+CFLAGS  = -Wall -Wno-psabi --std=gnu89 -pthread -DWITH_INET_NTOP
 LDFLAGS = -pthread
 LIBS    =
 
