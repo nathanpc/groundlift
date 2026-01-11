@@ -16,7 +16,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
+#ifdef WITH_LOG_TIME
+	#include <time.h>
+#endif /* WITH_LOG_TIME */
 #ifndef _WIN32
 	#include <errno.h>
 #endif /* !_WIN32 */
@@ -30,34 +32,40 @@
  * @param ap     Additional variables to be populated.
  */
 void log_vprintf(log_level_t level, const char *format, va_list ap) {
-	char ts[22];
+#ifdef WITH_LOG_TIME
+	char ts[23];
 
 	/* Time and date. */
 	time_t tm = time(NULL);
 	struct tm* gmt = gmtime(&tm);
 	if (strftime(ts, 22, "%Y-%m-%dT%H:%M:%SZ", gmt) == 0)
 		ts[20] = '?';
-	ts[21] = '\0';
+	ts[21] = ' ';
+	ts[22] = '\0';
+#else
+	char ts[1];
+	*ts = '\0';
+#endif /* WITH_LOG_TIME */
 
 	/* Print the log level tag. */
 	switch (level) {
 		case LOG_CRIT:
-			printf("%s [CRITICAL] ", ts);
+			printf("%s[CRITICAL] ", ts);
 			break;
 		case LOG_ERROR:
-			printf("%s [ERROR] ", ts);
+			printf("%s[ERROR]    ", ts);
 			break;
 		case LOG_WARNING:
-			printf("%s [WARNING] ", ts);
+			printf("%s[WARNING]  ", ts);
 			break;
 		case LOG_NOTICE:
-			printf("%s [NOTICE] ", ts);
+			printf("%s[NOTICE]   ", ts);
 			break;
 		case LOG_INFO:
-			printf("%s [INFO] ", ts);
+			printf("%s[INFO]     ", ts);
 			break;
 		default:
-			printf("%s [UNKNOWN] ", ts);
+			printf("%s[UNKNOWN]  ", ts);
 			break;
 	}
 
