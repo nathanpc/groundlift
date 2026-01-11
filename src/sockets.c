@@ -1,9 +1,9 @@
 /**
-* sockets.c
-* Platform-independent abstraction layer over socket operations.
-*
-* @author Nathan Campos <nathan@innoveworkshop.com>
-*/
+ * sockets.c
+ * Platform-independent abstraction layer over socket operations.
+ *
+ * @author Nathan Campos <nathan@innoveworkshop.com>
+ */
 
 #include "sockets.h"
 

@@ -1,9 +1,9 @@
 /**
-* logging.c
-* Logging and log reporting utility.
-*
-* @author Nathan Campos <nathan@innoveworkshop.com>
-*/
+ * logging.c
+ * Logging and log reporting utility.
+ *
+ * @author Nathan Campos <nathan@innoveworkshop.com>
+ */
 
 #include "logging.h"
 

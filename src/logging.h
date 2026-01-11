@@ -1,9 +1,9 @@
 /**
-* logging.h
-* Logging and log reporting utility.
-*
-* @author Nathan Campos <nathan@innoveworkshop.com>
-*/
+ * logging.h
+ * Logging and log reporting utility.
+ *
+ * @author Nathan Campos <nathan@innoveworkshop.com>
+ */
 
 #ifndef _GL_LOGGING_H
 #define _GL_LOGGING_H

@@ -26,9 +26,6 @@
 /* Server's default port. */
 #define GL_SERVER_PORT 1650
 
-/* Receive request line's maximum length. */
-#define GL_REQLINE_MAX 400
-
 /* Server status flags */
 #define SERVER_RUNNING   0x01
 #define CLIENT_CONNECTED 0x02
