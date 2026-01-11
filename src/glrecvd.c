@@ -23,6 +23,7 @@
 #include "logging.h"
 #include "sockets.h"
 #include "request.h"
+#include "utils.h"
 
 /* Server's default port. */
 #define GL_SERVER_PORT 1650
@@ -293,8 +294,6 @@ close_conn:
 bool process_url(const sockfd_t *sockfd, const reqline_t *reqline) {
 	const char *url = reqline->name;
 	char *cmd;
-	char resp;
-	int c;
 
 	/* Check if the URL may be malicious and refuse instantly. */
 	if (strncmp(url, "file://", 7) == 0) {
@@ -306,16 +305,8 @@ bool process_url(const sockfd_t *sockfd, const reqline_t *reqline) {
 	/* Print out the URL for piping. */
 	printf("%s\n", url);
 
-	/* Ask the user if they want to open the URL. */
-	fprintf(stderr, "Do you want to open the above URL? [Y/n] ");
-	resp = '\0';
-	while ((c = getchar()) != '\n' && c != EOF) {
-		if (resp == '\0')
-			resp = (char)c;
-	}
-
 	/* Open in the OS's default browser. */
-	if ((resp == 'y') || (resp == 'Y') || (resp == '\0')) {
+	if (ask_yn("Do you want to open the above URL?")) {
 #ifdef _WIN32
 		/* Windows */
 		ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);

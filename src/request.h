@@ -8,8 +8,6 @@
 #ifndef _GL_REQUEST_H
 #define _GL_REQUEST_H
 
-#include <stdint.h>
-
 #include "sockets.h"
 
 /**

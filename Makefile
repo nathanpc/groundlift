@@ -9,7 +9,7 @@ include variables.mk
 PREFIX  ?= $(BUILDDIR)/dist
 
 # Internal project definitions.
-COMMONSRC   = sockets.c request.c logging.c
+COMMONSRC   = sockets.c request.c logging.c utils.c
 OBJECTS    := $(patsubst %.c, $(BUILDDIR)/%.o, $(COMMONSRC))
 APPSRC      = glrecvd.c #glsend.c glscan.c
 APPOBJECTS := $(patsubst %.c, $(BUILDDIR)/%.o, $(APPSRC))
