@@ -36,6 +36,7 @@ bool server_start(const char *addr, uint16_t port);
 void server_stop(void);
 void server_loop(int af, sockfd_t server);
 void server_process_request(sockfd_t *sock);
+bool process_url(const sockfd_t *sockfd, const reqline_t *reqline);
 void sigint_handler(int sig);
 
 /* State variables. */
@@ -249,18 +250,105 @@ void server_process_request(sockfd_t *sock) {
 		goto close_conn;
 	}
 
+#ifdef _DEBUG
 	log_printf(LOG_INFO, "Parsed request line:");
 	reqline_dump(reqline);
+#endif /* _DEBUG */
+
+	/* Reply to the client and accept the contents if the type requires. */
+	switch (reqline->type) {
+		case REQ_TYPE_FILE:
+			send_continue(*sock);
+			/* TODO: Process file contents. */
+			break;
+		case REQ_TYPE_URL:
+			process_url(sock, reqline);
+			break;
+		default:
+			send_error(*sock, ERR_CODE_UNKNOWN);
+			break;
+	}
 
 close_conn:
 	/* Free our request line object. */
 	reqline_free(reqline);
 
 	/* Close the client connection and signal that we are finished here. */
-	if (*sock != SOCKERR)
+	if (*sock != SOCKERR) {
 		sockclose(*sock);
+		log_printf(LOG_INFO, "Closed client connection");
+	}
 	*sock = SOCKERR;
 	server_status &= ~CLIENT_CONNECTED;
+}
+
+/**
+ * Processes and replies to the client that sent an URL request.
+ *
+ * @param sockfd  Client's socket handle used to reply.
+ * @param reqline Request line object.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool process_url(const sockfd_t *sockfd, const reqline_t *reqline) {
+	const char *url = reqline->name;
+	char *cmd;
+	char resp;
+	int c;
+
+	/* Check if the URL may be malicious and refuse instantly. */
+	if (strncmp(url, "file://", 7) == 0) {
+		send_refused(*sockfd);
+		log_printf(LOG_NOTICE, "Blocked malicious URL request for \"%s\"", url);
+		return false;
+	}
+
+	/* Print out the URL for piping. */
+	printf("%s\n", url);
+
+	/* Ask the user if they want to open the URL. */
+	fprintf(stderr, "Do you want to open the above URL? [Y/n] ");
+	resp = '\0';
+	while ((c = getchar()) != '\n' && c != EOF) {
+		if (resp == '\0')
+			resp = (char)c;
+	}
+
+	/* Open in the OS's default browser. */
+	if ((resp == 'y') || (resp == 'Y') || (resp == '\0')) {
+#ifdef _WIN32
+		/* Windows */
+		ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+#else
+		/* UNIX */
+		size_t len;
+#if defined(__APPLE__) || defined(__MACH__)
+		/* Mac OS X */
+		len = 8 + strlen(url);
+		cmd = (char *)malloc(len * sizeof(char));
+		snprintf(cmd, len, "open '%s'", url);
+		cmd[len - 1] = '\0';
+#else
+		/* UNIX / XDG */
+		len = 12 + strlen(url);
+		cmd = (char *)malloc(len * sizeof(char));
+		snprintf(cmd, len, "xdg-open '%s'", url);
+		cmd[len - 1] = '\0';
+#endif /* __APPLE__ || __MACH__ */
+
+		/* Execute open command and free the command line string. */
+		system(cmd);
+		free(cmd);
+#endif /* _WIN32 */
+	} else {
+		/* Reply with refused. */
+		send_refused(*sockfd);
+		return false;
+	}
+
+	/* Send OK and stop processing the request. */
+	send_ok(*sockfd);
+	return true;
 }
 
 /**
