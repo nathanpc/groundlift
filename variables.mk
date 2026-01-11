@@ -31,11 +31,3 @@ endif
 CFLAGS  = -Wall -Wno-psabi --std=gnu89 -pthread -DWITH_INET_NTOP
 LDFLAGS = -pthread
 LIBS    =
-
-# Define the device type flag.
-GLDEVTYPE = $(shell uname -s | cut -c 1-3)
-ifeq ($(GLDEVTYPE), Dar)
-	CFLAGS += -DGL_DEVICE_TYPE=\"Mac\"
-else
-	CFLAGS += -DGL_DEVICE_TYPE=\"$(GLDEVTYPE)\"
-endif
