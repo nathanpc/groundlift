@@ -23,6 +23,11 @@
 	#include <errno.h>
 #endif /* !_WIN32 */
 
+/* Defines the standard stream to use for logging. */
+#ifndef LOG_STREAM
+	#define LOG_STREAM stderr
+#endif /* !LOG_STREAM */
+
 /**
  * Prints out logging information with an associated log level tag using the
  * printf function style.
@@ -50,27 +55,27 @@ void log_vprintf(log_level_t level, const char *format, va_list ap) {
 	/* Print the log level tag. */
 	switch (level) {
 		case LOG_CRIT:
-			printf("%s[CRITICAL] ", ts);
+			fprintf(LOG_STREAM, "%s[CRITICAL] ", ts);
 			break;
 		case LOG_ERROR:
-			printf("%s[ERROR]    ", ts);
+			fprintf(LOG_STREAM, "%s[ERROR]    ", ts);
 			break;
 		case LOG_WARNING:
-			printf("%s[WARNING]  ", ts);
+			fprintf(LOG_STREAM, "%s[WARNING]  ", ts);
 			break;
 		case LOG_NOTICE:
-			printf("%s[NOTICE]   ", ts);
+			fprintf(LOG_STREAM, "%s[NOTICE]   ", ts);
 			break;
 		case LOG_INFO:
-			printf("%s[INFO]     ", ts);
+			fprintf(LOG_STREAM, "%s[INFO]     ", ts);
 			break;
 		default:
-			printf("%s[UNKNOWN]  ", ts);
+			fprintf(LOG_STREAM, "%s[UNKNOWN]  ", ts);
 			break;
 	}
 
 	/* Print the actual message. */
-	vprintf(format, ap);
+	vfprintf(LOG_STREAM, format, ap);
 }
 
 /**
@@ -91,7 +96,7 @@ void log_printf(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Ensure we finish with a newline. */
-	printf("\n");
+	fprintf(LOG_STREAM, "\n");
 }
 
 /**
@@ -122,7 +127,7 @@ void log_syserr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	printf(": System Error (%d) %ls\n", err, szErrorMessage);
+	fprintf(LOG_STREAM, ": System Error (%d) %ls\n", err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -134,7 +139,7 @@ void log_syserr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	printf(": (%d) %s\n", err, strerror(err));
+	fprintf(LOG_STREAM, ": (%d) %s\n", err, strerror(err));
 #endif /* _WIN32 */
 }
 
@@ -167,7 +172,7 @@ void log_sockerr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	printf(": WSAError (%d) %ls\n", err, szErrorMessage);
+	fprintf(LOG_STREAM, ": WSAError (%d) %ls\n", err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -179,6 +184,6 @@ void log_sockerr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	printf(": (%d) %s\n", err, strerror(err));
+	fprintf(LOG_STREAM, ": (%d) %s\n", err, strerror(err));
 #endif /* _WIN32 */
 }
