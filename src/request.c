@@ -20,6 +20,34 @@ char *struntil(const char *begin, char token, const char **end);
 bool parse_num(const char *str, long *num);
 
 /**
+ * Sends a OK reply to a client, terminating the exchange.
+ *
+ * @param sockfd Socket handle used to reply.
+ */
+void send_ok(sockfd_t sockfd) {
+	send(sockfd, "200\tOK\r\n", 8, 0);
+}
+
+/**
+ * Sends a REFUSED reply to a client.
+ *
+ * @param sockfd Socket handle used to reply.
+ */
+void send_refused(sockfd_t sockfd) {
+	send(sockfd, "403\tREFUSED\tUser refused the transfer\r\n", 39, 0);
+}
+
+/**
+ * Sends a CONTINUE reply to a client, requesting it to send the contents of the
+ * transaction it requested in the first place.
+ *
+ * @param sockfd Socket handle used to reply.
+ */
+void send_continue(sockfd_t sockfd) {
+	send(sockfd, "100\tCONTINUE\tReady to accept content\r\n", 38, 0);
+}
+
+/**
  * Replies to a client with an error message.
  *
  * @param sockfd Socket handle used to reply.
@@ -33,9 +61,9 @@ void send_error(sockfd_t sockfd, error_code_t code) {
 	strcode[3] = '\0';
 
 	/* Send the error header and code. */
-	send(sockfd, "ERROR\t", 7, 0);
 	send(sockfd, strcode, 3, 0);
 	send(sockfd, "\t", 1, 0);
+	send(sockfd, "ERROR\t", 7, 0);
 
 	/* Send the error message. */
 	switch (code) {

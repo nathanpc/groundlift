@@ -25,10 +25,11 @@ extern "C" {
  * Request error codes.
  */
 typedef enum {
-	ERR_CODE_REQ_BAD   = 400,
-	ERR_CODE_REQ_LONG  = 417,
-	ERR_CODE_UNKNOWN   = 418,
-	ERR_CODE_INTERNAL  = 500,
+	ERR_CODE_REQ_BAD     = 400,
+	ERR_CODE_REQ_REFUSED = 403,
+	ERR_CODE_REQ_LONG    = 417,
+	ERR_CODE_UNKNOWN     = 418,
+	ERR_CODE_INTERNAL    = 500
 } error_code_t;
 
 /**
@@ -51,6 +52,9 @@ typedef struct {
 } reqline_t;
 
 /* Request replies. */
+void send_ok(sockfd_t sockfd);
+void send_continue(sockfd_t sockfd);
+void send_refused(sockfd_t sockfd);
 void send_error(sockfd_t sockfd, error_code_t code);
 
 /* Request Line */
