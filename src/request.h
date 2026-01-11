@@ -10,11 +10,6 @@
 
 #include "sockets.h"
 
-/**
- * Receive request line's maximum length.
- */
-#define GL_REQLINE_MAX 400
-
 #ifdef __cplusplus
 extern "C" {
 #endif

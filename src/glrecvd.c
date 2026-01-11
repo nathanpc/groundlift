@@ -20,24 +20,17 @@
 #include <signal.h>
 #include <string.h>
 
+#include "defaults.h"
 #include "logging.h"
 #include "sockets.h"
 #include "request.h"
 #include "utils.h"
 
-/* Server's default port. */
-#define GL_SERVER_PORT 1650
-
-/* Server's file receive buffer length. */
-#ifndef RECV_BUF_LEN
-	#define RECV_BUF_LEN 1024
-#endif /* !RECV_BUF_LEN */
-
 /* Server status flags */
 #define SERVER_RUNNING   0x01
 #define CLIENT_CONNECTED 0x02
 
-/* Private methods. */
+/* Private functions. */
 bool server_start(const char *addr, uint16_t port);
 void server_stop(void);
 void server_loop(int af, sockfd_t server);
