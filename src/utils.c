@@ -7,6 +7,13 @@
 
 #include "utils.h"
 
+#ifdef _WIN32
+	#define WIN32_LEAN_AND_MEAN
+	#include <windows.h>
+#else
+	#include <unistd.h>
+#endif /* _WIN32 */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -118,4 +125,59 @@ bool ask_yn(const char *msg, ...) {
 	}
 
 	return (resp == 'y') || (resp == 'Y') || (resp == '\0');
+}
+
+/**
+ * Sanitizes a file name to ensure idiots don't abuse us.
+ *
+ * @param fname File name to be sanitized.
+ *
+ * @return Number of characters that were altered.
+ */
+int fname_sanitize(char *fname) {
+	int ret;
+	char *buf;
+
+	ret = 0;
+	buf = fname;
+	while (*buf != '\0') {
+		if (((*buf == '.') && (*(buf + 1) == '.')) || (*buf == '/') ||
+				(*buf == '\\')) {
+			*buf = '_';
+			ret++;
+			break;
+		}
+
+		buf++;
+	}
+
+	return ret;
+}
+
+/**
+ * Checks if a file exists.
+ *
+ * @param  fname File path to be checked.
+ *
+ * @return TRUE if the file exists.
+ */
+bool file_exists(const char *fname) {
+#ifdef _WIN32
+	DWORD dwAttrib;
+
+	/* Should we even check? */
+	if (fname == NULL)
+		return 0;
+
+	/* Get file attributes and return. */
+	dwAttrib = GetFileAttributes(fname);
+	return (dwAttrib != INVALID_FILE_ATTRIBUTES) &&
+		   !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
+#else
+	/* Should we even check? */
+	if (fname == NULL)
+		return 0;
+
+	return access(fname, F_OK) != -1;
+#endif /* _WIN32 */
 }

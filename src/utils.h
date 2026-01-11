@@ -15,9 +15,16 @@
 extern "C" {
 #endif
 
+/* String manipulation. */
 char *struntil(const char *begin, char token, const char **end);
 bool parse_num(const char *str, long *num);
+
+/* User interaction. */
 bool ask_yn(const char *msg, ...);
+
+/* File system. */
+int fname_sanitize(char *fname);
+bool file_exists(const char *fname);
 
 #ifdef __cplusplus
 }

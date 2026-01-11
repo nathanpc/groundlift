@@ -28,6 +28,11 @@
 /* Server's default port. */
 #define GL_SERVER_PORT 1650
 
+/* Server's file receive buffer length. */
+#ifndef RECV_BUF_LEN
+	#define RECV_BUF_LEN 1024
+#endif /* !RECV_BUF_LEN */
+
 /* Server status flags */
 #define SERVER_RUNNING   0x01
 #define CLIENT_CONNECTED 0x02
@@ -37,7 +42,8 @@ bool server_start(const char *addr, uint16_t port);
 void server_stop(void);
 void server_loop(int af, sockfd_t server);
 void server_process_request(sockfd_t *sock);
-bool process_url(const sockfd_t *sockfd, const reqline_t *reqline);
+bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline);
+bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline);
 void sigint_handler(int sig);
 
 /* State variables. */
@@ -259,11 +265,10 @@ void server_process_request(sockfd_t *sock) {
 	/* Reply to the client and accept the contents if the type requires. */
 	switch (reqline->type) {
 		case REQ_TYPE_FILE:
-			send_continue(*sock);
-			/* TODO: Process file contents. */
+			process_file_req(sock, reqline);
 			break;
 		case REQ_TYPE_URL:
-			process_url(sock, reqline);
+			process_url_req(sock, reqline);
 			break;
 		default:
 			send_error(*sock, ERR_CODE_UNKNOWN);
@@ -284,6 +289,111 @@ close_conn:
 }
 
 /**
+ * Processes and replies to the client that sent a file transfer request.
+ *
+ * @param sockfd  Client's socket handle used to reply.
+ * @param reqline Request line object.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
+	uint8_t buf[RECV_BUF_LEN];
+	char *fname;
+	size_t acclen;
+	ssize_t len;
+	FILE *fh;
+	bool ret;
+
+	/* Initialize some variables. */
+	fh = NULL;
+	ret = true;
+
+	/* Sanitize filename. */
+	fname = strdup(reqline->name);
+	if (fname_sanitize(fname)) {
+		log_printf(LOG_INFO, "Filename \"%s\" contained malicious characters "
+			"and was sanitized to \"%s\"", reqline->name, fname);
+	}
+
+	/* Ensure we are not overwriting any existing files. */
+	while (file_exists(fname)) {
+		char *nf;
+		uint8_t i;
+
+		/* Allocate the new filename string. */
+		i = 1;
+		nf = (char *)malloc((strlen(fname) + 4) * sizeof(char));
+		if (nf == NULL) {
+			log_syserr(LOG_CRIT, "Failed to allocate new string for filename");
+			send_error(*sockfd, ERR_CODE_INTERNAL);
+			return false;
+		}
+
+		/* Build up the new filename and switch them. */
+		sprintf(nf, "%u_%s", i, fname);
+		free(fname);
+		fname = nf;
+	}
+
+	/* Ask the user if they want to accept the transfer. */
+	if (!ask_yn("Do you want to receive the file \"%s\"?", fname))
+		goto refuse;
+
+	/* Open the file for writing. */
+	fh = fopen(fname, "wb");
+	if (fh == NULL) {
+		log_printf(LOG_ERROR, "Failed to open file \"%s\" for writing", fname);
+		goto refuse;
+	}
+	send_continue(*sockfd);
+
+	/* Pipe the contents of the file from the network. */
+	acclen = 0;
+	while ((len = recv(*sockfd, buf, RECV_BUF_LEN, 0)) <= 0) {
+		/* Deal with the transfer size. */
+		acclen += len;
+		if (acclen > reqline->size) {
+			fprintf(stderr, "\n");
+			log_printf(LOG_ERROR, "Received file is bigger than expected");
+			goto refuse;
+		}
+
+		/* Show transfer progress and write to the file. */
+		fprintf(stderr, "\r%s (%lu/%lu)", fname, acclen, reqline->size);
+		fwrite(buf, sizeof(uint8_t), len, fh);
+
+		/* Detect if we have finished transferring the file. */
+		if (acclen == reqline->size) {
+			send_ok(*sockfd);
+			break;
+		}
+	}
+
+	/* Check if the connection ended before the file finished transferring. */
+	if (len <= 0) {
+		log_sockerr(LOG_ERROR, "The client has closed the connection before "
+			"the file \"%s\" finished transferring", fname);
+		ret = false;
+	}
+
+	/* Free up resources. */
+	free(fname);
+	fname = NULL;
+	fclose(fh);
+	fh = NULL;
+
+	return ret;
+
+refuse:
+	if (fname)
+		free(fname);
+	if (fh)
+		fclose(fh);
+	send_refused(*sockfd);
+	return false;
+}
+
+/**
  * Processes and replies to the client that sent an URL request.
  *
  * @param sockfd  Client's socket handle used to reply.
@@ -291,11 +401,12 @@ close_conn:
  *
  * @return TRUE if the operation was successful, FALSE otherwise.
  */
-bool process_url(const sockfd_t *sockfd, const reqline_t *reqline) {
-	const char *url = reqline->name;
+bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline) {
+	const char *url;
 	char *cmd;
 
 	/* Check if the URL may be malicious and refuse instantly. */
+	url = reqline->name;
 	if (strncmp(url, "file://", 7) == 0) {
 		send_refused(*sockfd);
 		log_printf(LOG_NOTICE, "Blocked malicious URL request for \"%s\"", url);
