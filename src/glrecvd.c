@@ -22,6 +22,7 @@
 
 #include "logging.h"
 #include "sockets.h"
+#include "request.h"
 
 /* Server's default port. */
 #define GL_SERVER_PORT 1650
@@ -33,7 +34,7 @@
 /* Private methods. */
 bool server_start(const char *addr, uint16_t port);
 void server_stop(void);
-void server_loop(int af, sockfd_t sockfd);
+void server_loop(int af, sockfd_t server);
 void server_process_request(sockfd_t *sock);
 void sigint_handler(int sig);
 
@@ -167,9 +168,9 @@ void server_stop(void) {
  * Server listening loop.
  *
  * @param af     Socket address family.
- * @param sockfd Socket in which the server is listening on.
+ * @param server Socket in which the server is listening on.
  */
-void server_loop(int af, sockfd_t sockfd) {
+void server_loop(int af, sockfd_t server) {
 	while (server_status & SERVER_RUNNING) {
 		struct sockaddr_storage csa;
 		sockfd_t *sock;
@@ -179,7 +180,7 @@ void server_loop(int af, sockfd_t sockfd) {
 		/* Accept the client connection. */
 		sock = &sockfd_client;
 		socklen = sizeof(csa);
-		*sock = accept(sockfd_server, (struct sockaddr*)&csa, &socklen);
+		*sock = accept(server, (struct sockaddr*)&csa, &socklen);
 		if (*sock == SOCKERR) {
 			if ((server_status & SERVER_RUNNING) && (sockerrno != EWOULDBLOCK))
 				log_sockerr(LOG_ERROR, "Server failed to accept a connection");
@@ -206,39 +207,55 @@ void server_loop(int af, sockfd_t sockfd) {
  * @param sock Pointer to a client connection socket descriptor.
  */
 void server_process_request(sockfd_t *sock) {
-	char reqline[GL_REQLINE_MAX + 1];
+	char line[GL_REQLINE_MAX + 1];
+	reqline_t *reqline;
 	ssize_t len;
 	int i;
 
+	/* Initialize some defaults. */
+	reqline = NULL;
+
 	/* Read the selector from client's request. */
-	if ((len = recv(*sock, reqline, GL_REQLINE_MAX, 0)) < 0) {
-		if (server_status & SERVER_RUNNING)
+	if ((len = recv(*sock, line, GL_REQLINE_MAX, 0)) < 0) {
+		if (server_status & SERVER_RUNNING) {
 			log_sockerr(LOG_ERROR, "Server failed to receive request line");
+			send_error(*sock, ERR_CODE_INTERNAL);
+		}
 		goto close_conn;
 	}
-	reqline[len] = '\0';
+	line[len] = '\0';
 
 	/* Ensure the request wasn't too long. */
 	if (len >= GL_REQLINE_MAX) {
 		log_printf(LOG_WARNING, "Request line unusually long, closing "
 			"connection.");
-		// TODO: client_send_error(conn, "Request line longer than 255 characters");
+		send_error(*sock, ERR_CODE_REQ_LONG);
 		goto close_conn;
 	}
 
 	/* Terminate the request line before CRLF. */
 	for (i = 0; i < len; i++) {
-		if ((reqline[i] == '\r') || (reqline[i] == '\n')) {
-			reqline[i] = '\0';
+		if ((line[i] == '\r') || (line[i] == '\n')) {
+			line[i] = '\0';
 			break;
 		}
 	}
 
-	/* Print the request line and reply with OK. */
-	log_printf(LOG_INFO, "Client requested '%s'", reqline);
-	send(*sock, "OK\r\n", 4, 0);
+	/* Parse the request line. */
+	reqline = reqline_parse(line);
+	if (reqline == NULL) {
+		log_printf(LOG_NOTICE, "Invalid request line. Ignored.");
+		send_error(*sock, ERR_CODE_REQ_BAD);
+		goto close_conn;
+	}
+
+	log_printf(LOG_INFO, "Parsed request line:");
+	reqline_dump(reqline);
 
 close_conn:
+	/* Free our request line object. */
+	reqline_free(reqline);
+
 	/* Close the client connection and signal that we are finished here. */
 	if (*sock != SOCKERR)
 		sockclose(*sock);
