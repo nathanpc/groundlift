@@ -222,11 +222,11 @@ parse_failed:
 void reqline_dump(reqline_t *reqline) {
 	/* Do we have anything to dump? */
 	if (reqline == NULL) {
-		printf("(Request line object is NULL)\n");
+		fprintf(stderr, "(Request line object is NULL)\n");
 		return;
 	}
 
 	/* Dump object contents. */
-	printf("Type: %s ('%c')\n", reqline->stype, reqline->type);
-	printf("Name: \"%s\" (%ld bytes)\n", reqline->name, reqline->size);
+	fprintf(stderr, "Type: %s ('%c')\n", reqline->stype, reqline->type);
+	fprintf(stderr, "Name: \"%s\" (%ld bytes)\n", reqline->name, reqline->size);
 }
