@@ -218,7 +218,7 @@ void server_process_request(sockfd_t *sock) {
 	/* Initialize some defaults. */
 	reqline = NULL;
 
-	/* Read the selector from client's request. */
+	/* Read the line from client's request. */
 	if ((len = recv(*sock, line, GL_REQLINE_MAX, 0)) < 0) {
 		if (server_status & SERVER_RUNNING) {
 			log_sockerr(LOG_ERROR, "Server failed to receive request line");
