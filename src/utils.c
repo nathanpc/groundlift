@@ -12,9 +12,9 @@
 	#include <windows.h>
 #else
 	#include <unistd.h>
+	#include <libgen.h>
 #endif /* _WIN32 */
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
@@ -155,6 +155,30 @@ int fname_sanitize(char *fname) {
 }
 
 /**
+ * Gets the size of an entire file.
+ *
+ * @param fname Path to the file to be inspected.
+ *
+ * @return The size of the file in bytes or 0 if an error occurred.
+ */
+size_t file_size(const char *fname) {
+	FILE *fh;
+	size_t len;
+
+	/* Open the file. */
+	fh = fopen(fname, "rb");
+	if (fh == NULL)
+		return 0L;
+
+	/* Seek to the end of the file to determine its size. */
+	fseek(fh, 0L, SEEK_END);
+	len = ftell(fh);
+	fclose(fh);
+
+	return len;
+}
+
+/**
  * Checks if a file exists.
  *
  * @param  fname File path to be checked.
@@ -180,4 +204,31 @@ bool file_exists(const char *fname) {
 
 	return access(fname, F_OK) != -1;
 #endif /* _WIN32 */
+}
+
+/**
+ * Gets the basename of a path. This is an implementation-agnostic wrapper
+ * around the basename() function.
+ *
+ * @warning This function allocates memory that must be freed by you!
+ *
+ * @param path Path to have its basename extracted.
+ *
+ * @return Newly allocated basename of the path or NULL if an error occurred.
+ */
+char *path_basename(const char *path) {
+	char *bname;
+
+#ifdef _WIN32
+	bname = strdup(PathFindFileName(path));
+#else
+	/* Duplicate the path just to comply with the POSIX implementation. */
+	char *tmp = strdup(path);
+
+	/* Get the basename and free the temporary resources. */
+	bname = strdup(basename(tmp));
+	free(tmp);
+#endif /* _WIN32 */
+
+	return bname;
 }

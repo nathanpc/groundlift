@@ -8,6 +8,7 @@
 #ifndef _GL_UTILS_H
 #define _GL_UTILS_H
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
 
@@ -24,7 +25,9 @@ bool ask_yn(const char *msg, ...);
 
 /* File system. */
 int fname_sanitize(char *fname);
+size_t file_size(const char *fname);
 bool file_exists(const char *fname);
+char *path_basename(const char *path);
 
 #ifdef __cplusplus
 }
