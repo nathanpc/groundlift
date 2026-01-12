@@ -22,6 +22,7 @@
 #endif /* _WIN32 */
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef _WIN32
 	#define SOCKERR   SOCKET_ERROR
@@ -65,10 +66,16 @@ extern "C" {
 /* Initialization */
 void socket_init(void);
 
+/* Socket operations. */
+sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen);
+bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
+	uint16_t port);
+
 /* Server */
 sockfd_t socket_new_server(int af, const char *addr, uint16_t port);
 
 /* Utilities */
+int socket_close(sockfd_t sockfd, bool shut);
 const char* inet_addr_str(int af, void *addr, char *buf);
 
 #ifdef __cplusplus

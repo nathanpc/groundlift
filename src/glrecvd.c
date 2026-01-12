@@ -152,15 +152,17 @@ void server_stop(void) {
 	/* Stop the server. */
 	log_printf(LOG_NOTICE, "Stopping the server...");
 	server_status &= ~SERVER_RUNNING;
-	if ((sockfd_server != SOCKERR) && (sockclose(sockfd_server) == SOCKERR))
+	if ((sockfd_server != SOCKERR) && (socket_close(sockfd_server, false)
+			== SOCKERR)) {
 		log_sockerr(LOG_ERROR, "Failed to close server socket");
+	}
 	sockfd_server = SOCKERR;
 
 	/* Close client connection. */
 	if (server_status & CLIENT_CONNECTED) {
 		server_status &= ~CLIENT_CONNECTED;
 		if (sockfd_client != SOCKERR)
-			sockclose(sockfd_client);
+			socket_close(sockfd_client, false);
 		sockfd_client = SOCKERR;
 	}
 }
@@ -274,7 +276,7 @@ close_conn:
 
 	/* Close the client connection and signal that we are finished here. */
 	if (*sock != SOCKERR) {
-		sockclose(*sock);
+		socket_close(*sock, false);
 		log_printf(LOG_INFO, "Closed client connection");
 	}
 	*sock = SOCKERR;

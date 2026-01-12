@@ -34,6 +34,53 @@ void socket_init(void) {
 }
 
 /**
+ * Sets up a brand new socket handle and its associated variables.
+ *
+ * @param af      Address family.
+ * @param sa      Address storage structure to be initialized.
+ * @param addrlen Pointer to store the length of the address structure.
+ *
+ * @return Initialized socket file descriptor or SOCKERR if an error occurred.
+ */
+sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen) {
+	/* Zero out address structure and cache its size. */
+	memset(sa, '\0', sizeof(struct sockaddr_storage));
+	*addrlen = af == AF_INET ? sizeof(struct sockaddr_in) :
+		sizeof(struct sockaddr_in6);
+
+	/* Get a new socket file descriptor. */
+	return socket(af == AF_INET ? PF_INET : PF_INET6, SOCK_STREAM, 0);
+}
+
+/**
+ * Populates the IP address structure.
+ *
+ * @param sa   Address storage structure to be populated.
+ * @param af   Address family.
+ * @param addr IP address to be populated.
+ * @param port Port to be populated.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
+                       uint16_t port) {
+	if (af == AF_INET) {
+		struct sockaddr_in *inaddr = (struct sockaddr_in*)sa;
+		inaddr->sin_family = af;
+		inaddr->sin_port = htons(port);
+		inaddr->sin_addr.s_addr = inet_addr(addr);
+	} else {
+		struct sockaddr_in6 *in6addr = (struct sockaddr_in6*)sa;
+		in6addr->sin6_family = af;
+		in6addr->sin6_port = htons(port);
+		log_printf(LOG_CRIT, "IPv6 not yet implemented.");
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * Opens up a new listening socket for server operation.
  *
  * @param af   Address family.
@@ -53,29 +100,16 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
 	int flag;
 #endif /* _WIN32 */
 
-	/* Zero out address structure and cache its size. */
-	memset(&sa, '\0', sizeof(sa));
-	addrlen = af == AF_INET ? sizeof(struct sockaddr_in) :
-		sizeof(struct sockaddr_in6);
-
 	/* Get a socket file descriptor. */
-	sockfd = socket(af == AF_INET ? PF_INET : PF_INET6, SOCK_STREAM, 0);
+	sockfd = socket_new(af, &sa, &addrlen);
 	if (sockfd == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
 		return SOCKERR;
 	}
 
 	/* Populate socket address information. */
-	if (af == AF_INET) {
-		struct sockaddr_in *inaddr = (struct sockaddr_in*)&sa;
-		inaddr->sin_family = af;
-		inaddr->sin_port = htons(port);
-		inaddr->sin_addr.s_addr = inet_addr(addr);
-	} else {
-		struct sockaddr_in6 *in6addr = (struct sockaddr_in6*)&sa;
-		in6addr->sin6_family = af;
-		in6addr->sin6_port = htons(port);
-		log_printf(LOG_CRIT, "IPv6 not yet implemented.");
+	if (!socket_addr_setup(&sa, af, addr, port)) {
+		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
@@ -84,7 +118,7 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
 	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &flag,
 			sizeof(flag)) == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to set server socket address reuse");
-		sockclose(sockfd);
+		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
@@ -99,26 +133,72 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
 			sizeof(tv)) == SOCKERR) {
 #endif /* _WIN32 */
 		log_sockerr(LOG_CRIT, "Failed to set server socket receive timeout");
-		sockclose(sockfd);
+		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
 	/* Bind address to socket. */
 	if (bind(sockfd, (struct sockaddr*)&sa, addrlen) == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed binding to server socket");
-		sockclose(sockfd);
+		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
 	/* Start listening on our desired socket. */
 	if (listen(sockfd, LISTEN_BACKLOG) == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to listen on server socket");
-		sockclose(sockfd);
+		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
 	log_printf(LOG_INFO, "Server running on %s:%u", addr, port);
 	return sockfd;
+}
+
+/**
+ * Closes a socket and optionally shut it down beforehand.
+ *
+ * @warning This function won't call close() if shutdown() fails.
+ *
+ * @param sockfd Socket to be closed.
+ * @param shut   Should we call shutdown before closing?
+ *
+ * @return 0 if the operation was successful, SOCKERR in case of an error.
+ */
+int socket_close(sockfd_t sockfd, bool shut) {
+	/* Check if we are even needed. */
+	if (sockfd == SOCKERR)
+		return 0;
+
+	/* Shutdown the socket file descriptor. */
+	if (shut) {
+#ifdef _WIN32
+		if (shutdown(sockfd, SD_BOTH) == SOCKERR) {
+			if (sockerrno != WSAENOTCONN) {
+				log_sockerr(LOG_ERROR, "Failed to shutdown socket");
+				return SOCKERR;
+			} else {
+#ifdef _DEBUG
+				log_sockerr(LOG_NOTICE, "Suppressed socket shutdown error");
+#endif /* _DEBUG */
+			}
+		}
+#else
+		if (shutdown(sockfd, SHUT_RDWR) == SOCKERR) {
+			if ((errno != ENOTCONN) && (errno != EINVAL)) {
+				log_sockerr(LOG_ERROR, "Failed to shutdown socket");
+				return SOCKERR;
+			} else {
+#ifdef _DEBUG
+				log_sockerr(LOG_NOTICE, "Suppressed socket shutdown error");
+#endif /* _DEBUG */
+			}
+		}
+#endif /* _WIN32 */
+	}
+
+	/* Close the socket file descriptor and return. */
+	return sockclose(sockfd);
 }
 
 /**
