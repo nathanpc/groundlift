@@ -53,6 +53,8 @@ void send_error(sockfd_t sockfd, error_code_t code);
 /* Request Line */
 reqline_t *reqline_new(void);
 reqline_t *reqline_parse(const char *line);
+size_t reqline_send(sockfd_t sockfd, reqline_t *reqline);
+void reqline_type_set(reqline_t *reqline, reqtype_t type);
 void reqline_free(reqline_t *reqline);
 void reqline_dump(reqline_t *reqline);
 

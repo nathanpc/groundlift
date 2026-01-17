@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "defaults.h"
 #include "logging.h"
 #include "utils.h"
 
@@ -212,6 +213,60 @@ parse_failed:
 	reqline_free(reqline);
 	reqline = NULL;
 	return NULL;
+}
+
+/**
+ * Sends a request line object to a server.
+ *
+ * @param sockfd  Socket handle already connected to the server.
+ * @param reqline Request line object to be sent.
+ *
+ * @return Number of bytes sent to the server or 0 in case of an error.
+ */
+size_t reqline_send(sockfd_t sockfd, reqline_t *reqline) {
+	char buf[GL_REQLINE_MAX + 1];
+	size_t llen;
+	ssize_t tlen;
+
+	/* Build up the request line. */
+	snprintf(buf, GL_REQLINE_MAX, "%s\t%s\t%lu\r\n", reqline->stype,
+		reqline->name, reqline->size);
+	buf[GL_REQLINE_MAX] = '\0';
+	llen = strlen(buf);
+
+	/* Send the request line over. */
+	tlen = send(sockfd, buf, llen, 0);
+	if (tlen != llen) {
+		log_sockerr(LOG_ERROR, "Failed to send the request line to the server");
+		return 0;
+	}
+
+	return tlen;
+}
+
+/**
+ * Sets the request type in a request line object.
+ *
+ * @param reqline Request line object.
+ * @param type    Type to be set.
+ */
+void reqline_type_set(reqline_t *reqline, reqtype_t type) {
+	reqline->type = type;
+	if (reqline->stype)
+		free(reqline->stype);
+
+	switch (type) {
+		case REQ_TYPE_FILE:
+			reqline->stype = strdup("FILE");
+			break;
+		case REQ_TYPE_URL:
+			reqline->stype = strdup("URL");
+			break;
+		default:
+			reqline->stype = NULL;
+			log_printf(LOG_ERROR, "Setting request line type to unknown value");
+			break;
+	}
 }
 
 /**
