@@ -67,14 +67,13 @@ extern "C" {
 /* Initialization */
 void socket_init(void);
 
-/* Socket operations. */
-sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen);
-bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
-                       const char *port);
+/* Socket addressing operations. */
+bool socket_addr_setup(struct sockaddr_storage *sa, int *af, socklen_t *addrlen,
+                       const char *addr, const char *port);
 
 /* Server and client. */
-sockfd_t socket_new_server(int af, const char *addr, const char *port);
-sockfd_t socket_new_client(int af, const char *addr, const char *port);
+sockfd_t socket_new_server(const char *addr, const char *port);
+sockfd_t socket_new_client(const char *addr, const char *port);
 
 /* Utilities */
 int socket_close(sockfd_t sockfd, bool shut);

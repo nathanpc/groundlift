@@ -141,12 +141,12 @@ bool send_file(const char *addr, const char *port, const char *fpath) {
 	reqline->name = path_basename(fpath);
 
 	/* Connect to the server. */
-	sockfd_client = socket_new_client(AF_INET, addr, port);
+	sockfd_client = socket_new_client(addr, port);
 	if (sockfd_client == SOCKERR) {
 		ret = false;
 		goto cleanup;
 	}
-	log_printf(LOG_INFO, "Connected to the server on %s:%u", addr, port);
+	log_printf(LOG_INFO, "Connected to the server on %s:%s", addr, port);
 
 	/* Send request line. */
 	if (reqline_send(sockfd_client, reqline) == 0) {

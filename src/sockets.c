@@ -35,56 +35,96 @@ void socket_init(void) {
 }
 
 /**
- * Sets up a brand new socket handle and its associated variables.
- *
- * @param af      Address family.
- * @param sa      Address storage structure to be initialized.
- * @param addrlen Pointer to store the length of the address structure.
- *
- * @return Initialized socket file descriptor or SOCKERR if an error occurred.
- */
-sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen) {
-	/* Zero out address structure and cache its size. */
-	memset(sa, '\0', sizeof(struct sockaddr_storage));
-	*addrlen = af == AF_INET ? sizeof(struct sockaddr_in) :
-		sizeof(struct sockaddr_in6);
-
-	/* Get a new socket file descriptor. */
-	return socket(af == AF_INET ? PF_INET : PF_INET6, SOCK_STREAM, 0);
-}
-
-/**
  * Populates the IP address structure.
  *
- * @param sa   Address storage structure to be populated.
- * @param af   Address family.
- * @param addr IP address to be populated.
- * @param port Port to be populated.
+ * @param sa      Address storage structure to be populated.
+ * @param af      Address family to be guessed.
+ * @param addrlen Pointer to store the length of the address structure.
+ * @param addr    IP address to be populated.
+ * @param port    Port to be populated.
  *
  * @return TRUE if the operation was successful, FALSE otherwise.
  */
-bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
-                       const char *port) {
-	/* Convert port to IP port integer. */
+bool socket_addr_setup(struct sockaddr_storage *sa, int *af, socklen_t *addrlen,
+                       const char *addr, const char *port) {
+#ifdef WITHOUT_GETADDRINFO
 	long portnum;
+
+	/* Convert port to IP port integer. */
 	if (!parse_num(port, &portnum)) {
 		log_syserr(LOG_ERROR, "Failed to parse port %s into a number", port);
 		return false;
 	}
 
+	/* Guess the address family. */
+	*af = (strchr(addr, ':') == NULL) ? AF_INET : AF_INET6;
+
+	/* Zero out address structure and cache its size. */
+	memset(sa, '\0', sizeof(struct sockaddr_storage));
+	*addrlen = *af == AF_INET ? sizeof(struct sockaddr_in) :
+		sizeof(struct sockaddr_in6);
+
 	/* Populate the IP address structure. */
-	if (af == AF_INET) {
+	if (*af == AF_INET) {
 		struct sockaddr_in *inaddr = (struct sockaddr_in*)sa;
-		inaddr->sin_family = af;
-		inaddr->sin_port = htons((uint16_t )portnum);
+		inaddr->sin_family = *af;
+		inaddr->sin_port = htons((uint16_t)portnum);
 		inaddr->sin_addr.s_addr = inet_addr(addr);
 	} else {
 		struct sockaddr_in6 *in6addr = (struct sockaddr_in6*)sa;
-		in6addr->sin6_family = af;
-		in6addr->sin6_port = htons((uint16_t )portnum);
+		in6addr->sin6_family = *af;
+		in6addr->sin6_port = htons((uint16_t)portnum);
 		log_printf(LOG_CRIT, "IPv6 not yet implemented.");
 		return false;
 	}
+#else
+	int status;
+	struct addrinfo hints;
+	struct addrinfo *res;
+	struct addrinfo *ai;
+
+	/* Populate getaddrinfo hints. */
+	memset(sa, '\0', sizeof(struct sockaddr_storage));
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	/* Get address information. */
+	if ((status = getaddrinfo(addr, port, &hints, &res)) != 0) {
+		log_printf(LOG_ERROR, "Failed to get address information for %s: %s",
+			addr, gai_strerror(status));
+		return false;
+	}
+
+	/* Check if we got anything. */
+	if (res == NULL) {
+		log_printf(LOG_ERROR, "No address information found for %s", addr);
+		return false;
+	}
+
+	/* Select which address information object to use (prefer IPv4). */
+	ai = res;
+	while (ai != NULL) {
+		/* Select IPv4 if one is available. */
+		if (ai->ai_family == AF_INET)
+			break;
+
+		/* Go to the next result. */
+		ai = ai->ai_next;
+	}
+
+	/* Pick the first result if none were previously selected. */
+	if (ai == NULL)
+		ai = res;
+
+	/* Populate our address structure. */
+	*af = ai->ai_family;
+	*addrlen = ai->ai_addrlen;
+	memcpy(sa, ai->ai_addr, ai->ai_addrlen);
+
+	/* Clean up the results linked list. */
+	freeaddrinfo(res);
+#endif /* WITHOUT_GETADDRINFO */
 
 	return true;
 }
@@ -92,17 +132,17 @@ bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
 /**
  * Opens up a new listening socket for server operation.
  *
- * @param af   Address family.
  * @param addr IP address to bind ourselves to.
  * @param port Port to bind ourselves to.
  *
  * @return Socket file descriptor or SOCKERR if an error occurred.
  */
-sockfd_t socket_new_server(int af, const char *addr, const char *port) {
+sockfd_t socket_new_server(const char *addr, const char *port) {
 	struct sockaddr_storage sa;
 	sockfd_t sockfd;
 	socklen_t addrlen;
 	struct timeval tv;
+	int af;
 #ifdef _WIN32
 	char flag;
 #else
@@ -110,11 +150,11 @@ sockfd_t socket_new_server(int af, const char *addr, const char *port) {
 #endif /* _WIN32 */
 
 	/* Populate socket address information. */
-	if (!socket_addr_setup(&sa, af, addr, port))
+	if (!socket_addr_setup(&sa, &af, &addrlen, addr, port))
 		return SOCKERR;
 
 	/* Get a socket file descriptor. */
-	sockfd = socket_new(af, &sa, &addrlen);
+	sockfd = socket(af == AF_INET ? PF_INET : PF_INET6, SOCK_STREAM, 0);
 	if (sockfd == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
 		return SOCKERR;
@@ -158,30 +198,30 @@ sockfd_t socket_new_server(int af, const char *addr, const char *port) {
 		return SOCKERR;
 	}
 
-	log_printf(LOG_INFO, "Server running on %s:%u", addr, port);
+	log_printf(LOG_INFO, "Server running on %s:%s", addr, port);
 	return sockfd;
 }
 
 /**
  * Opens up a new TCP connecting socket for client operation.
  *
- * @param af   Address family.
  * @param addr IP address of the server to connect to.
  * @param port Port that the server is listening on.
  *
  * @return Socket file descriptor or SOCKERR if an error occurred.
  */
-sockfd_t socket_new_client(int af, const char *addr, const char *port) {
+sockfd_t socket_new_client(const char *addr, const char *port) {
 	struct sockaddr_storage sa;
 	sockfd_t sockfd;
 	socklen_t addrlen;
+	int af;
 
 	/* Populate socket address information. */
-	if (!socket_addr_setup(&sa, af, addr, port))
+	if (!socket_addr_setup(&sa, &af, &addrlen, addr, port))
 		return SOCKERR;
 
 	/* Get a socket file descriptor. */
-	sockfd = socket_new(af, &sa, &addrlen);
+	sockfd = socket(af == AF_INET ? PF_INET : PF_INET6, SOCK_STREAM, 0);
 	if (sockfd == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
 		return SOCKERR;
@@ -189,7 +229,7 @@ sockfd_t socket_new_client(int af, const char *addr, const char *port) {
 
 	/* Connect to the server. */
 	if (connect(sockfd, (struct sockaddr *)&sa, addrlen) == SOCKERR) {
-		log_sockerr(LOG_ERROR, "Failed to connect to server %s:%u", addr, port);
+		log_sockerr(LOG_ERROR, "Failed to connect to server %s:%s", addr, port);
 		sockclose(sockfd);
 		return SOCKERR;
 	}

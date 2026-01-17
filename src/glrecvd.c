@@ -137,12 +137,12 @@ cleanup:
  */
 bool server_start(const char *addr, const char *port) {
 	/* Get the listening socket for our server. */
-	sockfd_server = socket_new_server(AF_INET, addr, port);
+	sockfd_server = socket_new_server(addr, port);
 	if (sockfd_server == SOCKERR)
 		return false;
 
 	/* Indicate that the server has started. */
-	log_printf(LOG_NOTICE, "Server started on %s:%u", addr, port);
+	log_printf(LOG_INFO, "Server started on %s:%s", addr, port);
 	server_status |= SERVER_RUNNING;
 
 	return true;
