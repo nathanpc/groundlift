@@ -44,6 +44,15 @@ typedef struct {
 	reqtype_t type;
 } reqline_t;
 
+/**
+ * Server reply line object.
+ */
+typedef struct {
+	char *type;
+	char *msg;
+	error_code_t code;
+} reply_t;
+
 /* Request replies. */
 void send_ok(sockfd_t sockfd);
 void send_continue(sockfd_t sockfd);
@@ -57,6 +66,10 @@ size_t reqline_send(sockfd_t sockfd, reqline_t *reqline);
 void reqline_type_set(reqline_t *reqline, reqtype_t type);
 void reqline_free(reqline_t *reqline);
 void reqline_dump(reqline_t *reqline);
+
+/* Reply message. */
+reply_t *reply_parse(const char *line);
+void reply_free(reply_t *reply);
 
 #ifdef __cplusplus
 }

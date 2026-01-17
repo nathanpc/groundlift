@@ -169,7 +169,7 @@ reqline_t *reqline_parse(const char *line) {
 				} else if (strcmp(buf, "URL") == 0) {
 					reqline->type = REQ_TYPE_URL;
 				} else {
-					log_printf(LOG_NOTICE, "Unknown request type '%s' from "
+					log_printf(LOG_ERROR, "Unknown request type '%s' from "
 						"request line \"%s\"", buf, line);
 					goto parse_failed;
 				}
@@ -284,4 +284,89 @@ void reqline_dump(reqline_t *reqline) {
 	/* Dump object contents. */
 	fprintf(stderr, "Type: %s ('%c')\n", reqline->stype, reqline->type);
 	fprintf(stderr, "Name: \"%s\" (%ld bytes)\n", reqline->name, reqline->size);
+}
+
+/**
+ * Parses a reply line from the server and allocates a new object.
+ *
+ * @warning This function allocates memory that must be freed later.
+ *
+ * @param line Line from the server ending before the CRLF.
+ *
+ * @return Parsed line into a server reply object or NULL if an error occurred.
+ *
+ * @see reply_free
+ */
+reply_t *reply_parse(const char *line) {
+	reply_t *reply;
+	const char *cur;
+	char *buf;
+	uint8_t step;
+
+	/* Allocate memory for the reply object. */
+	reply = (reply_t *)malloc(sizeof(reply_t));
+	if (reply == NULL) {
+		log_syserr(LOG_CRIT, "Failed to allocate memory for reply object");
+		return NULL;
+	}
+	reply->type = NULL;
+	reply->msg = NULL;
+
+	/* Parse each part of the reply line into the object. */
+	step = 0;
+	cur = line;
+	while ((buf = struntil(cur, '\t', &cur)) != NULL) {
+		switch (step) {
+			case 0:
+				/* Code */
+				reply->code = atoi(buf);
+				if (reply->code == 0) {
+					log_printf(LOG_ERROR, "Failed to parse reply status code");
+					free(buf);
+					goto parse_failed;
+				}
+				break;
+			case 1:
+				/* Type */
+				reply->type = buf;
+				break;
+			case 2:
+				/* Message */
+				reply->msg = buf;
+				break;
+			default:
+				log_printf(LOG_NOTICE, "Server replied with more information "
+					"than expected \"%s\"", line);
+				free(buf);
+				goto skip_parsing;
+		}
+
+		step++;
+	}
+
+skip_parsing:
+	return reply;
+
+parse_failed:
+	/* In case of an error... */
+	reply_free(reply);
+	reply = NULL;
+	return NULL;
+}
+
+/**
+ * Frees up memory allocated by a server reply object.
+ *
+ * @param reply Server reply object to be freed.
+ */
+void reply_free(reply_t *reply) {
+	if (reply == NULL)
+		return;
+
+	reply->code = 0;
+	if (reply->type)
+		free(reply->type);
+	if (reply->msg)
+		free(reply->msg);
+	free(reply);
 }
