@@ -11,9 +11,9 @@ PREFIX  ?= $(BUILDDIR)/dist
 # Internal project definitions.
 COMMONSRC   = sockets.c request.c logging.c utils.c
 OBJECTS    := $(patsubst %.c, $(BUILDDIR)/%.o, $(COMMONSRC))
-APPSRC      = glrecvd.c #glsend.c glscan.c
+APPSRC      = glrecvd.c glsend.c #glscan.c
 APPOBJECTS := $(patsubst %.c, $(BUILDDIR)/%.o, $(APPSRC))
-TARGETS    := $(OBJECTS) $(APPOBJECTS) $(BUILDDIR)/glrecvd #$(BUILDDIR)/glsend $(BUILDDIR)/glscan
+TARGETS    := $(OBJECTS) $(APPOBJECTS) $(BUILDDIR)/glrecvd $(BUILDDIR)/glsend #$(BUILDDIR)/glscan
 
 .PHONY: all compiledb compile debug memcheck clean
 
@@ -27,6 +27,9 @@ $(BUILDDIR)/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/glrecvd: $(OBJECTS) $(BUILDDIR)/glrecvd.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+$(BUILDDIR)/glsend: $(OBJECTS) $(BUILDDIR)/glsend.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 compiledb: clean

@@ -23,10 +23,24 @@
 #endif /* RECV_BUF_LEN */
 
 /**
+ * Client's file send buffer length.
+ */
+#ifndef SEND_BUF_LEN
+	#define SEND_BUF_LEN RECV_BUF_LEN
+#endif /* SEND_BUF_LEN */
+
+/**
  * Receive request line's maximum length.
  */
 #ifndef GL_REQLINE_MAX
 	#define GL_REQLINE_MAX 400
 #endif /* GL_REQLINE_MAX */
+
+/**
+ * Server reply line's maximum length.
+ */
+#ifndef GL_REPLYLINE_MAX
+	#define GL_REPLYLINE_MAX GL_REQLINE_MAX
+#endif /* GL_REPLYLINE_MAX */
 
 #endif /* _GL_DEFAULTS_H */
