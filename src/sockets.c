@@ -156,6 +156,43 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
 }
 
 /**
+ * Opens up a new TCP connecting socket for client operation.
+ *
+ * @param af   Address family.
+ * @param addr IP address of the server to connect to.
+ * @param port Port that the server is listening on.
+ *
+ * @return Socket file descriptor or SOCKERR if an error occurred.
+ */
+sockfd_t socket_new_client(int af, const char *addr, uint16_t port) {
+	struct sockaddr_storage sa;
+	sockfd_t sockfd;
+	socklen_t addrlen;
+
+	/* Get a socket file descriptor. */
+	sockfd = socket_new(af, &sa, &addrlen);
+	if (sockfd == SOCKERR) {
+		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
+		return SOCKERR;
+	}
+
+	/* Populate socket address information. */
+	if (!socket_addr_setup(&sa, af, addr, port)) {
+		sockclose(sockfd);
+		return SOCKERR;
+	}
+
+	/* Connect to the server. */
+	if (connect(sockfd, (struct sockaddr *)&sa, addrlen) == SOCKERR) {
+		log_sockerr(LOG_ERROR, "Failed to connect to server %s:%u", addr, port);
+		sockclose(sockfd);
+		return SOCKERR;
+	}
+
+	return sockfd;
+}
+
+/**
  * Closes a socket and optionally shut it down beforehand.
  *
  * @warning This function won't call close() if shutdown() fails.

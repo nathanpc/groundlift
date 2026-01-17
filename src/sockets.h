@@ -69,10 +69,11 @@ void socket_init(void);
 /* Socket operations. */
 sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen);
 bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
-	uint16_t port);
+                       uint16_t port);
 
-/* Server */
+/* Server and client. */
 sockfd_t socket_new_server(int af, const char *addr, uint16_t port);
+sockfd_t socket_new_client(int af, const char *addr, uint16_t port);
 
 /* Utilities */
 int socket_close(sockfd_t sockfd, bool shut);
