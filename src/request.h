@@ -40,7 +40,7 @@ typedef enum {
 typedef struct {
 	char *stype;
 	char *name;
-	long size;
+	size_t size;
 	reqtype_t type;
 } reqline_t;
 

@@ -188,7 +188,7 @@ reqline_t *reqline_parse(const char *line) {
 				}
 
 				/* Try to get a number from the string. */
-				if (!parse_num(buf, &reqline->size)) {
+				if (!parse_size(buf, &reqline->size)) {
 					log_syserr(LOG_NOTICE, "Failed to convert file size '%s' to"
 						" number from request line \"%s\"", buf, line);
 					free(buf);
