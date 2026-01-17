@@ -38,6 +38,9 @@ void server_process_request(sockfd_t *sock);
 bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline);
 bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline);
 void sigint_handler(int sig);
+#ifdef _WIN32
+BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType);
+#endif /* _WIN32 */
 
 /* State variables. */
 static uint8_t server_status;
@@ -466,3 +469,25 @@ void sigint_handler(int sig) {
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
 }
+
+#ifdef _WIN32
+/**
+ * Handles console control signals, similar to signal_handler, but for the
+ * command prompt window in Windows.
+ *
+ * @param dwCtrlType Control signal type.
+ *
+ * @return TRUE if we handled the control signal, FALSE otherwise.
+ */
+BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType) {
+	switch (dwCtrlType) {
+		case CTRL_CLOSE_EVENT:
+		case CTRL_LOGOFF_EVENT:
+		case CTRL_SHUTDOWN_EVENT:
+			server_stop();
+			return TRUE;
+	}
+
+	return FALSE;
+}
+#endif /* _WIN32 */
