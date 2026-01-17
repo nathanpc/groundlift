@@ -19,6 +19,7 @@ extern "C" {
 /* String manipulation. */
 char *struntil(const char *begin, char token, const char **end);
 bool parse_num(const char *str, long *num);
+bool parse_size(const char *str, size_t *num);
 
 /* User interaction. */
 bool ask_yn(const char *msg, ...);

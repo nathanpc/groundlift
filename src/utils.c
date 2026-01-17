@@ -99,6 +99,31 @@ bool parse_num(const char *str, long *num) {
 }
 
 /**
+ * Converts a string to a size_t and indicates in case of a failure. This is a
+ * wrapper over parse_num.
+ *
+ * @remark This function will set errno on failure according to atol or strtol
+ *         on your system.
+ *
+ * @param str String to be converted to a number.
+ * @param num Number to return if the conversion is successful.
+ *
+ * @return TRUE if the conversion was successful, FALSE otherwise.
+ *
+ * @see parse_num
+ */
+bool parse_size(const char *str, size_t *num) {
+	long l;
+	bool ret;
+
+	/* Parse the number. */
+	ret = parse_num(str, &l);
+	*num = ret ? l : 0;
+
+	return ret;
+}
+
+/**
  * Prompts the user to answer a yes or no question. Defaults to yes.
  *
  * @param msg Question to be asked to the user.
