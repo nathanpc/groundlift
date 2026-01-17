@@ -13,6 +13,7 @@
 	#include <windows.h>
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
+	#include <wspiapi.h>
 #else
 	#include <arpa/inet.h>
 	#include <netinet/in.h>
@@ -69,11 +70,11 @@ void socket_init(void);
 /* Socket operations. */
 sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen);
 bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
-                       uint16_t port);
+                       const char *port);
 
 /* Server and client. */
-sockfd_t socket_new_server(int af, const char *addr, uint16_t port);
-sockfd_t socket_new_client(int af, const char *addr, uint16_t port);
+sockfd_t socket_new_server(int af, const char *addr, const char *port);
+sockfd_t socket_new_client(int af, const char *addr, const char *port);
 
 /* Utilities */
 int socket_close(sockfd_t sockfd, bool shut);

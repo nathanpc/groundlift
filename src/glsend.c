@@ -13,7 +13,6 @@
 	#endif /* DEBUG */
 #endif /* _WIN32 */
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -26,7 +25,7 @@
 #include "utils.h"
 
 /* Private functions. */
-bool send_file(const char *addr, uint16_t port, const char *fpath);
+bool send_file(const char *addr, const char *port, const char *fpath);
 reply_t *process_server_reply(const sockfd_t *sockfd);
 size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
                             const char *fpath);
@@ -47,7 +46,7 @@ int main(int argc, char **argv) {
 	int ret;
 	const char *addr;
 	const char *fpath;
-	uint16_t port;
+	const char *port;
 
 #ifdef _WIN32
 #ifdef _DEBUG
@@ -78,7 +77,7 @@ int main(int argc, char **argv) {
 
 	/* Populate our options. */
 	addr = argv[1];
-	port = atoi(argv[2]);
+	port = argv[2];
 	fpath = argv[3];
 
 	/* Send the file to the server. */
@@ -118,7 +117,7 @@ cleanup:
  *
  * @return TRUE if the operation was successful, FALSE otherwise.
  */
-bool send_file(const char *addr, uint16_t port, const char *fpath) {
+bool send_file(const char *addr, const char *port, const char *fpath) {
 	reqline_t *reqline;
 	reply_t *reply;
 	bool ret;

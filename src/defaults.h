@@ -12,7 +12,7 @@
  * Default port.
  */
 #ifndef GL_SERVER_PORT
-	#define GL_SERVER_PORT 1650
+	#define GL_SERVER_PORT "1650"
 #endif /* GL_SERVER_PORT */
 
 /**

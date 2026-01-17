@@ -31,7 +31,7 @@
 #define CLIENT_CONNECTED 0x02
 
 /* Private functions. */
-bool server_start(const char *addr, uint16_t port);
+bool server_start(const char *addr, const char *port);
 void server_stop(void);
 void server_loop(int af, sockfd_t server);
 void server_process_request(sockfd_t *sock);
@@ -58,7 +58,7 @@ static sockfd_t sockfd_client;
 int main(int argc, char **argv) {
 	int ret;
 	const char *addr;
-	uint16_t port;
+	const char *port;
 
 #ifdef _WIN32
 #ifdef _DEBUG
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 
 	/* Populate our options. */
 	addr = (argc > 1) ? argv[1] : NULL;
-	port = (argc > 2) ? atoi(argv[2]) : GL_SERVER_PORT;
+	port = (argc > 2) ? argv[2] : GL_SERVER_PORT;
 
 	/* Run the server. */
 	if (!server_start((addr == NULL) ? "0.0.0.0" : addr, port))
@@ -135,7 +135,7 @@ cleanup:
  *
  * @return TRUE if the startup was successful.
  */
-bool server_start(const char *addr, uint16_t port) {
+bool server_start(const char *addr, const char *port) {
 	/* Get the listening socket for our server. */
 	sockfd_server = socket_new_server(AF_INET, addr, port);
 	if (sockfd_server == SOCKERR)

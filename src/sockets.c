@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "logging.h"
+#include "utils.h"
 
 /* Private definitions. */
 #define LISTEN_BACKLOG      5  /* Server socket listening backlog. */
@@ -63,16 +64,24 @@ sockfd_t socket_new(int af, struct sockaddr_storage *sa, socklen_t *addrlen) {
  * @return TRUE if the operation was successful, FALSE otherwise.
  */
 bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
-                       uint16_t port) {
+                       const char *port) {
+	/* Convert port to IP port integer. */
+	long portnum;
+	if (!parse_num(port, &portnum)) {
+		log_syserr(LOG_ERROR, "Failed to parse port %s into a number", port);
+		return false;
+	}
+
+	/* Populate the IP address structure. */
 	if (af == AF_INET) {
 		struct sockaddr_in *inaddr = (struct sockaddr_in*)sa;
 		inaddr->sin_family = af;
-		inaddr->sin_port = htons(port);
+		inaddr->sin_port = htons((uint16_t )portnum);
 		inaddr->sin_addr.s_addr = inet_addr(addr);
 	} else {
 		struct sockaddr_in6 *in6addr = (struct sockaddr_in6*)sa;
 		in6addr->sin6_family = af;
-		in6addr->sin6_port = htons(port);
+		in6addr->sin6_port = htons((uint16_t )portnum);
 		log_printf(LOG_CRIT, "IPv6 not yet implemented.");
 		return false;
 	}
@@ -89,7 +98,7 @@ bool socket_addr_setup(struct sockaddr_storage *sa, int af, const char *addr,
  *
  * @return Socket file descriptor or SOCKERR if an error occurred.
  */
-sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
+sockfd_t socket_new_server(int af, const char *addr, const char *port) {
 	struct sockaddr_storage sa;
 	sockfd_t sockfd;
 	socklen_t addrlen;
@@ -100,16 +109,14 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
 	int flag;
 #endif /* _WIN32 */
 
+	/* Populate socket address information. */
+	if (!socket_addr_setup(&sa, af, addr, port))
+		return SOCKERR;
+
 	/* Get a socket file descriptor. */
 	sockfd = socket_new(af, &sa, &addrlen);
 	if (sockfd == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
-		return SOCKERR;
-	}
-
-	/* Populate socket address information. */
-	if (!socket_addr_setup(&sa, af, addr, port)) {
-		socket_close(sockfd, false);
 		return SOCKERR;
 	}
 
@@ -164,21 +171,19 @@ sockfd_t socket_new_server(int af, const char *addr, uint16_t port) {
  *
  * @return Socket file descriptor or SOCKERR if an error occurred.
  */
-sockfd_t socket_new_client(int af, const char *addr, uint16_t port) {
+sockfd_t socket_new_client(int af, const char *addr, const char *port) {
 	struct sockaddr_storage sa;
 	sockfd_t sockfd;
 	socklen_t addrlen;
+
+	/* Populate socket address information. */
+	if (!socket_addr_setup(&sa, af, addr, port))
+		return SOCKERR;
 
 	/* Get a socket file descriptor. */
 	sockfd = socket_new(af, &sa, &addrlen);
 	if (sockfd == SOCKERR) {
 		log_sockerr(LOG_CRIT, "Failed to get a server socket file descriptor");
-		return SOCKERR;
-	}
-
-	/* Populate socket address information. */
-	if (!socket_addr_setup(&sa, af, addr, port)) {
-		sockclose(sockfd);
 		return SOCKERR;
 	}
 
