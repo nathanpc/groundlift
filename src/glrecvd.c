@@ -344,7 +344,7 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 
 	/* Pipe the contents of the file from the network. */
 	acclen = 0;
-	while ((len = recv(*sockfd, buf, RECV_BUF_LEN, 0)) <= 0) {
+	while ((len = recv(*sockfd, buf, RECV_BUF_LEN, 0)) > 0) {
 		/* Deal with the transfer size. */
 		acclen += len;
 		if (acclen > reqline->size) {
@@ -369,6 +369,8 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 		log_sockerr(LOG_ERROR, "The client has closed the connection before "
 			"the file \"%s\" finished transferring", fname);
 		ret = false;
+	} else {
+		fprintf(stderr, "\n");
 	}
 
 	/* Free up resources. */
