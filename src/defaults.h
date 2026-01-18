@@ -16,6 +16,13 @@
 #endif /* GL_SERVER_PORT */
 
 /**
+ * Copyright text.
+ */
+#ifndef GL_COPYRIGHT
+	#define GL_COPYRIGHT "Copyright (C) 2023-2026 Nathan Campos"
+#endif /* GL_COPYRIGHT */
+
+/**
  * Server's file receive buffer length.
  */
 #ifndef RECV_BUF_LEN
