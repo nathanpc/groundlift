@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <getopt.h>
 
 #include "defaults.h"
 #include "logging.h"
@@ -24,15 +25,27 @@
 #include "request.h"
 #include "utils.h"
 
+/**
+ * Configuration options passed as command line arguments.
+ */
+typedef struct {
+	const char *addr;
+	const char *port;
+	const char *fpath;
+	char type;
+} opts_t;
+
 /* Private functions. */
 bool send_file(const char *addr, const char *port, const char *fpath);
 reply_t *process_server_reply(const sockfd_t *sockfd);
 size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
                             const char *fpath);
 void sigint_handler(int sig);
+void usage(const char *prog);
 
 /* State variables. */
 static sockfd_t sockfd_client;
+static opts_t opts;
 
 /**
  * Program's main entry point.
@@ -44,9 +57,7 @@ static sockfd_t sockfd_client;
  */
 int main(int argc, char **argv) {
 	int ret;
-	const char *addr;
-	const char *fpath;
-	const char *port;
+	int opt;
 
 #ifdef _WIN32
 #ifdef _DEBUG
@@ -68,20 +79,65 @@ int main(int argc, char **argv) {
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
 
-	/* Check if we have the right number of command-line arguments. */
-	if (argc < 4) {
-		fprintf(stderr, "usage: %s ip port file\n", argv[0]);
+	/* Populates the command line options object with defaults. */
+	opts.addr = NULL;
+	opts.port = GL_SERVER_PORT;
+	opts.fpath = NULL;
+	opts.type = REQ_TYPE_FILE;
+
+	/* Handle command line arguments. */
+	while ((opt = getopt(argc, argv, "p:uh")) != -1) {
+		switch (opt) {
+			case 'p':
+				opts.port = optarg;
+				break;
+			case 'u':
+				opts.type = REQ_TYPE_URL;
+				break;
+			case '?':
+				ret = 1;
+				/* fallthrough */
+			case 'h':
+				usage(argv[0]);
+				goto cleanup;
+			default:
+				log_printf(LOG_ERROR, "Something unexpected happened while "
+					"parsing command line arguments (%c/%c)", opt, optopt);
+				ret = 1;
+				goto cleanup;
+		}
+	}
+
+	/* Warn user about ignored arguments. */
+	opt = 0;
+	while (optind < argc) {
+		switch (opt) {
+			case 0:
+				opts.addr = argv[optind++];
+				break;
+			case 1:
+				opts.fpath = argv[optind++];
+				break;
+			default:
+				fprintf(stderr, "%s: unknown argument -- %s (ignored)\n",
+					argv[0], argv[optind++]);
+				ret = 1;
+		}
+
+		opt++;
+	}
+
+	/* Check if we have all the required arguments. */
+	if (opt < 2) {
 		ret = 1;
+		usage(argv[0]);
 		goto cleanup;
 	}
 
-	/* Populate our options. */
-	addr = argv[1];
-	port = argv[2];
-	fpath = argv[3];
+	/* TODO: Implement URL sending. */
 
 	/* Send the file to the server. */
-	send_file(addr, port, fpath);
+	send_file(opts.addr, opts.port, opts.fpath);
 
 cleanup:
 #ifdef _WIN32
@@ -326,4 +382,23 @@ void sigint_handler(int sig) {
 
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
+}
+
+/**
+ * Displays the usage help message.
+ *
+ * @param prog Program's name from argv[0].
+ */
+void usage(const char *prog) {
+	printf("usage: %s [-p port] [-u] addr file\n\n", prog);
+	puts("arguments:");
+	puts("    addr       Address where the server is listening on");
+	puts("    file       File or URL to send to the server");
+	puts("");
+	puts("options:");
+	puts("    -h         Displays this message");
+	puts("    -p port    Port the server is listening on");
+	puts("    -u         Send a URL instead of a file");
+	puts("");
+	puts(GL_COPYRIGHT);
 }
