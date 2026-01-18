@@ -120,8 +120,15 @@ int main(int argc, char **argv) {
 			default:
 				log_printf(LOG_ERROR, "Something unexpected happened while "
 					"parsing command line arguments (%c/%c)", opt, optopt);
+				ret = 1;
 				goto cleanup;
 		}
+	}
+
+	/* Warn user about ignored arguments. */
+	while (optind < argc) {
+		fprintf(stderr, "%s: unknown argument -- %s (ignored)\n", argv[0],
+			argv[optind++]);
 	}
 
 	/* Run the server. */
