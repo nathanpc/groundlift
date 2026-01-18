@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <string.h>
+#include <getopt.h>
 
 #include "defaults.h"
 #include "logging.h"
@@ -30,6 +31,15 @@
 #define SERVER_RUNNING   0x01
 #define CLIENT_CONNECTED 0x02
 
+/**
+ * Configuration options passed as command line arguments.
+ */
+typedef struct {
+	const char *addr;
+	const char *port;
+	bool accept_all;
+} opts_t;
+
 /* Private functions. */
 bool server_start(const char *addr, const char *port);
 void server_stop(void);
@@ -38,6 +48,7 @@ void server_process_request(sockfd_t *sock);
 bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline);
 bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline);
 void sigint_handler(int sig);
+void usage(const char *prog);
 #ifdef _WIN32
 BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType);
 #endif /* _WIN32 */
@@ -46,6 +57,7 @@ BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType);
 static uint8_t server_status;
 static sockfd_t sockfd_server;
 static sockfd_t sockfd_client;
+static opts_t opts;
 
 /**
  * Program's main entry point.
@@ -57,8 +69,7 @@ static sockfd_t sockfd_client;
  */
 int main(int argc, char **argv) {
 	int ret;
-	const char *addr;
-	const char *port;
+	int opt;
 
 #ifdef _WIN32
 #ifdef _DEBUG
@@ -83,20 +94,41 @@ int main(int argc, char **argv) {
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
 
-	/* Check if we have the right number of command-line arguments. */
-	if (argc > 3) {
-		fprintf(stderr, "usage: %s listen_ip port\n", argv[0]);
-		ret = 1;
-		goto cleanup;
+	/* Populates the command line options object with defaults. */
+	opts.addr = "0.0.0.0";
+	opts.port = GL_SERVER_PORT;
+	opts.accept_all = false;
+
+	/* Handle command line arguments. */
+	while ((opt = getopt(argc, argv, "l:p:yh")) != -1) {
+		switch (opt) {
+			case 'l':
+				opts.addr = optarg;
+				break;
+			case 'p':
+				opts.port = optarg;
+				break;
+			case 'y':
+				opts.accept_all = true;
+				break;
+			case '?':
+				ret = 1;
+				/* fallthrough */
+			case 'h':
+				usage(argv[0]);
+				goto cleanup;
+			default:
+				log_printf(LOG_ERROR, "Something unexpected happened while "
+					"parsing command line arguments (%c/%c)", opt, optopt);
+				goto cleanup;
+		}
 	}
 
-	/* Populate our options. */
-	addr = (argc > 1) ? argv[1] : NULL;
-	port = (argc > 2) ? argv[2] : GL_SERVER_PORT;
-
 	/* Run the server. */
-	if (!server_start((addr == NULL) ? "0.0.0.0" : addr, port))
+	if (!server_start(opts.addr, opts.port)) {
+		ret = 2;
 		goto cleanup;
+	}
 	server_loop(AF_INET, sockfd_server);
 
 cleanup:
@@ -152,6 +184,10 @@ bool server_start(const char *addr, const char *port) {
  * Stops the server immediately.
  */
 void server_stop(void) {
+	/* Do we even have anything to do? */
+	if (!(server_status & SERVER_RUNNING))
+		return;
+
 	/* Stop the server. */
 	log_printf(LOG_NOTICE, "Stopping the server...");
 	server_status &= ~SERVER_RUNNING;
@@ -334,8 +370,10 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 	}
 
 	/* Ask the user if they want to accept the transfer. */
-	if (!ask_yn("Do you want to receive the file \"%s\"?", fname))
+	if (!opts.accept_all &&
+	    !ask_yn("Do you want to receive the file \"%s\"?", fname)) {
 		goto refuse;
+	}
 
 	/* Open the file for writing. */
 	fh = fopen(fname, "wb");
@@ -491,3 +529,19 @@ BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType) {
 	return FALSE;
 }
 #endif /* _WIN32 */
+
+/**
+ * Displays the usage help message.
+ *
+ * @param prog Program's name from argv[0].
+ */
+void usage(const char *prog) {
+	printf("usage: %s [-l addr] [-p port] [-y]\n\n", prog);
+	puts("options:");
+	puts("    -h         Displays this message");
+	puts("    -l addr    Server should listen on the specified address");
+	puts("    -p port    Port the server should listen on");
+	puts("    -y         Automatically accept all requests without asking");
+	puts("");
+	puts(GL_COPYRIGHT);
+}
