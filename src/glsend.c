@@ -335,7 +335,7 @@ size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
 
 	/* Pipe file contents straight to socket. */
 	acclen = 0;
-	fprintf(stderr, "%s (%lu/%lu)", reqline->name, acclen, reqline->size);
+	buffered_progress(reqline->name, acclen, reqline->size);
 	while ((len = fread(buf, sizeof(uint8_t), SEND_BUF_LEN, fh)) > 0) {
 		if (send(*sockfd, buf, len, 0) < 0) {
 			/* An error occurred during sending. */
@@ -358,7 +358,7 @@ size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
 
 		/* Increment the accumulated length and display the progress. */
 		acclen += len;
-		fprintf(stderr, "\r%s (%lu/%lu)", reqline->name, acclen, reqline->size);
+		buffered_progress(reqline->name, acclen, reqline->size);
 	}
 
 	/* Ensure we go to a new line before continuing to preserve the progress. */

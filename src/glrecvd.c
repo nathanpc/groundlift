@@ -402,7 +402,7 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 		}
 
 		/* Show transfer progress and write to the file. */
-		fprintf(stderr, "\r%s (%lu/%lu)", fname, acclen, reqline->size);
+		buffered_progress(fname, acclen, reqline->size);
 		fwrite(buf, sizeof(uint8_t), len, fh);
 
 		/* Detect if we have finished transferring the file. */

@@ -14,6 +14,9 @@
 	#include <unistd.h>
 	#include <libgen.h>
 #endif /* _WIN32 */
+#include <time.h>
+
+#include "defaults.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -150,6 +153,37 @@ bool ask_yn(const char *msg, ...) {
 	}
 
 	return (resp == 'y') || (resp == 'Y') || (resp == '\0');
+}
+
+/**
+ * Buffers the transfer progress in order to improve the performance when
+ * printing to the console.
+ *
+ * @warning This function uses an internal static variable to keep track of the
+ *          progress and is thus not thread-safe.
+ *
+ * @param name  Name of the object being transferred.
+ * @param acc   Accumulated size so far.
+ * @param fsize Final size of the transfer.
+ */
+void buffered_progress(const char *name, size_t acc, size_t fsize) {
+	static time_t elapsed;
+	time_t now;
+	bool print;
+
+	/* Print the progress every 500ms. */
+	now = time(NULL);
+	print = (difftime(now, elapsed) > 0.5);
+
+	/* Always print between transfers or when it's finished. */
+	if ((acc <= RECV_BUF_LEN) || (acc >= fsize))
+		print = true;
+
+	/* Is it time to print? */
+	if (print) {
+		fprintf(stderr, "\r%s (%lu/%lu)", name, acc, fsize);
+		elapsed = now;
+	}
 }
 
 /**

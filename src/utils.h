@@ -23,6 +23,7 @@ bool parse_size(const char *str, size_t *num);
 
 /* User interaction. */
 bool ask_yn(const char *msg, ...);
+void buffered_progress(const char *name, size_t acc, size_t fsize);
 
 /* File system. */
 int fname_sanitize(char *fname);
