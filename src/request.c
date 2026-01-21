@@ -180,14 +180,6 @@ reqline_t *reqline_parse(const char *line) {
 				break;
 			case 2:
 				/* File size. */
-				if (reqline->type != REQ_TYPE_FILE) {
-					log_printf(LOG_NOTICE, "Third field present in non-FILE "
-						"type request from \"%s\"", line);
-					free(buf);
-					goto skip_parsing;
-				}
-
-				/* Try to get a number from the string. */
 				if (!parse_size(buf, &reqline->size)) {
 					log_syserr(LOG_NOTICE, "Failed to convert file size '%s' to"
 						" number from request line \"%s\"", buf, line);
