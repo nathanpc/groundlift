@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <signal.h>
 #include <getopt.h>
 
@@ -36,10 +37,14 @@ typedef struct {
 } opts_t;
 
 /* Private functions. */
+bool send_url(const char *addr, const char *port, const char *url);
 bool send_file(const char *addr, const char *port, const char *fpath);
 reply_t *process_server_reply(const sockfd_t *sockfd);
 size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
                             const char *fpath);
+bool perform_request(const char *addr, const char *port, reqline_t *reqline,
+                     reply_t **reply);
+void print_reply_error(const reply_t *reply);
 void sigint_handler(int sig);
 void usage(const char *prog);
 
@@ -134,10 +139,19 @@ int main(int argc, char **argv) {
 		goto cleanup;
 	}
 
-	/* TODO: Implement URL sending. */
-
-	/* Send the file to the server. */
-	send_file(opts.addr, opts.port, opts.fpath);
+	/* Send request to the server. */
+	switch (opts.type) {
+		case REQ_TYPE_FILE:
+			send_file(opts.addr, opts.port, opts.fpath);
+			break;
+		case REQ_TYPE_URL:
+			send_url(opts.addr, opts.port, opts.fpath);
+			break;
+		default:
+			log_printf(LOG_ERROR, "Unknown request type to send to server");
+			ret = 1;
+			break;
+	}
 
 cleanup:
 #ifdef _WIN32
@@ -165,6 +179,55 @@ cleanup:
 }
 
 /**
+ * Handles the entire process of sending an URL to a server.
+ *
+ * @param addr Address of the server to send the file to.
+ * @param port Port used to communicate with the server.
+ * @param url  URL to be sent.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool send_url(const char *addr, const char *port, const char *url) {
+	reqline_t *reqline;
+	reply_t *reply;
+	bool ret;
+
+	/* Initialize variables. */
+	reply = NULL;
+
+	/* Build request line object. */
+	reqline = reqline_new();
+	if (reqline == NULL)
+		return false;
+	reqline_type_set(reqline, REQ_TYPE_URL);
+	reqline->name = strdup(url);
+	reqline->size = strlen(url);
+
+	/* Connect to the server. */
+	ret = perform_request(addr, port, reqline, &reply);
+	if (!ret)
+		goto cleanup;
+
+	/* Check if the server replied with an error. */
+	if (reply->code != 200) {
+		print_reply_error(reply);
+		ret = false;
+		goto cleanup;
+	}
+
+cleanup:
+	/* Free request line object and close the socket. */
+	reqline_free(reqline);
+	reply_free(reply);
+	if (sockfd_client != SOCKERR) {
+		socket_close(sockfd_client, true);
+		sockfd_client = SOCKERR;
+	}
+
+	return ret;
+}
+
+/**
  * Handles the entire process of sending a file to a server.
  *
  * @param addr  Address of the server to send the file to.
@@ -180,7 +243,6 @@ bool send_file(const char *addr, const char *port, const char *fpath) {
 
 	/* Initialize variables. */
 	reply = NULL;
-	ret = true;
 
 	/* Check if the file actually exists. */
 	if (!file_exists(fpath)) {
@@ -197,62 +259,20 @@ bool send_file(const char *addr, const char *port, const char *fpath) {
 	reqline->name = path_basename(fpath);
 
 	/* Connect to the server. */
-	sockfd_client = socket_new_client(addr, port);
-	if (sockfd_client == SOCKERR) {
-		ret = false;
+	ret = perform_request(addr, port, reqline, &reply);
+	if (!ret)
 		goto cleanup;
-	}
-	log_printf(LOG_INFO, "Connected to the server on %s:%s", addr, port);
-
-	/* Send request line. */
-	if (reqline_send(sockfd_client, reqline) == 0) {
-		ret = false;
-		goto cleanup;
-	}
-	log_printf(LOG_INFO, "Sent %s request line", reqline->stype);
-
-	/* Wait and process the server reply. */
-	reply = process_server_reply(&sockfd_client);
-	if (reply == NULL) {
-		ret = false;
-		goto cleanup;
-	}
-
-#ifdef _DEBUG
-	/* Print parsed reply for debugging. */
-	log_printf(LOG_INFO, "Parsed server reply: (%u) [%s] \"%s\"", reply->code,
-	           reply->type, reply->msg);
-#endif /* _DEBUG */
 
 	/* Check if the server replied with an error. */
-	if (reply->code >= 300) {
-		switch (reply->code) {
-			case ERR_CODE_REQ_REFUSED:
-				log_printf(LOG_NOTICE, "User refused the request");
-				break;
-			default:
-				log_printf(LOG_ERROR, "Server replied with error: [%u %s] %s",
-				           reply->code, reply->type, reply->msg);
-				break;
-		}
-
+	if (reply->code != 100) {
+		print_reply_error(reply);
 		ret = false;
-		goto cleanup;
-	} else if (reply->code != 100) {
-		/* Server replied with a code that means we shouldn't continue. */
 		goto cleanup;
 	}
 
-	/* Send the file contents in case of a file request. */
-	if (reqline->type == REQ_TYPE_FILE) {
-		if (!client_file_transfer(&sockfd_client, reqline, fpath)) {
-			log_printf(LOG_NOTICE, "File transfer failed");
-			ret = false;
-			goto cleanup;
-		}
-	} else {
-		log_printf(LOG_ERROR, "Server replied with CONTINUE, but the %s "
-			"request type hasn't yet been implemented", reqline->stype);
+	/* Send the file contents. */
+	if (!client_file_transfer(&sockfd_client, reqline, fpath)) {
+		log_printf(LOG_NOTICE, "File transfer failed");
 		ret = false;
 		goto cleanup;
 	}
@@ -308,6 +328,82 @@ reply_t *process_server_reply(const sockfd_t *sockfd) {
 
 	/* Parse reply from server and return it. */
 	return reply_parse(line);
+}
+
+/**
+ * Connects to the server, sends the request line, waits, and processes the
+ * server's reply.
+ *
+ * @param addr    Address of the server to connect to.
+ * @param port    Port to connect to the server on.
+ * @param reqline Request line object to be sent over to the server.
+ * @param reply   Where to store the parsed reply from the server. May be NULL
+ *                if an error occurred during parsing.
+ *
+ * @return TRUE if the entire operation was successful, FALSE otherwise.
+ */
+bool perform_request(const char *addr, const char *port, reqline_t *reqline,
+                     reply_t **reply) {
+	bool ret = true;
+
+	/* Connect to the server. */
+	sockfd_client = socket_new_client(addr, port);
+	if (sockfd_client == SOCKERR) {
+		ret = false;
+		goto cleanup;
+	}
+	log_printf(LOG_INFO, "Connected to the server on %s:%s", addr, port);
+
+	/* Send request line. */
+	if (reqline_send(sockfd_client, reqline) == 0) {
+		ret = false;
+		goto cleanup;
+	}
+	log_printf(LOG_INFO, "Sent %s request", reqline->stype);
+
+	/* Wait and process the server reply. */
+	if (reply == NULL) {
+		ret = false;
+		goto cleanup;
+	}
+	*reply = process_server_reply(&sockfd_client);
+	if (*reply == NULL) {
+		ret = false;
+		goto cleanup;
+	}
+
+#ifdef _DEBUG
+	/* Print parsed reply for debugging. */
+	log_printf(LOG_INFO, "Parsed server reply: (%u) [%s] \"%s\"",
+		(*reply)->code, (*reply)->type, (*reply)->msg);
+#endif /* _DEBUG */
+
+cleanup:
+	/* Free request line object and close the socket. */
+	reqline_free(reqline);
+	if (sockfd_client != SOCKERR) {
+		socket_close(sockfd_client, true);
+		sockfd_client = SOCKERR;
+	}
+
+	return ret;
+}
+
+/**
+ * Prints out error messages based on a server's reply.
+ *
+ * @param reply Server reply object.
+ */
+void print_reply_error(const reply_t *reply) {
+	switch (reply->code) {
+		case ERR_CODE_REQ_REFUSED:
+			log_printf(LOG_NOTICE, "User refused the request");
+			break;
+		default:
+			log_printf(LOG_ERROR, "Server replied with error: [%u %s] %s",
+				reply->code, reply->type, reply->msg);
+			break;
+	}
 }
 
 /**
