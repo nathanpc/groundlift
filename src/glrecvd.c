@@ -414,6 +414,7 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 
 	/* Check if the connection ended before the file finished transferring. */
 	if (len <= 0) {
+		fprintf(stderr, "\n");
 		log_sockerr(LOG_ERROR, "The client has closed the connection before "
 			"the file \"%s\" finished transferring", fname);
 		ret = false;
