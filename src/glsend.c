@@ -379,8 +379,7 @@ bool perform_request(const char *addr, const char *port, reqline_t *reqline,
 #endif /* _DEBUG */
 
 cleanup:
-	/* Free request line object and close the socket. */
-	reqline_free(reqline);
+	/* Close the socket. */
 	if (sockfd_client != SOCKERR) {
 		socket_close(sockfd_client, true);
 		sockfd_client = SOCKERR;
