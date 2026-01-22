@@ -37,6 +37,7 @@ typedef struct {
 } opts_t;
 
 /* Private functions. */
+void cancel_request(void);
 bool send_url(const char *addr, const char *port, const char *url);
 bool send_file(const char *addr, const char *port, const char *fpath);
 reply_t *process_server_reply(const sockfd_t *sockfd);
@@ -47,9 +48,13 @@ bool perform_request(const char *addr, const char *port, reqline_t *reqline,
 void print_reply_error(const reply_t *reply);
 void sigint_handler(int sig);
 void usage(const char *prog);
+#ifdef _WIN32
+BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType);
+#endif /* _WIN32 */
 
 /* State variables. */
 static sockfd_t sockfd_client;
+static bool running;
 static opts_t opts;
 
 /**
@@ -79,6 +84,7 @@ int main(int argc, char **argv) {
 
 	/* Initialize defaults and subsystems. */
 	ret = 0;
+	running = false;
 	socket_init();
 
 	/* Catch the interrupt signal from the console. */
@@ -154,6 +160,7 @@ int main(int argc, char **argv) {
 	}
 
 cleanup:
+	running = false;
 #ifdef _WIN32
 	/* Clean up Winsock stuff. */
 	WSACleanup();
@@ -176,6 +183,20 @@ cleanup:
 #endif /* _WIN32 */
 
 	return ret;
+}
+
+/**
+ * Cancels a request in the middle of it.
+ */
+void cancel_request(void) {
+	/* Do we even have anything to do? */
+	if (!running)
+		return;
+
+	/* Close the socket forcefully. */
+	socket_close(sockfd_client, true);
+	sockfd_client = SOCKERR;
+	running = false;
 }
 
 /**
@@ -223,6 +244,7 @@ cleanup:
 		socket_close(sockfd_client, true);
 		sockfd_client = SOCKERR;
 	}
+	running = false;
 
 	return ret;
 }
@@ -272,7 +294,12 @@ bool send_file(const char *addr, const char *port, const char *fpath) {
 
 	/* Send the file contents. */
 	if (!client_file_transfer(&sockfd_client, reqline, fpath)) {
-		log_printf(LOG_NOTICE, "File transfer failed");
+		if (running) {
+			log_printf(LOG_NOTICE, "File transfer failed");
+		} else {
+			log_printf(LOG_NOTICE, "File transfer canceled");
+		}
+
 		ret = false;
 		goto cleanup;
 	}
@@ -285,6 +312,7 @@ cleanup:
 		socket_close(sockfd_client, true);
 		sockfd_client = SOCKERR;
 	}
+	running = false;
 
 	return ret;
 }
@@ -346,44 +374,34 @@ bool perform_request(const char *addr, const char *port, reqline_t *reqline,
                      reply_t **reply) {
 	bool ret = true;
 
-	/* Connect to the server. */
-	sockfd_client = socket_new_client(addr, port);
-	if (sockfd_client == SOCKERR) {
-		ret = false;
-		goto cleanup;
+	/* Check if we have a valid reply object pointer. */
+	if (reply == NULL) {
+		log_printf(LOG_CRIT, "Reply object pointer cannot be NULL");
+		return false;
 	}
+
+	/* Connect to the server. */
+	running = true;
+	sockfd_client = socket_new_client(addr, port);
+	if (sockfd_client == SOCKERR)
+		return false;
 	log_printf(LOG_INFO, "Connected to the server on %s:%s", addr, port);
 
 	/* Send request line. */
-	if (reqline_send(sockfd_client, reqline) == 0) {
-		ret = false;
-		goto cleanup;
-	}
+	if (reqline_send(sockfd_client, reqline) == 0)
+		return false;
 	log_printf(LOG_INFO, "Sent %s request", reqline->stype);
 
 	/* Wait and process the server reply. */
-	if (reply == NULL) {
-		ret = false;
-		goto cleanup;
-	}
 	*reply = process_server_reply(&sockfd_client);
-	if (*reply == NULL) {
-		ret = false;
-		goto cleanup;
-	}
+	if (*reply == NULL)
+		return false;
 
 #ifdef _DEBUG
 	/* Print parsed reply for debugging. */
 	log_printf(LOG_INFO, "Parsed server reply: (%u) [%s] \"%s\"",
 		(*reply)->code, (*reply)->type, (*reply)->msg);
 #endif /* _DEBUG */
-
-cleanup:
-	/* Close the socket. */
-	if (sockfd_client != SOCKERR) {
-		socket_close(sockfd_client, true);
-		sockfd_client = SOCKERR;
-	}
 
 	return ret;
 }
@@ -433,8 +451,17 @@ size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
 	buffered_progress(reqline->name, acclen, reqline->size);
 	while ((len = fread(buf, sizeof(uint8_t), SEND_BUF_LEN, fh)) > 0) {
 		if (send(*sockfd, buf, len, 0) < 0) {
-			/* An error occurred during sending. */
 			fprintf(stderr, "\n");
+
+			/* Check if the transfer has been canceled. */
+			if (!running) {
+#ifdef _DEBUG
+				log_sockerr(LOG_ERROR, "Transfer canceled. Suppressed error");
+#endif /* _DEBUG */
+				goto skip_error;
+			}
+
+			/* An error occurred during sending. */
 #ifdef _WIN32
 			log_sockerr(LOG_ERROR, "Failed to pipe contents of file to socket");
 #else
@@ -447,6 +474,7 @@ size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
 			}
 #endif /* _WIN32 */
 
+skip_error:
 			acclen = 0;
 			break;
 		}
@@ -475,9 +503,34 @@ void sigint_handler(int sig) {
 	log_printf(LOG_INFO, "Received a SIGINT");
 #endif /* _DEBUG */
 
+	/* Cancel the request. */
+	cancel_request();
+
 	/* Don't let the signal propagate. */
 	signal(sig, SIG_IGN);
 }
+
+#ifdef _WIN32
+/**
+ * Handles console control signals, similar to signal_handler, but for the
+ * command prompt window in Windows.
+ *
+ * @param dwCtrlType Control signal type.
+ *
+ * @return TRUE if we handled the control signal, FALSE otherwise.
+ */
+BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType) {
+	switch (dwCtrlType) {
+		case CTRL_CLOSE_EVENT:
+		case CTRL_LOGOFF_EVENT:
+		case CTRL_SHUTDOWN_EVENT:
+			cancel_request();
+			return TRUE;
+	}
+
+	return FALSE;
+}
+#endif /* _WIN32 */
 
 /**
  * Displays the usage help message.
