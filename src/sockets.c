@@ -293,7 +293,14 @@ int socket_close(sockfd_t sockfd, bool shut) {
  * @return Pointer to the destination string or NULL if an error occurred.
  */
 const char* inet_addr_str(int af, void *addr, char *buf) {
-#ifdef WITH_INET_NTOP
+#ifdef WITHOUT_INET_NTOP
+	if (af == AF_INET) {
+		return strcpy(buf, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
+	} else {
+		log_printf(LOG_ERROR, "IPv6 not yet implemented in inet_addr_str");
+		return NULL;
+	}
+#else
 	if (af == AF_INET) {
 		return inet_ntop(af, &((struct sockaddr_in*)addr)->sin_addr, buf,
 		                 INET6_ADDRSTRLEN);
@@ -301,12 +308,5 @@ const char* inet_addr_str(int af, void *addr, char *buf) {
 		return inet_ntop(af, &((struct sockaddr_in6*)addr)->sin6_addr, buf,
 		                 INET6_ADDRSTRLEN);
 	}
-#else
-	if (af == AF_INET) {
-		return strcpy(buf, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
-	} else {
-		log_printf(LOG_ERROR, "IPv6 not yet implemented in inet_addr_str");
-		return NULL;
-	}
-#endif /* WITH_INET_NTOP */
+#endif /* WITHOUT_INET_NTOP */
 }
