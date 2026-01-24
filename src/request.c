@@ -58,8 +58,7 @@ void send_error(sockfd_t sockfd, error_code_t code) {
 
 	/* Send the error header and code. */
 	send(sockfd, strcode, 3, 0);
-	send(sockfd, "\t", 1, 0);
-	send(sockfd, "ERROR\t", 7, 0);
+	send(sockfd, "\tERROR\t", 7, 0);
 
 	/* Send the error message. */
 	switch (code) {
