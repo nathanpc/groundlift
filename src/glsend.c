@@ -8,9 +8,11 @@
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
-	#ifdef DEBUG
+	#include <tchar.h>
+	#ifdef _DEBUG
 		#include <crtdbg.h>
-	#endif /* DEBUG */
+	#endif /* _DEBUG */
+	#include "../win32/cvtutf/Unicode.h"
 #endif /* _WIN32 */
 
 #include <stdio.h>
@@ -76,18 +78,13 @@ int main(int argc, char **argv) {
 	int ret;
 	int opt;
 
-#ifdef _WIN32
-#ifdef _DEBUG
+#if defined(WIN32) && defined(_DEBUG)
 	/* Initialize memory leak detection. */
 	_CrtMemState snapBegin;
 	_CrtMemState snapEnd;
 	_CrtMemState snapDiff;
 	_CrtMemCheckpoint(&snapBegin);
-#endif /* _DEBUG */
-
-	/* Setup console signal handler. */
-	SetConsoleCtrlHandler(&ConsoleSignalHandler, TRUE);
-#endif /* _WIN32 */
+#endif /* _WIN32 & _DEBUG */
 
 	/* Initialize defaults and subsystems. */
 	ret = 0;
@@ -211,15 +208,15 @@ cleanup:
 	/* Detect memory leaks. */
 	_CrtMemCheckpoint(&snapEnd);
 	if (_CrtMemDifference(&snapDiff, &snapBegin, &snapEnd)) {
-		OutputDebugString("*********** MEMORY LEAKS DETECTED ***********\r\n");
-		OutputDebugString("----------- _CrtMemDumpStatistics ---------\r\n");
+		OutputDebugString(_T("*********** MEMORY LEAKS DETECTED ***********\r\n"));
+		OutputDebugString(_T("----------- _CrtMemDumpStatistics ---------\r\n"));
 		_CrtMemDumpStatistics(&snapDiff);
-		OutputDebugString("----------- _CrtMemDumpAllObjectsSince ---------\r\n");
+		OutputDebugString(_T("----------- _CrtMemDumpAllObjectsSince ---------\r\n"));
 		_CrtMemDumpAllObjectsSince(&snapBegin);
-		OutputDebugString("----------- _CrtDumpMemoryLeaks ---------\r\n");
+		OutputDebugString(_T("----------- _CrtDumpMemoryLeaks ---------\r\n"));
 		_CrtDumpMemoryLeaks();
 	} else {
-		OutputDebugString("No memory leaks detected. Congratulations!\r\n");
+		OutputDebugString(_T("No memory leaks detected. Congratulations!\r\n"));
 	}
 #endif /* _DEBUG */
 #endif /* _WIN32 */
