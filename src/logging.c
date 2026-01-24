@@ -12,6 +12,7 @@
 	#include <windows.h>
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
+	#include <tchar.h>
 #endif /* _WIN32 */
 
 #include <stdio.h>
@@ -27,6 +28,18 @@
 #ifndef LOG_STREAM
 	#define LOG_STREAM stderr
 #endif /* !LOG_STREAM */
+
+#ifdef _WIN32
+	/* Standard values for Win32's FormatMessage function. */
+	#ifndef FORMAT_MESSAGE_FLAGS
+		#define FORMAT_MESSAGE_FLAGS (FORMAT_MESSAGE_ALLOCATE_BUFFER | \
+			FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS)
+	#endif /* FORMAT_MESSAGE_FLAGS */
+
+	#ifndef FORMAT_MESSAGE_LANG
+		#define FORMAT_MESSAGE_LANG MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
+	#endif /* FORMAT_MESSAGE_LANG */
+#endif /* _WIN32 */
 
 /**
  * Prints out logging information with an associated log level tag using the
@@ -118,7 +131,7 @@ void log_syserr(log_level_t level, const char *format, ...) {
 	err = GetLastError();
 	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, err, FORMAT_MESSAGE_LANG,
 					   (LPTSTR)&szErrorMessage, 0, NULL)) {
-		szErrorMessage = strdup("FormatMessage failed");
+		szErrorMessage = _tcsdup(_T("FormatMessage failed"));
 	}
 
 	/* Print the application's error message. */
@@ -127,7 +140,7 @@ void log_syserr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	fprintf(LOG_STREAM, ": System Error (%d) %ls\n", err, szErrorMessage);
+	_ftprintf(LOG_STREAM, _T(": System Error (%d) %ls\n"), err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
@@ -163,7 +176,7 @@ void log_sockerr(log_level_t level, const char *format, ...) {
 	err = WSAGetLastError();
 	if (!FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, err, FORMAT_MESSAGE_LANG,
 					   (LPTSTR)&szErrorMessage, 0, NULL)) {
-		szErrorMessage = strdup("FormatMessage failed");
+		szErrorMessage = _tcsdup(_T("FormatMessage failed"));
 	}
 
 	/* Print the application's error message. */
@@ -172,7 +185,7 @@ void log_sockerr(log_level_t level, const char *format, ...) {
 	va_end(args);
 
 	/* Print the system error message. */
-	fprintf(LOG_STREAM, ": WSAError (%d) %ls\n", err, szErrorMessage);
+	_ftprintf(LOG_STREAM, _T(": WSAError (%d) %ls\n"), err, szErrorMessage);
 
 	/* Free up any resources. */
 	LocalFree(szErrorMessage);
