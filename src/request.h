@@ -31,7 +31,8 @@ typedef enum {
 typedef enum {
 	REQ_TYPE_UNKNOWN = '?',
 	REQ_TYPE_FILE    = 'F',
-	REQ_TYPE_URL     = 'U'
+	REQ_TYPE_URL     = 'U',
+	REQ_TYPE_TEXT    = 'T'
 } reqtype_t;
 
 /**

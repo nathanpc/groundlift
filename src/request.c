@@ -222,7 +222,7 @@ size_t reqline_send(sockfd_t sockfd, reqline_t *reqline) {
 
 	/* Build up the request line. */
 	snprintf(buf, GL_REQLINE_MAX, "%s\t%s\t%lu\r\n", reqline->stype,
-		reqline->name, reqline->size);
+		(reqline->name) ? reqline->name : "", reqline->size);
 	buf[GL_REQLINE_MAX] = '\0';
 	llen = strlen(buf);
 
@@ -253,6 +253,9 @@ void reqline_type_set(reqline_t *reqline, reqtype_t type) {
 			break;
 		case REQ_TYPE_URL:
 			reqline->stype = strdup("URL");
+			break;
+		case REQ_TYPE_TEXT:
+			reqline->stype = strdup("TEXT");
 			break;
 		default:
 			reqline->stype = NULL;

@@ -40,12 +40,17 @@ typedef struct {
 void cancel_request(void);
 bool send_url(const char *addr, const char *port, const char *url);
 bool send_file(const char *addr, const char *port, const char *fpath);
+bool send_text(const char *addr, const char *port, const char *text,
+               size_t len);
 reply_t *process_server_reply(const sockfd_t *sockfd);
 size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
                             const char *fpath);
+size_t client_text_transfer(const sockfd_t *sockfd, const char *text,
+                            size_t len);
 bool perform_request(const char *addr, const char *port, reqline_t *reqline,
                      reply_t **reply);
 void print_reply_error(const reply_t *reply);
+void print_transfer_error(const char *type);
 void sigint_handler(int sig);
 void usage(const char *prog);
 #ifdef _WIN32
@@ -97,13 +102,16 @@ int main(int argc, char **argv) {
 	opts.type = REQ_TYPE_FILE;
 
 	/* Handle command line arguments. */
-	while ((opt = getopt(argc, argv, "p:uh")) != -1) {
+	while ((opt = getopt(argc, argv, "p:uth")) != -1) {
 		switch (opt) {
 			case 'p':
 				opts.port = optarg;
 				break;
 			case 'u':
 				opts.type = REQ_TYPE_URL;
+				break;
+			case 't':
+				opts.type = REQ_TYPE_TEXT;
 				break;
 			case '?':
 				ret = 1;
@@ -152,6 +160,9 @@ int main(int argc, char **argv) {
 			break;
 		case REQ_TYPE_URL:
 			send_url(opts.addr, opts.port, opts.fpath);
+			break;
+		case REQ_TYPE_TEXT:
+			send_text(opts.addr, opts.port, opts.fpath, strlen(opts.fpath));
 			break;
 		default:
 			log_printf(LOG_ERROR, "Unknown request type to send to server");
@@ -294,12 +305,69 @@ bool send_file(const char *addr, const char *port, const char *fpath) {
 
 	/* Send the file contents. */
 	if (!client_file_transfer(&sockfd_client, reqline, fpath)) {
-		if (running) {
-			log_printf(LOG_NOTICE, "File transfer failed");
-		} else {
-			log_printf(LOG_NOTICE, "File transfer canceled");
-		}
+		log_printf(LOG_NOTICE, "File transfer %s", (running) ? "failed" :
+			"canceled");
+		ret = false;
+		goto cleanup;
+	}
 
+cleanup:
+	/* Free request line object and close the socket. */
+	reqline_free(reqline);
+	reply_free(reply);
+	if (sockfd_client != SOCKERR) {
+		socket_close(sockfd_client, true);
+		sockfd_client = SOCKERR;
+	}
+	running = false;
+
+	return ret;
+}
+
+/**
+ * Handles the entire process of sending text to a server.
+ *
+ * @param addr Address of the server to send the file to.
+ * @param port Port used to communicate with the server.
+ * @param text Text content to be sent.
+ * @param len  Length of the text to be sent over, not including the NUL
+ *             terminator.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool send_text(const char *addr, const char *port, const char *text,
+               size_t len) {
+	reqline_t *reqline;
+	reply_t *reply;
+	bool ret;
+
+	/* Initialize variables. */
+	reply = NULL;
+
+	/* Build request line object. */
+	reqline = reqline_new();
+	if (reqline == NULL)
+		return false;
+	reqline_type_set(reqline, REQ_TYPE_TEXT);
+	reqline->size = len;
+	reqline->name = NULL;
+
+	/* Connect to the server. */
+	ret = perform_request(addr, port, reqline, &reply);
+	if (!ret)
+		goto cleanup;
+
+	/* Check if the server replied with an error. */
+	if (reply->code != 100) {
+		print_reply_error(reply);
+		ret = false;
+		goto cleanup;
+	}
+
+	/* Send text contents to server. */
+	if (!client_text_transfer(&sockfd_client, text, len)) {
+		log_printf(LOG_NOTICE, "Text transfer %s", (running) ? "failed" :
+			"canceled");
 		ret = false;
 		goto cleanup;
 	}
@@ -426,7 +494,7 @@ void print_reply_error(const reply_t *reply) {
 /**
  * Dumps the contents of a file through a TCP socket connection.
  *
- * @param sockfd  Socket connection to a server that's ready to
+ * @param sockfd  Socket connection to a server that's ready to receive this.
  * @param reqline Request line object sent to the server.
  * @param fpath   Path to the file to be dumped over a socket.
  *
@@ -451,30 +519,7 @@ size_t client_file_transfer(const sockfd_t *sockfd, const reqline_t *reqline,
 	buffered_progress(reqline->name, acclen, reqline->size);
 	while ((len = fread(buf, sizeof(uint8_t), SEND_BUF_LEN, fh)) > 0) {
 		if (send(*sockfd, buf, len, 0) < 0) {
-			fprintf(stderr, "\n");
-
-			/* Check if the transfer has been canceled. */
-			if (!running) {
-#ifdef _DEBUG
-				log_sockerr(LOG_ERROR, "Transfer canceled. Suppressed error");
-#endif /* _DEBUG */
-				goto skip_error;
-			}
-
-			/* An error occurred during sending. */
-#ifdef _WIN32
-			log_sockerr(LOG_ERROR, "Failed to pipe contents of file to socket");
-#else
-			if (sockerrno == EPIPE) {
-				log_sockerr(LOG_WARNING, "Server closed connection before file "
-					"transfer finished");
-			} else {
-				log_sockerr(LOG_ERROR, "Failed to pipe contents of file to "
-					"socket");
-			}
-#endif /* _WIN32 */
-
-skip_error:
+			print_transfer_error("file");
 			acclen = 0;
 			break;
 		}
@@ -491,6 +536,81 @@ skip_error:
 	/* Close the file handle and return. */
 	fclose(fh);
 	return acclen;
+}
+
+/**
+ * Dumps text through a TCP socket connection.
+ *
+ * @param sockfd Socket connection to a server that's ready to receive this.
+ * @param text   Text content to be dumped over a socket.
+ * @param len    Length of the text to be sent over, not including the NUL
+ *               terminator.
+ *
+ * @return Number of bytes transferred or 0 in case of an error.
+ */
+size_t client_text_transfer(const sockfd_t *sockfd, const char *text,
+                            size_t len) {
+	size_t slen;
+	size_t acclen;
+	const char *buf;
+
+	/* Pipe text contents straight to socket. */
+	acclen = 0;
+	buf = text;
+	buffered_progress("Text", acclen, len);
+	while (*buf != '\0') {
+		/* Determine the length of string to send. */
+		slen = SEND_BUF_LEN;
+		if ((acclen + slen) > len)
+			slen = len - acclen;
+
+		/* Send the string over. */
+		if (send(*sockfd, buf, slen, 0) < 0) {
+			print_transfer_error("text");
+			acclen = 0;
+			break;
+		}
+
+		/* Accumulate length, move cursor forward, and display the progress. */
+		acclen += slen;
+		buf += slen;
+		buffered_progress("Text", acclen, len);
+	}
+
+	/* Ensure we go to a new line before continuing to preserve the progress. */
+	if (acclen > 0)
+		fprintf(stderr, "\n");
+
+	return acclen;
+}
+
+/**
+ * Prints out transfer error messages.
+ *
+ * @param type Transfer type to be concatenated within the error message.
+ */
+void print_transfer_error(const char *type) {
+	fprintf(stderr, "\n");
+
+	/* Check if the transfer has been canceled. */
+	if (!running) {
+#ifdef _DEBUG
+		log_sockerr(LOG_ERROR, "Transfer canceled. Suppressed error");
+#endif /* _DEBUG */
+		return;
+	}
+
+	/* An error occurred during sending. */
+#ifdef _WIN32
+	log_sockerr(LOG_ERROR, "Failed to pipe contents of %s to socket", type);
+#else
+	if (sockerrno == EPIPE) {
+		log_sockerr(LOG_WARNING, "Server closed connection before %s transfer "
+			"finished", type);
+	} else {
+		log_sockerr(LOG_ERROR, "Failed to pipe contents of %s to socket", type);
+	}
+#endif /* _WIN32 */
 }
 
 /**
@@ -538,14 +658,15 @@ BOOL WINAPI ConsoleSignalHandler(DWORD dwCtrlType) {
  * @param prog Program's name from argv[0].
  */
 void usage(const char *prog) {
-	printf("usage: %s [-p port] [-u] addr file\n\n", prog);
+	printf("usage: %s [-p port] [-u] [-t] addr attach\n\n", prog);
 	puts("arguments:");
 	puts("    addr       Address where the server is listening on");
-	puts("    file       File or URL to send to the server");
+	puts("    attach     File, URL or text to send to the server");
 	puts("");
 	puts("options:");
 	puts("    -h         Displays this message");
 	puts("    -p port    Port the server is listening on");
+	puts("    -t         Send text instead of a file");
 	puts("    -u         Send a URL instead of a file");
 	puts("");
 	puts(GL_COPYRIGHT);
