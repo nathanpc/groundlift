@@ -47,6 +47,7 @@ void server_loop(int af, sockfd_t server);
 void server_process_request(sockfd_t *sock);
 bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline);
 bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline);
+bool process_text_req(const sockfd_t *sockfd, const reqline_t *reqline);
 void sigint_handler(int sig);
 void usage(const char *prog);
 #ifdef _WIN32
@@ -311,7 +312,12 @@ void server_process_request(sockfd_t *sock) {
 		case REQ_TYPE_URL:
 			process_url_req(sock, reqline);
 			break;
+		case REQ_TYPE_TEXT:
+			process_text_req(sock, reqline);
+			break;
 		default:
+			log_printf(LOG_ERROR, "Unknown transfer type '%c' %s",
+				reqline->type, reqline->stype);
 			send_error(*sock, ERR_CODE_UNKNOWN);
 			break;
 	}
@@ -497,6 +503,72 @@ bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 	/* Send OK and stop processing the request. */
 	send_ok(*sockfd);
 	return true;
+}
+
+/**
+ * Processes and replies to the client that sent a text transfer request.
+ *
+ * @param sockfd  Client's socket handle used to reply.
+ * @param reqline Request line object.
+ *
+ * @return TRUE if the operation was successful, FALSE otherwise.
+ */
+bool process_text_req(const sockfd_t *sockfd, const reqline_t *reqline) {
+	uint8_t buf[RECV_BUF_LEN];
+	size_t acclen;
+	ssize_t len;
+	bool ret;
+
+	/* Ask the user if they want to accept the transfer. */
+	if ((reqline->size > RECV_TEXT_THRESHOLD) && !opts.accept_all &&
+	    !ask_yn("Do you want to receive %u bytes of text?", reqline->size)) {
+		send_refused(*sockfd);
+		return false;
+	}
+
+	/* Begin the transfer. */
+	fputs("----------BEGIN TEXT BLOCK----------\n", stderr);
+	fflush(stderr);
+	send_continue(*sockfd);
+	ret = true;
+
+	/* Pipe the text content to stdout. */
+	acclen = 0;
+	while ((len = recv(*sockfd, buf, RECV_BUF_LEN, 0)) > 0) {
+		/* Deal with the transfer size. */
+		acclen += len;
+		if (acclen > reqline->size) {
+			fprintf(stderr, "\n");
+			log_printf(LOG_ERROR, "Received text is bigger than expected");
+			send_refused(*sockfd);
+			return false;
+		}
+
+		/* Show transfer progress and write to the file. */
+		fwrite(buf, sizeof(uint8_t), len, stdout);
+		fflush(stdout);
+
+		/* Detect if we have finished transferring the file. */
+		if (acclen == reqline->size) {
+			send_ok(*sockfd);
+			break;
+		}
+	}
+
+	/* End the text block. */
+	if ((acclen > 0) && (buf[acclen - 1] != '\n'))
+		fputc('\n', stderr);
+	fflush(stderr);
+	fputs("-----------END TEXT BLOCK-----------\n", stderr);
+
+	/* Check if the connection ended before the file finished transferring. */
+	if (len <= 0) {
+		log_sockerr(LOG_ERROR, "The client has closed the connection before "
+			"the text contents finished transferring");
+		ret = false;
+	}
+
+	return ret;
 }
 
 /**

@@ -50,4 +50,12 @@
 	#define GL_REPLYLINE_MAX GL_REQLINE_MAX
 #endif /* GL_REPLYLINE_MAX */
 
+/**
+ * Threshold length when the server will ask the user if they want to accept a
+ * text transfer.
+ */
+#ifndef RECV_TEXT_THRESHOLD
+	#define RECV_TEXT_THRESHOLD RECV_BUF_LEN
+#endif /* RECV_TEXT_THRESHOLD */
+
 #endif /* _GL_DEFAULTS_H */

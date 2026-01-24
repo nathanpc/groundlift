@@ -167,6 +167,8 @@ reqline_t *reqline_parse(const char *line) {
 					reqline->type = REQ_TYPE_FILE;
 				} else if (strcmp(buf, "URL") == 0) {
 					reqline->type = REQ_TYPE_URL;
+				} else if (strcmp(buf, "TEXT") == 0) {
+					reqline->type = REQ_TYPE_TEXT;
 				} else {
 					log_printf(LOG_ERROR, "Unknown request type '%s' from "
 						"request line \"%s\"", buf, line);
@@ -178,10 +180,10 @@ reqline_t *reqline_parse(const char *line) {
 				reqline->name = buf;
 				break;
 			case 2:
-				/* File size. */
+				/* Content size. */
 				if (!parse_size(buf, &reqline->size)) {
-					log_syserr(LOG_NOTICE, "Failed to convert file size '%s' to"
-						" number from request line \"%s\"", buf, line);
+					log_syserr(LOG_NOTICE, "Failed to convert content size "
+						"'%s' to number from request line \"%s\"", buf, line);
 					free(buf);
 					goto skip_parsing;
 				}
