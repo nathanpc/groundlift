@@ -39,6 +39,12 @@
     <ClInclude Include="..\..\getopt\getopt.h">
       <Filter>Shims</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\cvtutf\Unicode.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cvtutf\ConvertUTF.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\logging.c">
@@ -57,6 +63,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\getopt\getopt.c">
+      <Filter>Shims</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cvtutf\Unicode.c">
+      <Filter>Shims</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cvtutf\ConvertUTF.c">
       <Filter>Shims</Filter>
     </ClCompile>
   </ItemGroup>
