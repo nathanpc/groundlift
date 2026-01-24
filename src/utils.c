@@ -10,6 +10,8 @@
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
+	#include <shlwapi.h>
+	#include "../win32/cvtutf/Unicode.h"
 #else
 	#include <unistd.h>
 	#include <libgen.h>
@@ -305,19 +307,27 @@ size_t file_size(const char *fname) {
 bool file_exists(const char *fname) {
 #ifdef _WIN32
 	DWORD dwAttrib;
+	LPTSTR szPath;
 
 	/* Should we even check? */
 	if (fname == NULL)
-		return 0;
+		return false;
+
+	if (!UnicodeMultiByteToWideChar(fname, &szPath)) {
+		log_syserr(LOG_CRIT, "Failed to convert filename to UTF-16");
+		return false;
+	}
+
 
 	/* Get file attributes and return. */
-	dwAttrib = GetFileAttributes(fname);
+	dwAttrib = GetFileAttributes(szPath);
+	free(szPath);
 	return (dwAttrib != INVALID_FILE_ATTRIBUTES) &&
 		   !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
 #else
 	/* Should we even check? */
 	if (fname == NULL)
-		return 0;
+		return false;
 
 	return access(fname, F_OK) != -1;
 #endif /* _WIN32 */
@@ -337,7 +347,20 @@ char *path_basename(const char *path) {
 	char *bname;
 
 #ifdef _WIN32
-	bname = strdup(PathFindFileName(path));
+	LPTSTR szPath;
+
+	if (!UnicodeMultiByteToWideChar(path, &szPath)) {
+		log_syserr(LOG_CRIT, "Failed to convert path to UTF-16");
+		return NULL;
+	}
+
+	if (!UnicodeWideCharToMultiByte(PathFindFileName(szPath), &bname)) {
+		log_syserr(LOG_CRIT, "Failed to convert path basename to UTF-8");
+		free(szPath);
+		return NULL;
+	}
+
+	free(szPath);
 #else
 	/* Duplicate the path just to comply with the POSIX implementation. */
 	char *tmp = strdup(path);
