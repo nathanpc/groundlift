@@ -65,7 +65,7 @@ extern "C" {
 #endif
 
 /* Initialization */
-void socket_init(void);
+bool socket_init(void);
 
 /* Socket addressing operations. */
 bool socket_addr_setup(struct sockaddr_storage *sa, int *af, socklen_t *addrlen,

@@ -19,19 +19,24 @@
 
 /**
  * Initializes the sockets API.
+ * 
+ * @return TRUE if the initialization was successful, FALSE otherwise.
  */
-void socket_init(void) {
+bool socket_init(void) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
+	int ret;
 
 	/* Initialize the Winsock stuff. */
 	wVersionRequested = MAKEWORD(2, 2);
 	if ((ret = WSAStartup(wVersionRequested, &wsaData)) != 0) {
 		log_printf(LOG_CRIT, "WSAStartup failed with error %d", ret);
-		return 1;
+		return false;
 	}
 #endif /* _WIN32 */
+
+	return true;
 }
 
 /**

@@ -90,7 +90,10 @@ int main(int argc, char **argv) {
 	server_status = 0;
 	sockfd_server = SOCKERR;
 	sockfd_client = SOCKERR;
-	socket_init();
+	if (!socket_init()) {
+		ret = 1;
+		goto cleanup;
+	}
 
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);

@@ -93,7 +93,21 @@ int main(int argc, char **argv) {
 	ret = 0;
 	text = NULL;
 	running = false;
-	socket_init();
+	if (!socket_init()) {
+		ret = 1;
+		goto cleanup;
+	}
+
+#ifdef _WIN32
+	/* Setup console signal handler. */
+	SetConsoleCtrlHandler(&ConsoleSignalHandler, TRUE);
+
+	/* Ensure we have a sane Unicode environment. */
+	if (!UnicodeAssumptionsCheck()) {
+		ret = 1;
+		goto cleanup;
+	}
+#endif /* _WIN32 */
 
 	/* Catch the interrupt signal from the console. */
 	signal(SIGINT, sigint_handler);
