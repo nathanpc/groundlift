@@ -33,6 +33,7 @@ typedef struct {
 	const char *addr;
 	const char *port;
 	const char *fpath;
+	size_t len;
 	char type;
 } opts_t;
 
@@ -71,6 +72,7 @@ static opts_t opts;
  * @return Application's return code.
  */
 int main(int argc, char **argv) {
+	char *text;
 	int ret;
 	int opt;
 
@@ -89,6 +91,7 @@ int main(int argc, char **argv) {
 
 	/* Initialize defaults and subsystems. */
 	ret = 0;
+	text = NULL;
 	running = false;
 	socket_init();
 
@@ -99,6 +102,7 @@ int main(int argc, char **argv) {
 	opts.addr = NULL;
 	opts.port = GL_SERVER_PORT;
 	opts.fpath = NULL;
+	opts.len = 0;
 	opts.type = REQ_TYPE_FILE;
 
 	/* Handle command line arguments. */
@@ -136,6 +140,7 @@ int main(int argc, char **argv) {
 				break;
 			case 1:
 				opts.fpath = argv[optind++];
+				opts.len = strlen(opts.fpath);
 				break;
 			default:
 				fprintf(stderr, "%s: unknown argument -- %s (ignored)\n",
@@ -153,6 +158,12 @@ int main(int argc, char **argv) {
 		goto cleanup;
 	}
 
+	/* Check if the user wants us to read from STDIN. */
+	if ((opts.len == 1) && (*opts.fpath == '-')) {
+		opts.len = read_stdin(&text, opts.type != REQ_TYPE_TEXT);
+		opts.fpath = text;
+	}
+
 	/* Send request to the server. */
 	switch (opts.type) {
 		case REQ_TYPE_FILE:
@@ -162,7 +173,7 @@ int main(int argc, char **argv) {
 			send_url(opts.addr, opts.port, opts.fpath);
 			break;
 		case REQ_TYPE_TEXT:
-			send_text(opts.addr, opts.port, opts.fpath, strlen(opts.fpath));
+			send_text(opts.addr, opts.port, opts.fpath, opts.len);
 			break;
 		default:
 			log_printf(LOG_ERROR, "Unknown request type to send to server");
@@ -171,7 +182,13 @@ int main(int argc, char **argv) {
 	}
 
 cleanup:
+	/* Clean up temporary stuff. */
 	running = false;
+	if (text) {
+		free(text);
+		text = NULL;
+	}
+
 #ifdef _WIN32
 	/* Clean up Winsock stuff. */
 	WSACleanup();
@@ -661,7 +678,9 @@ void usage(const char *prog) {
 	printf("usage: %s [-p port] [-u] [-t] addr attach\n\n", prog);
 	puts("arguments:");
 	puts("    addr       Address where the server is listening on");
-	puts("    attach     File, URL or text to send to the server");
+	puts("    attach     File, URL or text to send to the server. If a '-' "
+	     "(dash) is ");
+	puts("               supplied, the content is read from STDIN until EOF");
 	puts("");
 	puts("options:");
 	puts("    -h         Displays this message");

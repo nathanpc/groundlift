@@ -187,6 +187,64 @@ void buffered_progress(const char *name, size_t acc, size_t fsize) {
 }
 
 /**
+ * Reads the contents of STDIN until an EOF is received.
+ *
+ * @warning This function allocates memory that must later be freed.
+ *
+ * @param text Pointer to where to store the text read from STDIN.
+ * @param trim Should we trim the newline at the end of the text?
+ *
+ * @return Number of bytes read or 0 if an error occurred.
+ */
+size_t read_stdin(char **text, bool trim) {
+	char buf[RECV_TEXT_THRESHOLD];
+	size_t len;
+
+	/* Do we even have anything to do? */
+	if (text == NULL)
+		return 0;
+
+	/* Perform the first read. */
+	if (fgets(buf, RECV_TEXT_THRESHOLD, stdin) == NULL) {
+		log_syserr(LOG_ERROR, "Failed to read from STDIN");
+		return 0;
+	}
+
+	/* Copy the contents of the buffer over. */
+	len = strlen(buf);
+	*text = (char *)malloc((len + 1) * sizeof(char));
+	if (*text == NULL)
+		return 0;
+	strcpy(*text, buf);
+
+	/* Continue reading until we reach the end. */
+	while (fgets(buf, RECV_TEXT_THRESHOLD, stdin) != NULL) {
+		size_t nlen;
+		char *nbuf;
+
+		/* Get the size of the read text and reallocate our buffer. */
+		nlen = strlen(buf);
+		len += nlen;
+		nbuf = realloc(*text, (len + 1) * sizeof(char));
+		if (nbuf == NULL) {
+			free(*text);
+			*text = NULL;
+			return 0;
+		}
+
+		/* Append the read text to our buffer. */
+		*text = nbuf;
+		strcat(*text, buf);
+	}
+
+	/* Trim the newline at the end if needed. */
+	if (trim && ((*text)[len - 1] == '\n'))
+		*text[len - 1] = '\0';
+
+	return len;
+}
+
+/**
  * Sanitizes a file name to ensure idiots don't abuse us.
  *
  * @param fname File name to be sanitized.
