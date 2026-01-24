@@ -16,6 +16,9 @@
     <Filter Include="Common">
       <UniqueIdentifier>{4e06de46-b574-42b2-95a1-c1db0d5b7bc0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shims">
+      <UniqueIdentifier>{ecae4b45-2aa7-41d0-a80a-863055e541b4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\logging.h">
@@ -33,6 +36,9 @@
     <ClInclude Include="..\..\..\src\defaults.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\getopt\getopt.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\logging.c">
@@ -49,6 +55,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\glsend.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\getopt\getopt.c">
+      <Filter>Shims</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
