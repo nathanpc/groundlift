@@ -365,11 +365,18 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 	/* Ensure we are not overwriting any existing files. */
 	while (file_exists(fname)) {
 		char *nf;
-		uint8_t i;
+		size_t slen;
+
+		/* Check if we are just incrementing an existing prefix. */
+		nf = fname;
+		slen = strlen(fname);
+		if ((slen > 1) && (*nf >= '0') && (*nf < '9') && (nf[1] == '_')) {
+			*nf = (char)(*nf + 1);
+			continue;
+		}
 
 		/* Allocate the new filename string. */
-		i = 1;
-		nf = (char *)malloc((strlen(fname) + 4) * sizeof(char));
+		nf = (char *)malloc((slen + 4) * sizeof(char));
 		if (nf == NULL) {
 			log_syserr(LOG_CRIT, "Failed to allocate new string for filename");
 			send_error(*sockfd, ERR_CODE_INTERNAL);
@@ -377,7 +384,7 @@ bool process_file_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 		}
 
 		/* Build up the new filename and switch them. */
-		sprintf(nf, "%u_%s", i, fname);
+		sprintf(nf, "1_%s", fname);
 		free(fname);
 		fname = nf;
 	}
