@@ -16,6 +16,9 @@
     <Filter Include="Common">
       <UniqueIdentifier>{31ef5780-eeb6-4699-907c-35ca1960cf31}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shims">
+      <UniqueIdentifier>{9d5da1f9-cc87-4c73-8640-272c1d1cedac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\logging.h">
@@ -33,6 +36,15 @@
     <ClInclude Include="..\..\..\src\defaults.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\cvtutf\ConvertUTF.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cvtutf\Unicode.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\getopt\getopt.h">
+      <Filter>Shims</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\logging.c">
@@ -49,6 +61,15 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\glrecvd.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cvtutf\ConvertUTF.c">
+      <Filter>Shims</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cvtutf\Unicode.c">
+      <Filter>Shims</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\getopt\getopt.c">
+      <Filter>Shims</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

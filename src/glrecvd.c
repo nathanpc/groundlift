@@ -8,9 +8,12 @@
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
-	#ifdef DEBUG
+	#include <shellapi.h>
+	#include <tchar.h>
+	#ifdef _DEBUG
 		#include <crtdbg.h>
-	#endif /* DEBUG */
+	#endif /* _DEBUG */
+	#include "../win32/cvtutf/Unicode.h"
 #endif /* _WIN32 */
 
 #include <stdlib.h>
@@ -154,15 +157,15 @@ cleanup:
 	/* Detect memory leaks. */
 	_CrtMemCheckpoint(&snapEnd);
 	if (_CrtMemDifference(&snapDiff, &snapBegin, &snapEnd)) {
-		OutputDebugString("*********** MEMORY LEAKS DETECTED ***********\r\n");
-		OutputDebugString("----------- _CrtMemDumpStatistics ---------\r\n");
+		OutputDebugString(_T("********* MEMORY LEAKS DETECTED *********\r\n"));
+		OutputDebugString(_T("--------- _CrtMemDumpStatistics -------\r\n"));
 		_CrtMemDumpStatistics(&snapDiff);
-		OutputDebugString("----------- _CrtMemDumpAllObjectsSince ---------\r\n");
+		OutputDebugString(_T("--------- _CrtMemDumpAllObjectsSince -------\r\n"));
 		_CrtMemDumpAllObjectsSince(&snapBegin);
-		OutputDebugString("----------- _CrtDumpMemoryLeaks ---------\r\n");
+		OutputDebugString(_T("--------- _CrtDumpMemoryLeaks -------\r\n"));
 		_CrtDumpMemoryLeaks();
 	} else {
-		OutputDebugString("No memory leaks detected. Congratulations!\r\n");
+		OutputDebugString(_T("No memory leaks detected. Congratulations!\r\n"));
 	}
 #endif /* _DEBUG */
 #endif /* _WIN32 */
@@ -482,7 +485,12 @@ bool process_url_req(const sockfd_t *sockfd, const reqline_t *reqline) {
 	if (ask_yn("Do you want to open the above URL?")) {
 #ifdef _WIN32
 		/* Windows */
-		ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+		LPTSTR szUrl;
+		UnicodeMultiByteToWideChar(url, &szUrl);
+		ShellExecute(NULL, _T("open"), szUrl, NULL, NULL, SW_SHOWNORMAL);
+		free(szUrl);
+		szUrl = NULL;
+		cmd = NULL;
 #else
 		/* UNIX */
 		size_t len;
