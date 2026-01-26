@@ -208,12 +208,12 @@ cleanup:
 	/* Detect memory leaks. */
 	_CrtMemCheckpoint(&snapEnd);
 	if (_CrtMemDifference(&snapDiff, &snapBegin, &snapEnd)) {
-		OutputDebugString(_T("*********** MEMORY LEAKS DETECTED ***********\r\n"));
-		OutputDebugString(_T("----------- _CrtMemDumpStatistics ---------\r\n"));
+		OutputDebugString(_T("********* MEMORY LEAKS DETECTED *********\r\n"));
+		OutputDebugString(_T("--------- _CrtMemDumpStatistics -------\r\n"));
 		_CrtMemDumpStatistics(&snapDiff);
-		OutputDebugString(_T("----------- _CrtMemDumpAllObjectsSince ---------\r\n"));
+		OutputDebugString(_T("--------- _CrtMemDumpAllObjectsSince ---------\r\n"));
 		_CrtMemDumpAllObjectsSince(&snapBegin);
-		OutputDebugString(_T("----------- _CrtDumpMemoryLeaks ---------\r\n"));
+		OutputDebugString(_T("--------- _CrtDumpMemoryLeaks -------\r\n"));
 		_CrtDumpMemoryLeaks();
 	} else {
 		OutputDebugString(_T("No memory leaks detected. Congratulations!\r\n"));
