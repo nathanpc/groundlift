@@ -146,11 +146,12 @@ sockfd_t socket_new_server(const char *addr, const char *port) {
 	struct sockaddr_storage sa;
 	sockfd_t sockfd;
 	socklen_t addrlen;
-	struct timeval tv;
 	int af;
 #ifdef _WIN32
+	DWORD dwTimeout;
 	char flag;
 #else
+	struct timeval tv;
 	int flag;
 #endif /* _WIN32 */
 
@@ -175,12 +176,13 @@ sockfd_t socket_new_server(const char *addr, const char *port) {
 	}
 
 	/* Set a reception timeout so that we don't block indefinitely. */
+#ifdef _WIN32
+	dwTimeout = SERVER_TIMEOUT_SECS * 1000;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&dwTimeout,
+			sizeof(dwTimeout)) == SOCKERR) {
+#else
 	tv.tv_sec = SERVER_TIMEOUT_SECS;
 	tv.tv_usec = 0;
-#ifdef _WIN32
-	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,
-			sizeof(tv)) == SOCKERR) {
-#else
 	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
 			sizeof(tv)) == SOCKERR) {
 #endif /* _WIN32 */
