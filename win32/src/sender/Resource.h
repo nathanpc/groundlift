@@ -39,6 +39,14 @@
 #define IDM_EXIT                202
 #define IDM_ABOUT               203
 
+// Controls
+#define IDC_RBTFILE				301
+#define IDC_RBTURL				302
+#define IDC_RBTTEXT				303
+#define IDC_TXTCONTENT			311
+#define IDC_BTNBROWSE			312
+#define IDC_CMBSERVER			313
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
