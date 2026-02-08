@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 24.3.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">
+<style type="text/css">
+	.st0{display:none;}
+	.st1{display:inline;fill:#FFFFFF;}
+	.st2{display:inline;}
+	.st3{fill:#3B3B3B;}
+	.st4{fill:#464646;}
+	.st5{fill:#E66D00;}
+	.st6{fill:#E6E6E6;}
+	.st7{fill:#FF7900;}
+</style>
+<g id="Guides" class="st0">
+	<g>
+		<circle class="st1" cx="371" cy="141" r="39.5"/>
+		<path class="st2" d="M371,102c21.5,0,39,17.5,39,39s-17.5,39-39,39s-39-17.5-39-39S349.5,102,371,102 M371,101
+			c-22.09,0-40,17.91-40,40s17.91,40,40,40s40-17.91,40-40S393.09,101,371,101L371,101z"/>
+	</g>
+	<g>
+		<circle class="st1" cx="141" cy="141" r="39.5"/>
+		<path class="st2" d="M141,102c21.5,0,39,17.5,39,39s-17.5,39-39,39s-39-17.5-39-39S119.5,102,141,102 M141,101
+			c-22.09,0-40,17.91-40,40s17.91,40,40,40s40-17.91,40-40S163.09,101,141,101L141,101z"/>
+	</g>
+</g>
+<g id="Arms">
+	<g>
+		<path class="st3" d="M392.62,161.81L161.81,392.62c-11.72,11.72-30.71,11.72-42.43,0l0,0c-11.72-11.72-11.72-30.71,0-42.43
+			l230.81-230.81c11.72-11.72,30.71-11.72,42.43,0v0C404.34,131.1,404.34,150.09,392.62,161.81z"/>
+	</g>
+	<g>
+		<path class="st4" d="M350.43,393.1L119.61,162.29c-11.72-11.72-11.72-30.71,0-42.43l0,0c11.72-11.72,30.71-11.72,42.43,0
+			l230.81,230.81c11.72,11.72,11.72,30.71,0,42.43l0,0C381.14,404.82,362.14,404.82,350.43,393.1z"/>
+	</g>
+</g>
+<g id="Lugs">
+	<g id="Unused_Smaller" class="st0">
+		<path class="st1" d="M371,170.5c-16.27,0-29.5-13.23-29.5-29.5v-29.5h59V141C400.5,157.27,387.27,170.5,371,170.5z"/>
+		<path class="st2" d="M400,112v29c0,15.99-13.01,29-29,29c-15.99,0-29-13.01-29-29v-29H400 M401,111h-60v30c0,16.57,13.43,30,30,30
+			c16.57,0,30-13.43,30-30V111L401,111z"/>
+	</g>
+	<g id="Bottom_Right">
+		<path class="st5" d="M411,403v-30c0-22.09-17.91-40-40-40s-40,17.91-40,40v30H411z"/>
+	</g>
+	<g id="Bottom_Left">
+		<path class="st5" d="M181,403v-30c0-22.09-17.91-40-40-40s-40,17.91-40,40v30H181z"/>
+	</g>
+	<g id="Top_Right">
+		<path class="st5" d="M331,109v30c0,22.09,17.91,40,40,40s40-17.91,40-40v-30H331z"/>
+	</g>
+	<g id="Top_Left_1_">
+		<path class="st5" d="M101,109v30c0,22.09,17.91,40,40,40s40-17.91,40-40v-30H101z"/>
+	</g>
+</g>
+<g id="Nuts">
+	<g id="Bottom_Right_1_">
+		<circle class="st6" cx="371" cy="373" r="16"/>
+	</g>
+	<g id="Bottom_Left_1_">
+		<circle class="st6" cx="141" cy="373" r="16"/>
+	</g>
+	<g id="Top_Left_2_">
+		<circle class="st6" cx="141" cy="139" r="16"/>
+	</g>
+	<g id="Top_Right_1_">
+		<circle class="st6" cx="371" cy="139" r="16"/>
+	</g>
+	<g id="Top_Left_3_">
+		<circle class="st6" cx="256" cy="256" r="16"/>
+	</g>
+</g>
+<g id="Bases">
+	<g id="Top">
+		<path class="st7" d="M456,111H56c-13.81,0-25-11.19-25-25V56c0-13.81,11.19-25,25-25h400c13.81,0,25,11.19,25,25v30
+			C481,99.81,469.81,111,456,111z"/>
+	</g>
+	<g id="Bottom">
+		<path class="st7" d="M456,481H56c-13.81,0-25-11.19-25-25v-30c0-13.81,11.19-25,25-25h400c13.81,0,25,11.19,25,25v30
+			C481,469.81,469.81,481,456,481z"/>
+	</g>
+</g>
+</svg>
