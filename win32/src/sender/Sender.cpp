@@ -168,6 +168,17 @@ INT_PTR DlgMainInit(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	             ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
 	InitCommonControlsEx(&icex);
 
+	// Set the dialog window icon.
+	HICON hIcon = (HICON)LoadImage(g_hInstance, MAKEINTRESOURCE(IDI_SENDER),
+	                               IMAGE_ICON, GetSystemMetrics(SM_CXICON),
+	                               GetSystemMetrics(SM_CYICON),
+	                               LR_DEFAULTCOLOR);
+	SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+	hIcon = (HICON)LoadImage(g_hInstance, MAKEINTRESOURCE(IDI_SMALL),
+	                         IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+	                         GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+	SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+
 	return (INT_PTR)true;
 }
 
