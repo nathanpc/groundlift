@@ -63,10 +63,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\assets\Sender.ico">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="..\..\assets\small.ico">
+    <Image Include="..\..\..\assets\icon\fluent\gl-icon-fluent.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

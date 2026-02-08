@@ -161,8 +161,7 @@
     <ClCompile Include="..\..\src\utilities\MsgBoxes.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\assets\Sender.ico" />
-    <Image Include="..\..\assets\small.ico" />
+    <Image Include="..\..\..\assets\icon\fluent\gl-icon-fluent.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
