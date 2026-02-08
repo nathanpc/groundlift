@@ -14,20 +14,17 @@
 
 #include "stdafx.h"
 
-// Instance operators.
-ATOM RegisterApplication(HINSTANCE hInstance);
+// Initialization routines.
 HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow);
-int TerminateInstance(HINSTANCE hInstance, int nDefRC);
 
-// Window procedure.
-LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT wMsg, WPARAM wParam,
-								LPARAM lParam);
+// Dialog window procedure.
+INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
+							 LPARAM lParam);
 
-// Window message handlers.
-LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
-LRESULT WndMainCommand(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
-LRESULT WndMainNotify(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
-LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
-LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam);
+// Dialog window message handlers.
+INT_PTR DlgMainInit(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam);
+INT_PTR DlgMainCommand(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam);
+INT_PTR DlgMainClose(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam);
+INT_PTR DlgMainDestroy(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam);
 
 #endif // _SENDER_APP_H

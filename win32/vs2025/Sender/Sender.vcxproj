@@ -163,6 +163,9 @@
   <ItemGroup>
     <Image Include="..\..\..\assets\icon\fluent\gl-icon-fluent.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Xml Include="..\..\src\sender\manifest.xml" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -11,9 +11,9 @@
 	#include <crtdbg.h>
 #endif // defined(DEBUG) && !defined(UNDER_CE)
 
-// Global variables.
-static TCHAR szWindowClass[20];
-static TCHAR szAppTitle[20];
+// Global state variables.
+static HINSTANCE g_hInstance;
+static HWND g_hWnd;
 
 /**
  * Application's main entry point.
@@ -28,9 +28,7 @@ static TCHAR szAppTitle[20];
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 					  LPTSTR lpCmdLine, int nCmdShow) {
 	MSG msg;
-	HACCEL hAccel;
-	HWND hwndMain;
-	int rc;
+	int rc = 0;
 	
 	// Ensure we specify parameters not in use.
 	UNREFERENCED_PARAMETER(hPrevInstance);
@@ -52,45 +50,20 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		return 1;
 	}
 
-	// Load the application class and title.
-	LoadString(hInstance, IDS_APP_CLASS, szWindowClass, 20);
-	LoadString(hInstance, IDS_APP_TITLE, szAppTitle, 20);
-
-	// Initialize the application.
-	rc = RegisterApplication(hInstance);
-	if (rc == 0) {
-		MsgBoxError(NULL, _T("Error Registering Class"),
-			_T("An error occurred while trying to register the application's ")
-			_T("window class."));
-		rc = 1;
-		goto terminate;
-	}
-
-	// Initialize this single instance.
-	hwndMain = InitializeInstance(hInstance, lpCmdLine, nCmdShow);
-	if (hwndMain == 0) {
-		MsgBoxError(NULL, _T("Error Initializing Instance"),
-			_T("An error occurred while trying to initialize the ")
-			_T("application's instance."));
+	// Initialize the dialog window.
+	g_hInstance = hInstance;
+	g_hWnd = InitializeInstance(hInstance, lpCmdLine, nCmdShow);
+	if (g_hWnd == NULL) {
 		rc = 0x10;
 		goto terminate;
 	}
 
-	// Load accelerators.
-	hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATORS));
-
 	// Application message loop.
 	while (GetMessage(&msg, NULL, 0, 0)) {
-		// Translate accelerators.
-		if (!TranslateAccelerator(hwndMain, hAccel, &msg)) {
-			// Translate message.
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
+		// Translate message.
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
-
-	// Terminate instance.
-	rc = TerminateInstance(hInstance, (int)msg.wParam);
 
 terminate:
 #if defined(_DEBUG) && !defined(UNDER_CE)
@@ -113,43 +86,16 @@ terminate:
 }
 
 /**
- * Initializes the application and registers the application class.
- *
- * @param hInstance Application instance.
- *
- * @return TRUE if the class was registered.
- */
-ATOM RegisterApplication(HINSTANCE hInstance) {
-	// Setup the application's main window class.
-	WNDCLASSEX wcex;
-	wcex.cbSize         = sizeof(WNDCLASSEX); 
-	wcex.style			= CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc	= (WNDPROC)MainWindowProc;
-	wcex.cbClsExtra		= 0;
-	wcex.cbWndExtra		= 0;
-	wcex.hInstance		= hInstance;
-	wcex.hIcon			= LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SENDER));
-	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground	= GetSysColorBrush(COLOR_WINDOW);
-	wcex.lpszMenuName	= MAKEINTRESOURCE(IDM_MAIN);
-	wcex.lpszClassName	= szWindowClass;
-	wcex.hIconSm		= LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-	// Register the application's main window class.
-	return RegisterClassEx(&wcex);
-}
-
-/**
- * Initializes the instance and creates the window.
+ * Initializes the instance and creates the dialog window.
  *
  * @param hInstance Program instance.
  * @param lpCmdLine String with command line text.
  * @param nShowCmd  Initial state of the program's main window.
  *
- * @return Window handler.
+ * @return Dialog window handler.
  */
 HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
-	HWND hWnd;
+	HWND hDlg;
 
 	// Initialize main window object.
 	int numArgs = 0;
@@ -162,83 +108,59 @@ HWND InitializeInstance(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow) {
 	szFilename = NULL;
 
 	// Create the main window.
-	hWnd = CreateWindow(szWindowClass,			// Window class.
-						szAppTitle,				// Window title.
-						WS_OVERLAPPEDWINDOW,	// Style flags.
-						CW_USEDEFAULT,			// X position.
-						CW_USEDEFAULT,			// Y position.
-						300,					// Initial width,
-						100,					// Initial height.
-						NULL,					// Parent window.
-						NULL,					// Menu class. (Always NULL)
-						hInstance,				// Application instance.
-						NULL);					// Pointer to create parameters.
+	hDlg = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_SENDER), NULL,
+						(DLGPROC)MainDlgProc);
 
 	// Check if the window creation worked.
-	if (!IsWindow(hWnd)) {
+	if (hDlg == NULL) {
 		MsgBoxError(NULL, _T("Error Initializing Instance"),
-			_T("Window creation failed."));
+		            _T("An error occurred while trying to initialize the ")
+		            _T("application's main dialog."));
 		return NULL;
 	}
 
-	// Show and update the window.
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
-
-	return hWnd;
+	// Show the dialog window and return.
+	ShowWindow(hDlg, SW_SHOW);
+	return hDlg;
 }
 
 /**
- * Terminates the application instance.
+ * Main diaog window procedure.
  *
- * @param hInstance Application instance.
- * @param nDefRC    Return code.
- *
- * @return Previous return code.
- */
-int TerminateInstance(HINSTANCE hInstance, int nDefRC) {
-	return nDefRC;
-}
-
-/**
- * Main window procedure.
- *
- * @param hWnd   Window handler.
+ * @param hDlg   Dialog window handle.
  * @param wMsg   Message type.
  * @param wParam Message parameter.
  * @param lParam Message parameter.
  *
- * @return 0 if everything worked.
+ * @return TRUE if everything worked.
  */
-LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT wMsg, WPARAM wParam,
-								LPARAM lParam) {
+INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT wMsg, WPARAM wParam,
+							 LPARAM lParam) {
 	switch (wMsg) {
-		case WM_CREATE:
-			return WndMainCreate(hWnd, wMsg, wParam, lParam);
+		case WM_INITDIALOG:
+			return DlgMainInit(hDlg, wMsg, wParam, lParam);
 		case WM_COMMAND:
-			return WndMainCommand(hWnd, wMsg, wParam, lParam);
-		case WM_NOTIFY:
-			return WndMainNotify(hWnd, wMsg, wParam, lParam);
+			return DlgMainCommand(hDlg, wMsg, wParam, lParam);
 		case WM_CLOSE:
-			return WndMainClose(hWnd, wMsg, wParam, lParam);
+			return DlgMainClose(hDlg, wMsg, wParam, lParam);
 		case WM_DESTROY:
-			return WndMainDestroy(hWnd, wMsg, wParam, lParam);
+			return DlgMainDestroy(hDlg, wMsg, wParam, lParam);
 	}
 
-	return DefWindowProc(hWnd, wMsg, wParam, lParam);
+	return (INT_PTR)false;
 }
 
 /**
- * Process the WM_CREATE message for the window.
+ * Process the WM_INITDIALOG message for the window.
  *
- * @param hWnd   Window handler.
+ * @param hDlg   Dialog window handle.
  * @param wMsg   Message type.
  * @param wParam Message parameter.
  * @param lParam Message parameter.
  *
- * @return 0 if everything worked.
+ * @return TRUE if everything worked.
  */
-LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
+INT_PTR DlgMainInit(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Ensure that the common controls DLL is loaded and initialized.
 	INITCOMMONCONTROLSEX icex;
 	icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -246,91 +168,69 @@ LRESULT WndMainCreate(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	             ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
 	InitCommonControlsEx(&icex);
 
-	// Grab the dimensions of the client area.
-	RECT rcClient;
-	GetClientRect(hWnd, &rcClient);
-
-	return 0;
+	return (INT_PTR)true;
 }
 
 /**
  * Process the WM_COMMAND message for the window.
  *
- * @param hWnd   Window handler.
+ * @param hDlg   Dialog window handle.
  * @param wMsg   Message type.
  * @param wParam Message parameter.
  * @param lParam Message parameter.
  *
- * @return 0 if everything worked.
+ * @return TRUE if everything worked.
  */
-LRESULT WndMainCommand(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
+INT_PTR DlgMainCommand(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	UINT_PTR wmId = LOWORD(wParam);
 	UINT_PTR wmEvent = HIWORD(wParam);
 
 	switch (wmId) {
-	case IDM_EXIT:
-		PostMessage(hWnd, WM_CLOSE, (WPARAM)0, (LPARAM)0);
-		return 0;
-	default:
-		MsgBoxInfo(hWnd, _T("Unknown Command ID"),
-			_T("WM_COMMAND for MainWindow with unknown ID"));
+		case IDOK:
+		case IDCANCEL:
+			SendMessage(hDlg, WM_CLOSE, 0, 0);
+			//EndDialog(hDlg, wmId);
+			return (INT_PTR)true;
+		default:
+			MsgBoxInfo(hDlg, _T("Unknown Command ID"),
+				_T("WM_COMMAND for main dialog with unknown ID"));
 	}
 
-	return DefWindowProc(hWnd, wMsg, wParam, lParam);
-}
-
-/**
- * Process the WM_NOTIFY message for the window.
- *
- * @param hWnd   Window handler.
- * @param wMsg   Message type.
- * @param wParam Identifier of the common control sending the message. Not
- *               always unique. hwndFrom or idFrom of the NMHDR should be used.
- * @param lParam Pointer to an NMHDR structure containing the notification code
- *               and additional information.
- *
- * @return 0 if everything worked.
- */
-LRESULT WndMainNotify(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
-	LPNMHDR nmh = (LPNMHDR)lParam;
-	switch (nmh->code) {
-	default:
-		return DefWindowProc(hWnd, wMsg, wParam, lParam);
-	}
+	return (INT_PTR)false;
 }
 
 /**
  * Process the WM_CLOSE message for the window.
  *
- * @param hWnd   Window handler.
+ * @param hDlg   Dialog window handle.
  * @param wMsg   Message type.
  * @param wParam This parameter is not used.
  * @param lParam This parameter is not used.
  *
- * @return 0 if everything worked.
+ * @return TRUE if everything worked.
  */
-LRESULT WndMainClose(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
-	// Send main window destruction message.
-	DestroyWindow(hWnd);
+INT_PTR DlgMainClose(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam) {
+	// Send window destruction message.
+	DestroyWindow(hDlg);
 
 	// Call any destructors that might be needed.
 	// TODO: Call destructors.
 
-	return DefWindowProc(hWnd, wMsg, wParam, lParam);
+	return (INT_PTR)true;
 }
 
 /**
  * Process the WM_DESTROY message for the window.
  *
- * @param hWnd   Window handler.
+ * @param hDlg   Dialog window handle.
  * @param wMsg   Message type.
  * @param wParam This parameter is not used.
  * @param lParam This parameter is not used.
  *
- * @return 0 if everything worked.
+ * @return TRUE if everything worked.
  */
-LRESULT WndMainDestroy(HWND hWnd, UINT wMsg, WPARAM wParam, LPARAM lParam) {
+INT_PTR DlgMainDestroy(HWND hDlg, UINT wMsg, WPARAM wParam, LPARAM lParam) {
 	// Post quit message and return.
 	PostQuitMessage(0);
-	return 0;
+	return (INT_PTR)true;
 }

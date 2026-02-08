@@ -17,8 +17,6 @@
 // Used by Sender.rc
 
 #define IDR_MAINFRAME			128
-#define IDD_SENDER_DIALOG		102
-#define IDD_ABOUTBOX			103
 #define IDR_ACCELERATORS        106
 #define IDI_SENDER				107
 #define IDI_SMALL				108
@@ -27,6 +25,10 @@
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif
+
+// Dialogs
+#define IDD_SENDER				191
+#define IDD_ABOUTBOX			193
 
 // Strings
 #define IDS_APP_CLASS           201
